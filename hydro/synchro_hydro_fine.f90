@@ -77,6 +77,12 @@ subroutine synchydrofine1(ind_cell,ncell,dteff,which_force)
 #endif
   real(dp),dimension(1:nvector),save::pp
 
+#if USE_TURB==1
+  ! check for 2D turbulence
+  !PH 12/10/2019 suppresses forcing along z-direction as large scale galactic forcing is within the plane
+  if ((which_force==2) .and. (turb2D)) nndim = ndimturb
+#endif
+
   ! Compute internal + magnetic + radiative energy
   do i=1,ncell
      pp(i)=uold(ind_cell(i),neul)
@@ -91,7 +97,7 @@ subroutine synchydrofine1(ind_cell,ncell,dteff,which_force)
   end do
 
   ! Update momentum
-  do idim=1,ndim
+  do idim=1,nndim
 #if USE_TURB==1
      if (which_force==2) then
         !turbulence

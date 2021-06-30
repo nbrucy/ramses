@@ -13,7 +13,7 @@ subroutine read_turb_params(nml_ok)
   ! Namelist definitions
   !--------------------------------------------------
   namelist/turb_params/turb, turb_seed, turb_type, instant_turb, comp_frac,&
-       & forcing_power_spectrum, turb_T, turb_Ndt, turb_rms, turb_min_rho
+       & forcing_power_spectrum, turb_T, turb_Ndt, turb_rms, turb_min_rho, turb2D
 
   !--------------------------------------------------
   ! Read namelist; check variables that have been loaded
@@ -54,6 +54,10 @@ subroutine read_turb_params(nml_ok)
   if (turb_rms <= 0.0_dp) then
      write (*,*) "Turbulent forcing rms acceleration must be > 0.0!"
      nml_ok = .FALSE.
+  end if
+
+  if (turb2D) then
+     ndimturb = 2
   end if
 
 87 continue

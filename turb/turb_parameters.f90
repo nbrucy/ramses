@@ -50,5 +50,8 @@ module turb_parameters
 
   real(dp) :: turb_min_rho=1d-50  ! Minimum density for turbulence
 
+  logical  :: turb2D=.false.      !do 2D forcing (in the XY plane)
+  integer  :: ndimturb=3          ! number of dimension of the turbulent driving
+
 end module turb_parameters
 #endif
