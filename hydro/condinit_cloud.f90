@@ -15,15 +15,18 @@ subroutine read_cloud_params()
   use cloud_module
   implicit none
 
+  character(LEN=80)::infile
+
   !--------------------------------------------------
   ! Namelist definitions
   !--------------------------------------------------
   namelist/cloud_params/turb, Height0, dens0
 
   ! Read namelist file
-  rewind(1)
-  read(1, NML=cloud_params, END=101)
-101 continue      ! No harm if no namelist
+  call getarg(1,infile) ! get the name of the namelist
+  open(1, file=infile)
+  read(1, NML=cloud_params)
+  close(1)
 
 end subroutine read_cloud_params
 
