@@ -1,4 +1,4 @@
- subroutine init_part
+subroutine init_part
   use amr_commons
   use pm_commons
   use clfind_commons
@@ -258,8 +258,6 @@
   else
 
      filetype_loc=filetype
-     if(.not. cosmo)filetype_loc='ascii'
-
      select case (filetype_loc)
 
      case ('grafic')
