@@ -4,9 +4,9 @@ module cloud_module
   ! This module contains the variable needed for cloud IC
   !================================================================
 
-  real(dp)::turb=0.
-  real(dp)::dens0=0.
-  real(dp)::Height0=0.
+  real(dp),save::turb=0.
+  real(dp),save::dens0=0.
+  real(dp),save::Height0=0.
 
 end module cloud_module
 
@@ -63,7 +63,7 @@ subroutine condinit_cloud(x,u,dx,nn)
   real(dp)::pi,xx,yy
   real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2
 
-  real(dp),save:: first
+  logical,save:: first_call = .true.
   real(dp),dimension(1:3,1:100,1:100,1:100),save::q_idl
   real(dp),save::vx_tot,vy_tot,vz_tot,vx2_tot,vy2_tot,vz2_tot,vx,vy,vz,v_rms
   integer,save:: n_size
@@ -74,11 +74,11 @@ subroutine condinit_cloud(x,u,dx,nn)
 
 
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
-  call read_cloud_params()
 
-!!! Step 1 : Initialize turbulent velocity field
-
-  if( first .eq. 0.) then
+!!! Step 1 : Read params and initialize turbulent velocity field
+if(first_call) then
+     
+     call read_cloud_params()
 
      ! Read the turbulent velocity field used as initial condition
      if(myid ==1) write(*,*) '[condinit] Read the file which contains the initial turbulent velocity field'
@@ -141,14 +141,14 @@ subroutine condinit_cloud(x,u,dx,nn)
      ! turb is in km/s ,  1.d5 converts it in cm/s
      v_rms =  turb*1.d5 / scale_v / v_rms
 
-     if (myid ==1 ) write(*,*) 'turb ', turb, ', v_rms ', v_rms , 'first ',first
+     if (myid ==1 ) write(*,*) 'turb ', turb, ', v_rms ', v_rms , 'first_call ',first_call
 
 100  format(i5,4e10.5)
 101  format(6e10.5)
 102  format(i5)
 
      if (myid ==1)  write(*,*) '[condinit] Reading achieved'
-     first = 1.
+     first_call = .false.
   end if
 
 !!! Step 2: Initialize primitive field

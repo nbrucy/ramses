@@ -6,7 +6,7 @@
 # Do we want a debug build? 1=Yes, 0=No
 DEBUG = 0
 # Compiler flavor: GNU or INTEL
-COMPILER = GNU
+COMPILER = INTEL
 # Size of vector cache
 NVECTOR = 32
 # Number of dimensions
@@ -20,9 +20,9 @@ PATCH =
 # Use RT? 1=Yes, 0=No
 RT = 0
 # Use turbulence? 1=Yes, 0=No (requires fftw3)
-USE_TURB=0
+USE_TURB=1
 # Use MPI? 1=Yes, 0=No
-MPI = 0
+MPI = 1
 MPIF90 = mpif90
 # Root name of executable
 EXEC = ramses
@@ -130,8 +130,8 @@ ifeq ($(GRACKLE),1)
    LIBS_OBJ     = -I$(HOME)/local/include -DCONFIG_BFLOAT_8 -DH5_USE_16_API -fPIC
 endif
 ifeq ($(USE_TURB),1)
-   LIBS_TURB = -L$(HOME)/local/lib -lfftw3
-   LIBS_OBJ_TURB = -I$(HOME)/local/include -lfftw3
+   LIBS_TURB = -L$(FFTW3_DIR)/lib -lfftw3
+   LIBS_OBJ_TURB = -I$(FFTW3_DIR)/include -lfftw3
 endif
 LIBS = $(LIBMPI) $(LIBS_GRACKLE) $(LIBS_TURB)
 #############################################################################

@@ -100,19 +100,22 @@ subroutine condinit(x,u,dx,nn)
   real(dp)::dx                            ! Cell size
   real(dp),dimension(1:nvector,1:nvar)::u ! Conservative variables
   real(dp),dimension(1:nvector,1:ndim)::x ! Position of cell center
+  logical,save:: first_call = .true.           ! True if this is the first call to condinit
 
   select case (condinit_kind)
 
   case('cloud')
-     if (myid == 1) write(*,*) "[condinit] Using cloud IC"
+     if (myid == 1 .and. first_call) write(*,*) "[condinit] Using cloud IC"
      call condinit_cloud(x, u, dx, nn)
   case('default')
      call condinit_default(x, u, dx, nn)
 
   case DEFAULT
-     if (myid == 1) write(*,*) "[condinit] Void or invalid condinit_kind, using default IC"
+     if (myid == 1.and. first_call)  write(*,*) "[condinit] Void or invalid condinit_kind, using default IC"
      call condinit_default(x, u, dx, nn)
 
   end select
+
+  first_call = .false.
 
 end subroutine condinit
