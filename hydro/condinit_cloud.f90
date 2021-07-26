@@ -7,6 +7,7 @@ module cloud_module
   real(dp),save::turb=0.
   real(dp),save::dens0=0.
   real(dp),save::Height0=0.
+  real(dp),save::Bx=0.,By=0.,Bz=0.
 
 end module cloud_module
 
@@ -20,7 +21,7 @@ subroutine read_cloud_params()
   !--------------------------------------------------
   ! Namelist definitions
   !--------------------------------------------------
-  namelist/cloud_params/turb, Height0, dens0
+  namelist/cloud_params/turb, Height0, dens0,Bx,By,Bz
 
   ! Read namelist file
   call getarg(1,infile) ! get the name of the namelist
@@ -61,7 +62,7 @@ subroutine condinit_cloud(x,u,dx,nn)
 
   integer::ivar,i,j,k
   real(dp)::pi,xx,yy
-  real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2
+  real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2,mag_norm
 
   logical,save:: first_call = .true.
   real(dp),dimension(1:3,1:100,1:100,1:100),save::q_idl
@@ -75,10 +76,20 @@ subroutine condinit_cloud(x,u,dx,nn)
 
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
 
+  mag_norm = sqrt(1.*8000./scale_T2*2.*1.5)
+
+
+
 !!! Step 1 : Read params and initialize turbulent velocity field
 if(first_call) then
      
+     if(myid .eq. 1) write(*,*) 'mag_norm', mag_norm
+
      call read_cloud_params()
+
+     if(myid .eq. 1) then 
+        write(*,*) 'turb, Height0, dens0,Bx,By,Bz',turb, Height0, dens0,Bx,By,Bz
+     endif
 
      ! Read the turbulent velocity field used as initial condition
      if(myid ==1) write(*,*) '[condinit] Read the file which contains the initial turbulent velocity field'
@@ -158,6 +169,22 @@ if(first_call) then
      x(i,2) = x(i,2) - 0.5 * boxlen
      x(i,3) = x(i,3) - 0.5 * boxlen
 
+
+#ifdef SOLVERmhd
+     !Bx component 
+     q(i,6     ) = Bx * mag_norm * exp(-x(i,3)**2/(2.*Height0**2)) !exponential profile along z
+     q(i,nvar+1) = q(i,6)
+
+     !By component
+     q(i,7     ) =  By * mag_norm
+     q(i,nvar+2) =  q(i,7)
+
+     !Bz component
+     q(i,8     ) =  Bz * mag_norm
+     q(i,nvar+3) =  q(i,8)
+#endif
+
+
      ! in cgs
 
      ! density
@@ -183,6 +210,9 @@ if(first_call) then
   end do
 
 
+
+
+
 !!! Step 3: Convert primitive to conservative variables
 
   ! density -> density
@@ -198,6 +228,16 @@ if(first_call) then
   u(1:nn,5)=u(1:nn,5)+0.5*q(1:nn,1)*q(1:nn,4)**2
   ! pressure -> total fluid energy
   u(1:nn,5)=u(1:nn,5)+q(1:nn,5)/(gamma-1.0d0)
+
+
+#ifdef SOLVERmhd
+  ! magnetic energy -> total fluid energy
+  u(1:nn,5)=u(1:nn,5)+0.125d0*(q(1:nn,6)+q(1:nn,nvar+1))**2
+  u(1:nn,5)=u(1:nn,5)+0.125d0*(q(1:nn,7)+q(1:nn,nvar+2))**2
+  u(1:nn,5)=u(1:nn,5)+0.125d0*(q(1:nn,8)+q(1:nn,nvar+3))**2
+  u(1:nn,6:8)=q(1:nn,6:8)
+#endif
+
 
 #if NVAR>6
   ! passive scalars
