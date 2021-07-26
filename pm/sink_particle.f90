@@ -737,7 +737,7 @@ subroutine accrete_sink(ind_grid,ind_part,ind_grid_part,ng,np,ilevel,on_creation
   integer,dimension(1:nvector)::ind_grid_part,ind_part
   logical::on_creation
   integer::j,nx_loc,isink,ivar,idim,ind
-  real(dp)::d,e,density,volume
+  real(dp)::d,e,density,volume,d_floor
 #ifdef SOLVERmhd
   real(dp)::bx1,bx2,by1,by2,bz1,bz2
 #endif
@@ -883,8 +883,28 @@ subroutine accrete_sink(ind_grid,ind_part,ind_grid_part,ng,np,ilevel,on_creation
                  m_acc_smbh=0
               end if
            else
-              m_acc      = dMsink_overdt(isink)*dtnew(ilevel)*weight/volume
-              m_acc_smbh = dMsmbh_overdt(isink)*dtnew(ilevel)*weight/volume
+
+              !PH 26/07/2021 has reintroduced this line from the previous RAMSES_ism version
+              if (bondi_accretion)then
+                 m_acc      = dMsink_overdt(isink)*dtnew(ilevel)*weight/volume
+                 m_acc_smbh = dMsmbh_overdt(isink)*dtnew(ilevel)*weight/volume
+!PH 26/07/2021 - this is the previous line from RAMSES_ism
+!                 m_acc=dMsink_overdt(isink)*dtnew(ilevel)*weight/volume*d/density
+              end if
+
+              if (threshold_accretion.and.d_sink>0.0)then
+                 d_floor=d_sink ! User defined density threshold
+                 ! Jeans length related density threshold  
+!                 if(jeans_accretion)then
+!                    call soundspeed_eos(d,eint,c2)
+!                    c2=c2**2
+!                    d_jeans=c2*3.1415926/(4.0*dx_loc)**2/factG
+!                    d_floor=d_jeans
+!                 endif
+                 m_acc=c_acc*weight*(d-d_floor)
+              end if
+
+
               if (agn_acc_method=='mass') then
                  m_acc      = m_acc * (d/density)
                  m_acc_smbh = m_acc_smbh * (d/density)
@@ -2466,7 +2486,7 @@ subroutine read_sink_params()
   integer::nx_loc
   namelist/sink_params/n_sink,rho_sink,d_sink,accretion_scheme,merging_timescale,&
        ir_cloud_massive,sink_soft,mass_sink_direct_force,ir_cloud,nsinkmax,create_sinks,&
-       mass_sink_seed,mass_smbh_seed,&
+       mass_sink_seed,mass_smbh_seed, c_acc, &  !c_acc reintroduced by PH 26/07/2021
        eddington_limit,acc_sink_boost,mass_merger_vel_check,&
        clump_core,verbose_AGN,T2_AGN,T2_min,cone_opening,mass_halo_AGN,mass_clump_AGN,mass_star_AGN,&
        AGN_fbk_frac_ener,AGN_fbk_frac_mom,T2_max,boost_threshold_density,&
@@ -2518,6 +2538,8 @@ subroutine read_sink_params()
 
   ! Check for accretion scheme
   if (accretion_scheme=='bondi')bondi_accretion=.true.
+  !reintroduced by PH 26/07/2021 from RAMSES_ISM
+  if (accretion_scheme =='threshold')threshold_accretion=.true.
 
   ! For sink formation and accretion a threshold must be given
   if (create_sinks .or. (accretion_scheme .ne. 'none'))then
