@@ -188,7 +188,9 @@ subroutine flag_formation_sites
 !!$        ! Clump has to be virialized
 !!$        ok=ok.and.Icl_dd(jj)<0.
         ! Avoid formation of sinks from gas which is only compressed by thermal pressure rather than gravity.
-        ok=ok.and.(kinetic_support(jj)<-grav_term(jj))
+        !PH 23/07/2021 removed this because not theoretically clear
+        !turbulence is promoting small scale density fluctuations
+!        ok=ok.and.(kinetic_support(jj)<-grav_term(jj))
 !!$        ! Avoid formation of crazy spins
 !!$        ok=ok.and.(kinetic_support(jj)<factG*mass_sink_seed*M_sun/(scale_d*scale_l**3)/(ir_cloud*dx_min/aexp))
         ! Clumps should not be thermally supported against gravity

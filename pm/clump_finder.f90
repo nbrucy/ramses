@@ -827,12 +827,15 @@ subroutine get_cell_index(cell_index,cell_levl,xpart,ilevel,n)
   real(dp)::xx,yy,zz
   integer::i,j,ii,jj,kk,ind,iskip,igrid,ind_cell,igrid0
 
-  if ((nx.eq.1).and.(ny.eq.1).and.(nz.eq.1)) then
-  else if ((nx.eq.3).and.(ny.eq.3).and.(nz.eq.3)) then
-  else
-     write(*,*)"nx=ny=nz != 1,3 is not supported."
-     call clean_stop
-  end if
+  !PH 23/07/2021
+  !has been doing this ramses_ism and seems to be fine
+  !nz !ne 2 with open boundary conditions
+!  if ((nx.eq.1).and.(ny.eq.1).and.(nz.eq.1)) then
+!  else if ((nx.eq.3).and.(ny.eq.3).and.(nz.eq.3)) then
+!  else
+!     write(*,*)"nx=ny=nz != 1,3 is not supported."
+!     call clean_stop
+!  end if
 
   ind_cell=0
   igrid0=son(1+icoarse_min+jcoarse_min*nx+kcoarse_min*nx*ny)
