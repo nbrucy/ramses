@@ -68,6 +68,10 @@ module hydro_parameters
 #endif
   real(dp),dimension(1:MAXLEVEL)::jeans_refine=-1.0
 
+  ! Initial condition parameter
+  character(LEN=10)::condinit_kind =''
+
+
   ! Initial conditions hydro variables
   real(dp),dimension(1:MAXREGION)::d_region=0.
   real(dp),dimension(1:MAXREGION)::u_region=0.
@@ -116,5 +120,11 @@ module hydro_parameters
   integer::ivirial1=9
   integer::ivirial2=9
   integer::inener=9
+
+
+!!! BrucyN - rho_floor
+  logical  :: rho_floor  = .false.  ! whether to set a minimal value (equal to smallr) to density
+!!! NBrucy
+
 
 end module hydro_parameters

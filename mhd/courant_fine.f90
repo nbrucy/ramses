@@ -261,7 +261,7 @@ subroutine velocity_fine(ilevel)
         end do
 
         ! Impose analytical velocity field
-        call velana(xx,vv,dx_loc,t,ngrid)
+!        call velana(xx,vv,dx_loc,t,ngrid)
 
         ! Impose induction variables
         do i=1,ngrid
