@@ -1,4 +1,5 @@
 #if USE_TURB==1
+! TC: this file should be renamed "calc turb forcing" to reflect the subroutine name
 subroutine calc_turb_forcing(ilevel)
   use amr_commons
   use hydro_commons
@@ -87,7 +88,7 @@ subroutine calc_turb_forcing(ilevel)
 
         do i=1,ngrid
            do idim=1,ndim
-              fturb(ind_cell(i), idim) = aturb(idim, i)
+              fturb(ind_cell(i), idim) = aturb(idim, i) !TC: why are these indices reversed? Can't we make this simpler?
            end do
            if(turb_strat) then
             fturb(ind_cell(i), :) = attenuation(i) * fturb(ind_cell(i), :)
