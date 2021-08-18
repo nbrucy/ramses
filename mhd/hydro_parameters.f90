@@ -146,6 +146,9 @@ module hydro_parameters
   real(dp)::floor_C=1d-10   ! Bz floor
   real(dp)::floor_b2=1d-10  ! B L2 norm floor
   real(dp)::mass_sph=0.0D0   ! mass_sph
+  !!! FlorentR - PATCH Temperature extrema
+  real(dp)::temp_max = 1d99
+!!! FRenaud
 #if NENER>0
   real(dp),dimension(1:NENER)::err_grad_prad=-1.0
 #endif

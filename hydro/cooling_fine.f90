@@ -572,7 +572,10 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
         end do
      else if(cooling .or. neq_chem)then
         do i=1,nleaf
-           uold(ind_leaf(i),neul) = T2(i) + T2min(i) + ekk(i) + err(i) + emag(i)
+!!! FlorentR - PATCH Temperature extrema
+           uold(ind_leaf(i),neul) = min(T2(i) + T2min(i), temp_max*nH(i)/scale_T2/(gamma-1.0))
+           uold(ind_leaf(i),neul) = uold(ind_leaf(i),neul)+ ekk(i) + err(i) + emag(i)
+!!! FRenaud
         end do
      endif
 
