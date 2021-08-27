@@ -3,6 +3,8 @@ subroutine init_part
   use pm_commons
   use clfind_commons
 
+  use feedback_module
+
 #ifdef RT
   use rt_parameters,only: convert_birth_times
 #endif
@@ -279,6 +281,9 @@ subroutine init_part
   end if
 
   if(sink)call init_sink
+
+
+  if(stellar)call init_stellar
 
 contains
 

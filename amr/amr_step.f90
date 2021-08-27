@@ -11,6 +11,13 @@ recursive subroutine amr_step(ilevel,icount)
   use coolrates_module, only: update_coolrates_tables
   use rt_cooling_module, only: update_UVrates
 #endif
+
+!  use cloud_module, only: rt_feedback,rt_protostar_fld
+  !use rt_cooling_module, only: rt_protostar_m1
+  use feedback_module
+
+
+
 #if USE_TURB==1
   use turb_commons
 #endif
@@ -195,6 +202,23 @@ recursive subroutine amr_step(ilevel,icount)
      if(hydro.and.star.and.eta_sn>0.and.f_w>0)call kinetic_feedback
 
   endif
+
+
+     !----------------------------------------------------
+     ! Feedback on sink particles
+     !----------------------------------------------------
+     if(stellar) then
+        if(make_stellar_glob) then
+           call make_stellar_from_sinks_glob
+        else
+           call make_stellar_from_sinks
+        endif
+     endif
+     if (sn_feedback_sink) then
+        call make_sn_stellar
+     endif
+
+
 
   !--------------------
   ! Poisson source term

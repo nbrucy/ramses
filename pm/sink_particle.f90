@@ -603,6 +603,9 @@ subroutine grow_sink(ilevel,on_creation)
   msink_new=0d0; msmbh_new=0d0
   xsink_new=0d0; vsink_new=0d0; lsink_new=0d0; delta_mass_new=0d0
 
+  !PH 28/07/2021
+  dmfsink_new=0d0
+
   ! Loop over cpus
   do icpu=1,ncpu
      igrid=headl(icpu,ilevel)
@@ -667,6 +670,9 @@ subroutine grow_sink(ilevel,on_creation)
      call MPI_ALLREDUCE(vsink_new,vsink_all,nsinkmax*ndim,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
      call MPI_ALLREDUCE(lsink_new,lsink_all,nsinkmax*ndim,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
      call MPI_ALLREDUCE(delta_mass_new,delta_mass_all,nsinkmax,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
+
+     !PH 28/07/2021
+     call MPI_ALLREDUCE(dmfsink_new,dmfsink_all,nsinkmax,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
 #else
      msink_all=msink_new
      msmbh_all=msmbh_new
@@ -674,6 +680,9 @@ subroutine grow_sink(ilevel,on_creation)
      vsink_all=vsink_new
      lsink_all=lsink_new
      delta_mass_all=delta_mass_new
+
+     !PH 28/07/2021
+     dmfsink_all=dmfsink_new
 #endif
   endif
 
@@ -683,6 +692,9 @@ subroutine grow_sink(ilevel,on_creation)
         ! Update mass from accretion
         msink(isink)=msink(isink)+msink_all(isink)
         msmbh(isink)=msmbh(isink)+msmbh_all(isink)
+
+        !PH 28/07/2021
+        dmfsink(isink)=dmfsink(isink)+dmfsink_all(isink)
 
         ! Reset jump in old sink coordinates
         do lev=levelmin,nlevelmax
@@ -948,6 +960,10 @@ subroutine accrete_sink(ind_grid,ind_part,ind_grid_part,ng,np,ilevel,on_creation
 
            ! Add accreted properties to sink variables
            msink_new(isink)=msink_new(isink)+m_acc
+
+           !PH 28/07/2021
+           dmfsink_new(isink)=dmfsink_new(isink)+m_acc
+
            msmbh_new(isink)=msmbh_new(isink)+m_acc_smbh
            xsink_new(isink,1:ndim)=xsink_new(isink,1:ndim)+x_acc(1:ndim)
            vsink_new(isink,1:ndim)=vsink_new(isink,1:ndim)+p_acc(1:ndim)
@@ -1378,6 +1394,9 @@ subroutine make_sink_from_clump(ilevel)
   xsink_new=0d0; vsink_new=0d0; lsink_new=0d0; delta_mass_new=0d0
   tsink_new=0d0; oksink_new=0d0; idsink_new=0; new_born_new=.false.
 
+  !PH 28/07/2021
+  dmfsink_new=0d0
+
   ! Count number of new sinks (flagged cells)
   ntot=0
   ntot_sink_cpu=0
@@ -1516,6 +1535,9 @@ subroutine make_sink_from_clump(ilevel)
               msmbh_new(index_sink)=delta_d*vol_loc
               delta_mass_new(index_sink)=msmbh_new(index_sink)
 
+              !PH 28/07/2021
+              dmfsink_new(index_sink)=delta_d*vol_loc
+
               ! Global index of the new sink
               oksink_new(index_sink)=1d0
               idsink_new(index_sink)=index_sink_tot
@@ -1568,6 +1590,9 @@ subroutine make_sink_from_clump(ilevel)
   call MPI_ALLREDUCE(idsink_new,idsink_all,nsinkmax,MPI_INTEGER         ,MPI_SUM,MPI_COMM_WORLD,info)
   call MPI_ALLREDUCE(tsink_new ,tsink_all ,nsinkmax,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
   call MPI_ALLREDUCE(new_born_new,new_born_all,nsinkmax,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,info)
+
+  !PH 28/07/2021
+  call MPI_ALLREDUCE(dmfsink_new ,dmfsink_all ,nsinkmax,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
 #else
   msink_all=msink_new
   msmbh_all=msmbh_new
@@ -1579,6 +1604,9 @@ subroutine make_sink_from_clump(ilevel)
   idsink_all=idsink_new
   tsink_all=tsink_new
   new_born_all=new_born_new
+
+  !PH 28/07/2021
+  dmfsink_all=dmfsink_new
 #endif
   do isink=1,nsink
      if(oksink_all(isink)==1)then
@@ -1595,6 +1623,9 @@ subroutine make_sink_from_clump(ilevel)
         fsink_partial(isink,1:ndim,levelmin:nlevelmax)=0.0
         vsold(isink,1:ndim,ilevel)=vsink_all(isink,1:ndim)
         vsnew(isink,1:ndim,ilevel)=vsink_all(isink,1:ndim)
+
+        !PH 28/07/2021
+        dmfsink(isink)=dmfsink_all(isink)
      endif
   end do
 #endif
@@ -1866,6 +1897,9 @@ subroutine update_sink(ilevel)
                  tsink(isink)        = min(tsink(isink),tsink(jsink))
                  idsink(isink)       = min(idsink(isink),idsink(jsink))
 
+                 !PH 28/07/2021
+                 dmfsink(isink)      = dmfsink(isink)+dmfsink(jsink) 
+
                  ! Store jump in new sink coordinates
                  do lev=levelmin,nlevelmax
                     sink_jump(isink,1:ndim,lev)=sink_jump(isink,1:ndim,lev)+xsink(isink,1:ndim)
@@ -1877,6 +1911,8 @@ subroutine update_sink(ilevel)
                  msum_overlap(jsink)=0
                  delta_mass(jsink)=0
 
+                 !PH 28/07/2021
+                 dmfsink(jsink)=0
               end if
            end if
         end do
@@ -2183,6 +2219,9 @@ subroutine clean_merged_sinks
            idsink(j)=idsink(j+1)
            msum_overlap(j)=msum_overlap(j+1)
            delta_mass(j)=delta_mass(j+1)
+
+           !PH 28/07/2021
+           dmfsink(j)=dmfsink(j+1)
         end do
 
         ! Whipe last position in the sink list
@@ -2196,6 +2235,9 @@ subroutine clean_merged_sinks
         idsink(nsink+1)=0
         msum_overlap(nsink+1)=0d0
         delta_mass(nsink+1)=0d0
+
+        !PH 28/07/2021
+        dmfsink(nsink+1)=0d0
      else
         i=i+1
      end if
@@ -2982,6 +3024,9 @@ subroutine synchronize_sink_info
   call MPI_BCAST(idsink,     nsinkmax, MPI_INTEGER,          1, MPI_COMM_WORLD, info)
   call MPI_BCAST(tsink,      nsinkmax, MPI_DOUBLE_PRECISION, 1, MPI_COMM_WORLD, info)
   call MPI_BCAST(new_born,   nsinkmax, MPI_LOGICAL,          1, MPI_COMM_WORLD, info)
+
+  !PH 28/07/2021
+  call MPI_BCAST(dmfsink,      nsinkmax, MPI_DOUBLE_PRECISION, 1, MPI_COMM_WORLD, info)
 
 end subroutine synchronize_sink_info
 #endif
