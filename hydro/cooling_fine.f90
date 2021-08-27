@@ -464,7 +464,17 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
 #else
      ! Compute net cooling at constant nH
      if(cooling.and..not.neq_chem)then
-        call solve_cooling(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
+
+        if(cooling_frig) then
+           !use cooling from module_cooling_frig described in Audit & Hennebelle 2005
+           call solve_cooling_frig(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
+
+        else
+
+           !use classical ramses cooling
+           call solve_cooling(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
+        endif
+
      endif
 #endif
 #ifdef RT

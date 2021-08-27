@@ -2,16 +2,90 @@ module hydro_parameters
   use amr_parameters
 
   ! Number of independant variables
+!#ifndef NENER
+!  integer,parameter::nener=0
+!#else
+!  integer,parameter::nener=NENER
+!#endif
+!#ifndef NVAR
+!  integer,parameter::nvar=8+nener
+!#else
+!  integer,parameter::nvar=NVAR
+!#endif
+
+
+
+
+
+
+  ! Number of independant variables
 #ifndef NENER
   integer,parameter::nener=0
 #else
   integer,parameter::nener=NENER
 #endif
+#ifndef NGRP
+  integer,parameter::ngrp=0   ! Number of radiative energy groups
+#else
+  integer,parameter::ngrp=NGRP
+#endif
+#if USE_M_1==0
+  integer,parameter::nrad=ngrp          ! Number of pure radiative variables (= radiative energies)
+  integer,parameter::nvar_bicg=nrad     ! Number of variables in BICG (= radiative variables)
+#endif
+#if USE_M_1==1
+  integer,parameter::nrad=(1+ndim)*ngrp  ! Number of pure radiative variables (= radiative energies + radiative fluxes)
+  integer,parameter::nvar_bicg=nrad+1    ! Number of variables in BICG (= temperature + radiative variables)
+#endif
+  integer,parameter::nvar_trad=nrad+1   ! Total number of radiative variables (= temperature + radiative energies)
+
+#ifndef NEXTINCT
+  integer,parameter::nextinct = 0       ! Add a variable to store extinction coefficient [0,1]
+#else
+  integer,parameter::nextinct = NEXTINCT
+#endif
+
+  ! Advect internal energy as a passive scalar, in a supplementary index
+#ifndef NPSCAL
+  integer,parameter::npscal=1
+#else
+  integer,parameter::npscal=NPSCAL
+#endif
+! Cosmic rays energy groups
+#ifndef NCR
+  integer,parameter::ncr=0
+#else
+  integer,parameter::ncr=NCR
+#endif
+
+  integer,parameter::nent=nener-ngrp      ! Number of non-thermal energies
+#if USE_M_1==0
+  integer,parameter::nfr = 0              ! Number of radiative fluxes for M1
+#else
+  integer,parameter::nfr =ndim*ngrp       ! Number of radiative fluxes for M1
+#endif
+
+  ! First index of variables (in fact index just before the first index)
+  ! so that we can loop over 1,nener for instance
+  integer,parameter::firstindex_ent=8     ! for non-thermal energies
+  integer,parameter::firstindex_er=8+nent ! for radiative energies
+  integer,parameter::firstindex_fr=8+nener ! for radiative fluxes (if M1)
+  integer,parameter::firstindex_extinct=8+nent+nrad ! for extinction
+  integer,parameter::firstindex_pscal=8+nent+nrad+nextinct ! for passive scalars
+  integer::lastindex_pscal ! last index for passive scalars other than internal energy
+  ! Initialize NVAR
 #ifndef NVAR
-  integer,parameter::nvar=8+nener
+  integer,parameter::nvar=8+nent+nrad+nextinct+npscal
 #else
   integer,parameter::nvar=NVAR
 #endif
+
+
+
+
+
+
+
 
   ! Size of hydro kernel
   integer,parameter::iu1=-1
@@ -112,6 +186,30 @@ module hydro_parameters
   integer ::interpol_type=1
   integer ::interpol_mag_type=-1
 
+
+
+  ! EXTINCTION RELATED PARAMETERS
+  ! get_dx
+  real(dp)                 :: pi_g           !pi for a global calculation (done in cooling_fine)
+  real(dp),dimension(1:4)  :: mod13
+  real(dp),dimension(1:4)  :: mod23
+  real(dp),allocatable, dimension(:,:,:,:)   :: xalpha
+  !  integer, allocatable, dimension(:,:,:)     :: dirM, dirN
+  integer ,allocatable, dimension(:,:)       :: Mdirection, Ndirection
+  integer ,allocatable, dimension(:,:,:,:)   :: dirM_ext, dirN_ext, dirMN_ext
+  real(dp),allocatable, dimension(:,:)       :: Mdx_cross_int
+  real(dp),allocatable, dimension(:,:,:,:)   :: Mdx_cross_loc
+  real(dp),allocatable, dimension(:,:,:,:,:) :: Mdx_ext
+  logical ,allocatable, dimension(:,:,:,:,:) :: Mdx_ext_logical
+
+
+  real(dp),parameter::Grav=6.67e-08_dp   !Gravitational constant
+  real(dp),parameter::Msun=1.9889e33_dp  !Sun mass in g
+  real(dp),parameter::Rsun=6.95508e10_dp !Sun radius in cm
+  real(dp),parameter::Lsun=3.846e33_dp   !Sun luminosity in erg/s
+  real(dp),parameter::year=3.15576e7_dp  !1 year in s
+
+
   ! Passive variables index
   integer::imetal=9
   integer::idelay=9
@@ -125,6 +223,12 @@ module hydro_parameters
 !!! BrucyN - rho_floor
   logical  :: rho_floor  = .false.  ! whether to set a minimal value (equal to smallr) to density
 !!! NBrucy
+
+
+  ! Column density module (Valdivia & Hennebelle 2014)
+  integer::NdirExt_m=3       ! Theta directions for screening
+  integer::NdirExt_n=4       ! Phi directions for screening
+
 
 
 end module hydro_parameters

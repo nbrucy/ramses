@@ -54,6 +54,10 @@ module pm_commons
   integer::sinkint_level=0         ! maximum level currently active is where the global sink variables are updated
   real(dp)::ssoft                  ! sink softening lenght in code units
 
+
+  real(dp),allocatable,dimension(:)::sfr_total_mass_sinks ! [SFR] Total mass of the sinks, now and in the past
+  real(dp),allocatable,dimension(:)::sfr_time_mass_sinks ! [SFR] Time where the total mass of sinks was saved
+
   ! Particles related arrays
   real(dp),allocatable,dimension(:,:)  ::xp       ! Positions
   real(dp),allocatable,dimension(:,:)  ::vp       ! Velocities

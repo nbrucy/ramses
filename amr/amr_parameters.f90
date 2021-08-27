@@ -113,6 +113,9 @@ module amr_parameters
   real(dp)::walltime_hrs=-1      ! Wallclock time for submitted job
   real(dp)::minutes_dump=1       ! Dump an output minutes before walltime ends
 
+
+  logical::writing=.false.    ! Write column density and save files
+
   ! Lightcone parameters
   real(dp)::thetay_cone=12.5d0
   real(dp)::thetaz_cone=12.5d0
@@ -195,6 +198,18 @@ module amr_parameters
   logical ::sf_log_properties=.false.   ! Log in ascii files birth properties of stars and supernovae
   logical ::sf_imf=.false.              ! Activate IMF sampling for SN feedback when resolution allows it
   logical ::sf_compressive=.false.      ! Advect compressive and solenoidal turbulence terms separately
+
+ !PH 27/08/2021 parameter for extinction and for SFR dependent UV 
+  logical ::extinction=.false.
+  logical ::simplechem=.false.  ! H2 formation only
+  real(dp)::p_UV   =1.0D0       ! Parameter of variation of G0 (UV)
+
+  logical ::uv_prop_sfr=.false.  ! Make p_UV SFR dependent
+  real(dp)::sfr_ref=2.5d-9      ! p_UV = sfr / sfr_ref, in Msun.pc-2.yr-1
+  real(dp)::sfr_avg_window=0.05 ! Time of the window used to compute the average of the SFR
+  integer ::sfr_nb_points=100   ! Number of times the SFR is updated during sfr_avg_window
+  logical ::sfr_verbose=.false. ! Display sfr info at each step
+  real(dp)::sfr_pUV_min=0.0     ! Minimal value for p_UV, initialized with p_UV value in namelist
 
   ! Output times
   real(dp),dimension(1:MAXOUT)::aout=1.1d0      ! Output expansion factors

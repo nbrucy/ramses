@@ -2,6 +2,9 @@ subroutine read_hydro_params(nml_ok)
   use amr_commons
   use hydro_commons
   use mpi_mod
+
+  use cooling_module, only:cooling_frig
+
   implicit none
   logical::nml_ok
   !--------------------------------------------------
@@ -91,7 +94,7 @@ subroutine read_hydro_params(nml_ok)
 
   ! Cooling / basic chemistry parameters
   namelist/cooling_params/cooling,metal,isothermal,haardt_madau,J21 &
-       & ,a_spec,self_shielding, z_ave,z_reion,ind_rsink,T2max,neq_chem
+       & ,a_spec,self_shielding, z_ave,z_reion,ind_rsink,T2max,neq_chem,cooling_frig
 
   ! Star formation parameters
   namelist/sf_params/m_star,n_star,T2_star,g_star,del_star &

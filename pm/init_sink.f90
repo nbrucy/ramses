@@ -138,6 +138,20 @@ subroutine init_sink
 
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
 
+
+
+  ! [SFR] Allocate array for the history of the mass of the stars
+  if(uv_prop_sfr) then
+     allocate(sfr_total_mass_sinks(1:sfr_nb_points))
+     allocate(sfr_time_mass_sinks(1:sfr_nb_points))
+     if (nrestart==0) then
+        sfr_total_mass_sinks(0) = 0.0
+        sfr_time_mass_sinks(0) = 0.0
+     end if
+  end if
+
+
+
   ! Loading sinks from the restart
   if(nrestart>0)then
 
@@ -294,7 +308,18 @@ subroutine init_sink
      end do
 103  continue
      sinkint_level=levelmin
+
      close(10)
+
+
+!read uv_prop_sfr : need to be recoded in new sink file version
+     ! [SFR] Read mass array
+!     if (uv_prop_sfr) then
+!        read(ilun) sfr_total_mass_sinks
+!        read(ilun) sfr_time_mass_sinks
+!     end if
+
+
 
      ! Send the token
 #ifndef WITHOUTMPI
@@ -308,6 +333,10 @@ subroutine init_sink
 #endif
 
   end if
+
+
+
+
 
   ! Compute number of cloud particles within sink sphere
   call compute_ncloud_sink
