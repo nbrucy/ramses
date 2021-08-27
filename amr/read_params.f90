@@ -4,6 +4,9 @@ subroutine read_params
   use poisson_parameters
   use hydro_parameters
   use mpi_mod
+
+  use feedback_module
+
   implicit none
   !--------------------------------------------------
   ! Local variables
@@ -35,7 +38,7 @@ subroutine read_params
        & ,nrestart,ncontrol,nstepmax,nsubcycle,nremap,ordering &
        & ,bisec_tol,static,overload,cost_weighting,aton,nrestart_quad,restart_remap &
        & ,static_dm,static_gas,static_stars,convert_birth_times,use_proper_time,remap_pscalar &
-       & ,unbind,make_mergertree
+       & ,unbind,make_mergertree,stellar
   namelist/output_params/noutput,foutput,aout,tout &
        & ,tend,delta_tout,aend,delta_aout,gadget_output,walltime_hrs,minutes_dump
   namelist/amr_params/levelmin,levelmax,ngridmax,ngridtot &
@@ -304,6 +307,13 @@ subroutine read_params
 #endif
 #endif
   if (movie)call set_movie_vars
+
+  ! feedback parameter 
+  call read_feedback_params(nml_ok)
+  
+  ! Stellar objects
+  if (stellar)call read_stellar_params
+
 
   close(1)
 
