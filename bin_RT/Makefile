@@ -14,7 +14,7 @@ NDIM = 3
 # Float precision size
 NPRE = 8
 # hydro/mhd solver
-SOLVER = hydro
+SOLVER = mhd
 # Patch
 PATCH =
 # Use RT? 1=Yes, 0=No
@@ -35,9 +35,9 @@ NMETALS = 0
 # ATON flages: Uncomment to enable ATON
 ATON_FLAGS = #-DATON
 # Number of ions for RT
-NIONS = 4
+NIONS = 3
 # Number of photon groups for RT
-NGROUPS = 4
+NGROUPS = 3
 # Number of passive scalars
 NPSCAL = 0
 
@@ -152,7 +152,7 @@ ifeq ($(GRACKLE),1)
    MODOBJ += grackle_parameters.o
 endif
 MODOBJ += poisson_commons.o hydro_parameters.o hydro_commons.o \
-          cooling_module.o bisection.o sparse_mat.o clfind_commons.o \
+          cooling_module.o rt_metal_cooling_module.o bisection.o sparse_mat.o clfind_commons.o  feedback_module.o \
           gadgetreadfile.o write_makefile.o write_patch.o write_gitinfo.o
 ifeq ($(RT),1)
    MODOBJ += rt_parameters.o rt_hydro_commons.o coolrates_module.o \
@@ -165,14 +165,15 @@ endif
 AMROBJ = read_params.o init_amr.o init_time.o init_refine.o tracer_utils.o adaptive_loop.o \
          amr_step.o update_time.o output_amr.o flag_utils.o \
          physical_boundaries.o virtual_boundaries.o refine_utils.o \
-         nbors_utils.o hilbert.o load_balance.o title.o sort.o cooling_fine.o \
+         nbors_utils.o hilbert.o load_balance.o title.o sort.o cooling_fine.o cooling_module_frig.o \
          units.o light_cone.o movie.o memory.o end.o
 # Particle-Mesh objects
 PMOBJ = init_part.o output_part.o rho_fine.o synchro_fine.o move_fine.o \
         newdt_fine.o particle_tree.o add_list.o remove_list.o star_formation.o \
         sink_particle.o feedback.o clump_finder.o clump_merger.o \
         flag_formation_sites.o init_sink.o output_sink.o \
-        unbinding.o merger_tree.o move_tracer.o init_tracer.o
+        unbinding.o merger_tree.o move_tracer.o init_tracer.o \
+	stellar_particle.o init_stellar.o output_stellar.o sink_RT_feedback.o
 # Poisson solver objects
 POISSONOBJ = init_poisson.o phi_fine_cg.o interpol_phi.o force_fine.o \
              multigrid_coarse.o multigrid_fine_commons.o multigrid_fine_fine.o \

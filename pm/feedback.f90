@@ -45,7 +45,7 @@ SUBROUTINE read_feedback_params(nml_ok)
       ! Set up the single stellar sources
 !added by PH to make it use-able without RT
 #ifdef RT
-      if (use_ssm) call ssm_setup(ssm_table_directory)
+!      if (use_ssm) call ssm_setup(ssm_table_directory)
 #endif
 
 END SUBROUTINE read_feedback_params
