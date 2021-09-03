@@ -85,6 +85,9 @@ subroutine condinit_cloud(x,u,dx,nn)
   u=0.
   q=0.
 
+  !for mass_sph refinnement - 10. as a reference for coarse level (convenient when in cc for instance)
+  mass_sph = 10. * (boxlen*(0.5**levelmin))**3
+
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
 
   mag_norm = sqrt(1.*8000./scale_T2*2.*1.5)

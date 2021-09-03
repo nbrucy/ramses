@@ -291,15 +291,15 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
 
 !added by PH to make it use-able without RT
 #ifdef RT
-    if (use_ssm) then
-       do iloc=1,ncreate_loc
-          call ssm_lifetime(mnew_loc(iloc)/msun,ltnew_loc(iloc))
-          ltnew_loc(iloc) = ltnew_loc(iloc) / scale_t
-       end do
-    else    
+!    if (use_ssm) then
+!       do iloc=1,ncreate_loc
+!          call ssm_lifetime(mnew_loc(iloc)/msun,ltnew_loc(iloc))
+!          ltnew_loc(iloc) = ltnew_loc(iloc) / scale_t
+!       end do
+!    else    
        ltnew_loc(1:ncreate_loc) = lt_t0 * &
             & exp(lt_a * (log(lt_m0 / mnew_loc))**lt_b)
-    endif
+!    endif
 #else
        ltnew_loc(1:ncreate_loc) = lt_t0 * &
             & exp(lt_a * (log(lt_m0 / mnew_loc))**lt_b)
@@ -343,13 +343,13 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
 
 !added by PH to make it use-able without RT
 #ifdef RT
-            if (use_ssm) then
-               call ssm_lifetime(mstellar(istellar)/msun,ltnew(istellar-nstellar))
-               ltnew(istellar-nstellar) = ltnew(istellar-nstellar) / scale_t
-            else
+!            if (use_ssm) then
+!               call ssm_lifetime(mstellar(istellar)/msun,ltnew(istellar-nstellar))
+!               ltnew(istellar-nstellar) = ltnew(istellar-nstellar) / scale_t
+!            else
                ltnew(istellar-nstellar) = lt_t0 * &
                     & exp(lt_a * (log(lt_m0 / mstellar(istellar)))**lt_b)
-            endif
+!            endif
 #else
                ltnew(istellar-nstellar) = lt_t0 * &
                     & exp(lt_a * (log(lt_m0 / mstellar(istellar)))**lt_b)
