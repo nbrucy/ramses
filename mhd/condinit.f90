@@ -8,7 +8,7 @@ subroutine condinit_default(x,u,dx,nn)
   implicit none
   integer ::nn                            ! Number of cells
   real(dp)::dx                            ! Cell size
-  real(dp),dimension(1:nvector,1:nvar)::u ! Conservative variables
+  real(dp),dimension(1:nvector,1:nvar+3)::u ! Conservative variables
   real(dp),dimension(1:nvector,1:ndim)::x ! Cell center position.
   !================================================================
   ! This routine generates initial conditions for RAMSES.
@@ -25,7 +25,7 @@ subroutine condinit_default(x,u,dx,nn)
 #if NENER>0 || NVAR>NDIM+2+NENER
   integer::ivar
 #endif
-  real(dp),dimension(1:nvector,1:nvar),save::q   ! Primitive variables
+  real(dp),dimension(1:nvector,1:nvar+3),save::q   ! Primitive variables
 
   ! Call built-in initial condition generator
   call region_condinit(x,q,dx,nn)
@@ -60,6 +60,10 @@ subroutine condinit_default(x,u,dx,nn)
      u(1:nn,ndim+2)=u(1:nn,ndim+2)+u(1:nn,ndim+2+ivar)
   enddo
 #endif
+
+!!!!!!!
+write(*,*) 'take care with magnetized condinit_default...'
+
 #if NVAR>NDIM+2+NENER
   ! passive scalars
   do ivar=ndim+3+nener,nvar
@@ -91,7 +95,7 @@ subroutine condinit(x,u,dx,nn)
   ! amr data
   integer ::nn                            ! Number of cells
   real(dp)::dx                            ! Cell size
-  real(dp),dimension(1:nvector,1:nvar)::u ! Conservative variables
+  real(dp),dimension(1:nvector,1:nvar+3)::u ! Conservative variables
   real(dp),dimension(1:nvector,1:ndim)::x ! Position of cell center
   logical,save:: first_call = .true.           ! True if this is the first call to condinit
 

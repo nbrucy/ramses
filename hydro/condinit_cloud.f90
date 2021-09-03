@@ -56,8 +56,15 @@ subroutine condinit_cloud(x,u,dx,nn)
   ! amr data
   integer ::nn                            ! Number of cells
   real(dp)::dx                            ! Cell size
+
+#ifdef SOLVERmhd
+  real(dp),dimension(1:nvector,1:nvar+3)::u ! Conservative variables
+  real(dp),dimension(1:nvector,1:nvar+3),save::q   ! Primitive variables
+#else
   real(dp),dimension(1:nvector,1:nvar)::u ! Conservative variables
   real(dp),dimension(1:nvector,1:nvar),save::q   ! Primitive variables
+#endif
+
   real(dp),dimension(1:nvector,1:ndim)::x ! Position of cell center
 
   integer::ivar,i,j,k
@@ -73,6 +80,10 @@ subroutine condinit_cloud(x,u,dx,nn)
   real(dp):: n_total
   real(dp):: temper
 
+
+  !start initialising q and u to zero
+  u=0.
+  q=0.
 
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
 
@@ -239,7 +250,12 @@ if(first_call) then
 #endif
 
 
-#if NVAR>6
+#ifdef SOLVERmhd
+  ! passive scalars
+  do ivar=9,nvar
+     u(1:nn,ivar)=q(1:nn,1)*q(1:nn,ivar)
+  end do
+#else 
   ! passive scalars
   do ivar=6,nvar
      u(1:nn,ivar)=q(1:nn,1)*q(1:nn,ivar)
