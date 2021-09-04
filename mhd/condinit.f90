@@ -101,6 +101,9 @@ subroutine condinit(x,u,dx,nn)
 
   select case (condinit_kind)
 
+  case('galbox')
+     if (myid == 1 .and. first_call) write(*,*) "[condinit] Using galbox IC"
+     call condinit_galbox(x, u, dx, nn)
   case('cloud')
      if (myid == 1 .and. first_call) write(*,*) "[condinit] Using cloud IC"
      call condinit_cloud(x, u, dx, nn)
