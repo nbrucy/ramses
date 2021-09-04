@@ -20,7 +20,7 @@ PATCH =
 # Use RT? 1=Yes, 0=No
 RT = 1
 # Use turbulence? 1=Yes, 0=No (requires fftw3)
-USE_TURB=1
+USE_TURB=0
 # Use MPI? 1=Yes, 0=No
 MPI = 1
 MPIF90 = mpif90
@@ -182,7 +182,7 @@ POISSONOBJ = init_poisson.o phi_fine_cg.o interpol_phi.o force_fine.o \
 # Hydro objects
 HYDROOBJ = init_hydro.o init_flow_fine.o write_screen.o output_hydro.o \
            courant_fine.o godunov_fine.o uplmde.o umuscl.o interpol_hydro.o \
-           godunov_utils.o condinit.o condinit_group.o condinit_cloud.o \
+           godunov_utils.o condinit.o condinit_group.o condinit_cloud.o condinit_galbox.o \
 					 hydro_flag.o hydro_boundary.o boundana.o \
            read_hydro_params.o synchro_hydro_fine.o
 # RT objects
