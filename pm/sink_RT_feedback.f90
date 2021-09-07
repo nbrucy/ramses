@@ -1,3 +1,4 @@
+#ifdef RT
 !*************************************************************************
 SUBROUTINE update_sink_RT_feedback(ilevel)
 ! TC: Filenames should NOT have capital letters in them
@@ -607,3 +608,4 @@ SUBROUTINE sink_RT_vsweep(ind_grid,ind_part,ind_grid_part,ng,np,dt,ilevel)
   end do
 
 END SUBROUTINE sink_RT_vsweep
+#endif
