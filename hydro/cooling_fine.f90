@@ -172,6 +172,15 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
 
      ! Compute rho
      do i=1,nleaf
+!!! BrucyN - rho_floor
+        ! If density is below the threshold, correct it
+        if(rho_floor .and. uold(ind_leaf(i), 1) < smallr) then
+           do idim = 1, 3
+              uold(ind_leaf(i), idim + 1) = (uold(ind_leaf(i), idim + 1) * smallr / abs(uold(ind_leaf(i), 1)))
+           enddo
+           uold(ind_leaf(i), 1) = smallr
+        endif
+!!! NBrucy
         nH(i)=MAX(uold(ind_leaf(i),1),smallr)
      end do
 

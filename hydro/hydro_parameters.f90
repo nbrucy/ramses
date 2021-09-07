@@ -97,4 +97,8 @@ module hydro_parameters
   integer::ivirial2=6
   integer::inener=6
 
+!!! BrucyN - rho_floor
+  logical  :: rho_floor  = .false.  ! whether to set a minimal value (equal to smallr) to density
+!!! NBrucy
+
 end module hydro_parameters
