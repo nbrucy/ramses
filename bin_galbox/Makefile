@@ -152,7 +152,7 @@ ifeq ($(GRACKLE),1)
    MODOBJ += grackle_parameters.o
 endif
 MODOBJ += poisson_commons.o hydro_parameters.o hydro_commons.o \
-          cooling_module.o bisection.o sparse_mat.o clfind_commons.o  feedback_module.o \
+          cooling_module.o cooling_module_frig.o bisection.o sparse_mat.o clfind_commons.o  feedback_module.o \
           gadgetreadfile.o write_makefile.o write_patch.o write_gitinfo.o
 ifeq ($(RT),1)
    MODOBJ += rt_parameters.o rt_hydro_commons.o coolrates_module.o \
@@ -182,7 +182,7 @@ POISSONOBJ = init_poisson.o phi_fine_cg.o interpol_phi.o force_fine.o \
 # Hydro objects
 HYDROOBJ = init_hydro.o init_flow_fine.o write_screen.o output_hydro.o \
            courant_fine.o godunov_fine.o uplmde.o umuscl.o interpol_hydro.o \
-           godunov_utils.o condinit.o condinit_group.o condinit_cloud.o \
+           godunov_utils.o condinit.o condinit_galbox.o condinit_cloud.o \
 					 hydro_flag.o hydro_boundary.o boundana.o \
            read_hydro_params.o synchro_hydro_fine.o
 # RT objects
