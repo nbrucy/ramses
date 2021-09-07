@@ -2,7 +2,8 @@
 !================================================================
 !================================================================
 !================================================================
-subroutine condinit(x,u,dx,nn)
+
+subroutine condinit_default(x,u,dx,nn)
   use amr_parameters
   use hydro_parameters
   implicit none
@@ -29,9 +30,6 @@ subroutine condinit(x,u,dx,nn)
 
   ! Call built-in initial condition generator
   call region_condinit(x,q,dx,nn)
-
-  ! Add here, if you wish, some user-defined initial conditions
-  ! ........
 
   ! Convert primitive to conservative variables
   ! density -> density
@@ -69,5 +67,52 @@ subroutine condinit(x,u,dx,nn)
      u(1:nn,ivar)=q(1:nn,1)*q(1:nn,ivar)
   end do
 #endif
+
+end subroutine condinit_default
+
+subroutine condinit(x,u,dx,nn)
+  use amr_parameters
+  use hydro_parameters
+  implicit none
+  integer ::nn                            ! Number of cells
+  real(dp)::dx                            ! Cell size
+  real(dp),dimension(1:nvector,1:nvar)::u ! Conservative variables
+  real(dp),dimension(1:nvector,1:ndim)::x ! Cell center position.
+  !================================================================
+  ! This routine generates initial conditions for RAMSES.
+  ! Positions are in user units:
+  ! x(i,1:3) are in [0,boxlen]**ndim.
+  ! U is the conservative variable vector. Conventions are here:
+  ! U(i,1): d, U(i,2:ndim+1): d.u,d.v,d.w and U(i,ndim+2): E.
+  ! Q is the primitive variable vector. Conventions are here:
+  ! Q(i,1): d, Q(i,2:ndim+1):u,v,w and Q(i,ndim+2): P.
+  ! If nvar >= ndim+3, remaining variables are treated as passive
+  ! scalars in the hydro solver.
+  ! U(:,:) and Q(:,:) are in user units.
+  !================================================================
+
+  use hydro_parameters
+  use amr_commons
+  implicit none
+
+  ! amr data
+  integer ::nn                            ! Number of cells
+  real(dp)::dx                            ! Cell size
+  real(dp),dimension(1:nvector,1:nvar)::u ! Conservative variables
+  real(dp),dimension(1:nvector,1:ndim)::x ! Position of cell center
+
+  select case (condinit_kind)
+
+  case('cloud')
+     if (myid == 1) write(*,*) "[condinit] Using cloud IC"
+     call condinit_cloud(x, u, dx, nn)
+  case('default')
+     call condinit_default(x, u, dx, nn)
+
+  case DEFAULT
+     if (myid == 1) write(*,*) "[condinit] Void or invalid condinit_kind, using default IC"
+     call condinit_default(x, u, dx, nn)
+
+  end select
 
 end subroutine condinit
