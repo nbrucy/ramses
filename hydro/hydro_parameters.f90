@@ -175,4 +175,8 @@ module hydro_parameters
   integer::ixion=imetal
   integer::ichem=imetal
 
+!!! BrucyN - rho_floor
+  logical  :: rho_floor  = .false.  ! whether to set a minimal value (equal to smallr) to density
+!!! NBrucy
+
 end module hydro_parameters
