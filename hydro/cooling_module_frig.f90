@@ -2092,6 +2092,7 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
   use amr_commons
   use hydro_commons
   use cooling_module
+  use hydro_parameters
 
   implicit none
 #ifndef WITHOUTMPI

@@ -73,11 +73,14 @@ end subroutine condinit_default
 subroutine condinit(x,u,dx,nn)
   use amr_parameters
   use hydro_parameters
+  use amr_commons
   implicit none
   integer ::nn                            ! Number of cells
   real(dp)::dx                            ! Cell size
   real(dp),dimension(1:nvector,1:nvar)::u ! Conservative variables
   real(dp),dimension(1:nvector,1:ndim)::x ! Cell center position.
+  logical,save:: first_call = .true.           ! True if this is the first call to condinit
+
   !================================================================
   ! This routine generates initial conditions for RAMSES.
   ! Positions are in user units:
@@ -90,18 +93,6 @@ subroutine condinit(x,u,dx,nn)
   ! scalars in the hydro solver.
   ! U(:,:) and Q(:,:) are in user units.
   !================================================================
-
-  use hydro_parameters
-  use amr_commons
-  implicit none
-
-  ! amr data
-  integer ::nn                            ! Number of cells
-  real(dp)::dx                            ! Cell size
-  real(dp),dimension(1:nvector,1:nvar)::u ! Conservative variables
-  real(dp),dimension(1:nvector,1:ndim)::x ! Position of cell center
-  logical,save:: first_call = .true.           ! True if this is the first call to condinit
-
   select case (condinit_kind)
 
   case('cloud')
@@ -119,3 +110,33 @@ subroutine condinit(x,u,dx,nn)
   first_call = .false.
 
 end subroutine condinit
+
+subroutine boundary_frig(ilevel)
+  use hydro_parameters
+  use amr_commons
+
+  !================================================================
+  !This routine calls for special boundary conditions designed for each initial conditions
+  !================================================================
+  implicit none
+
+  integer::ilevel
+
+  select case (condinit_kind)
+
+  case('galbox')
+     call boundary_frig_galbox(ilevel)
+  case('cloud')
+     return
+  case('group')
+     return
+  case('default')
+     return
+
+  case DEFAULT
+     return
+
+  end select
+
+
+end subroutine boundary_frig

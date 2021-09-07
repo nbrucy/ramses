@@ -204,7 +204,7 @@ module hydro_parameters
   real(dp),allocatable, dimension(:,:,:,:,:) :: Mdx_ext
   logical ,allocatable, dimension(:,:,:,:,:) :: Mdx_ext_logical
 
-
+  ! TODO use constants module
   real(dp),parameter::Grav=6.67e-08_dp   !Gravitational constant
   real(dp),parameter::Msun=1.9889e33_dp  !Sun mass in g
   real(dp),parameter::Rsun=6.95508e10_dp !Sun radius in cm
@@ -230,11 +230,5 @@ module hydro_parameters
   ! Column density module (Valdivia & Hennebelle 2014)
   integer::NdirExt_m=3       ! Theta directions for screening
   integer::NdirExt_n=4       ! Phi directions for screening
-
-
-
-
-
-
 
 end module hydro_parameters

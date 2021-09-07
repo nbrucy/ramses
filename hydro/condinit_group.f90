@@ -122,7 +122,7 @@ subroutine condinit_group(x,u,dx,nn)
   character(len=512), dimension(1:MAXNGAL)::Vcirc_dat_file
   real(dp)::IG_density_factor = 1.0D-5
   integer::membership ! index of the galaxy containing the current cell
-  integer:: i, k, ind_gal, ierr ! counters, error handlers
+  integer:: i, k, ind_gal, ierr, d ! counters, error handlers
   real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2, a2
   real(dp)::mfactor, kpcfactor, pcfactor, vfactor, pi
   real(dp)::pot, pot_tmp, norm, r, rr, abs_z, vcirc, weight, vrot, dmin_tmp
@@ -323,8 +323,9 @@ subroutine condinit_group(x,u,dx,nn)
   ! Loop over cells
   do i=1,nn
     do ind_gal=1, ngal ! Loop over galaxies
-      xx(:,ind_gal) = x(i,:) - (gal_pos(:,ind_gal) + boxlen / 2.0D0) ! distance to galaxy center
-
+      do d=1,3
+        xx(d,ind_gal) = x(i,d) - (gal_pos(d,ind_gal) + boxlen / 2.0D0) ! distance to galaxy center
+      enddo
       ! determine the galactic membership of the current cell
       pot_tmp = dot_product(xx(:,ind_gal),xx(:,ind_gal)) / Mgas_disk(ind_gal)
       if(ind_gal==1) then
