@@ -142,7 +142,7 @@ subroutine set_uold(ilevel)
   ! This routine sets array uold to its new value unew
   ! after the hydro step.
   !---------------------------------------------------------
-  integer::i,ivar,ind,iskip,nx_loc,ind_cell
+  integer::i,ivar,ind,iskip,nx_loc,ind_cell,idim
   real(dp)::scale,d,u,v,w
   real(dp)::e_kin,e_cons,e_prim,e_trunc,div,dx
 #if NENER>0
@@ -155,6 +155,36 @@ subroutine set_uold(ilevel)
   nx_loc=icoarse_max-icoarse_min+1
   scale=boxlen/dble(nx_loc)
   dx=0.5d0**ilevel*scale
+
+
+!!! BrucyN - rho_floor
+  ! If density is below the threshold, correct it
+  if(rho_floor) then
+      do ind=1,twotondim
+         iskip=ncoarse+(ind-1)*ngridmax
+         do i=1,active(ilevel)%ngrid
+            ind_cell=active(ilevel)%igrid(i)+iskip
+            if(unew(ind_cell, 1) < smallr) then
+               do idim = 1, 3
+                  unew(ind_cell, ndim + 2) = unew(ind_cell, ndim + 2) - 0.5*unew(ind_cell, idim + 1)**2 / abs(unew(ind_cell, 1))
+#ifdef SOLVERmhd
+                  unew(ind_cell, ndim + 2) = unew(ind_cell, ndim + 2) - 0.125*(unew(ind_cell, ndim + 2 + idim) + unew(ind_cell,nvar + idim))**2
+#endif
+                  unew(ind_cell, idim + 1) = (unew(ind_cell, idim + 1) * smallr / abs(unew(ind_cell, 1)))
+               end do
+               unew(ind_cell, ndim + 2) = abs(unew(ind_cell,ndim + 2)) * smallr / abs(unew(ind_cell, 1))
+               unew(ind_cell, 1) = smallr
+               do idim = 1, 3
+                  unew(ind_cell, ndim + 2) = unew(ind_cell, ndim + 2) + 0.5*unew(ind_cell, idim + 1)**2 / abs(unew(ind_cell, 1))
+#ifdef SOLVERmhd
+                  unew(ind_cell, ndim + 2) = unew(ind_cell, ndim + 2) + 0.125*(unew(ind_cell, ndim + 2 + idim) + unew(ind_cell, nvar + idim))**2
+#endif
+               end do
+            end if
+         end do
+      end do
+  end if
+!!! NBrucy
 
   ! Set uold to unew for myid cells
   do ind=1,twotondim
@@ -214,8 +244,7 @@ subroutine set_uold(ilevel)
            end if
         end do
      end if
-  end do
-
+   end do
 111 format('   Entering set_uold for level ',i2)
 
 end subroutine set_uold
