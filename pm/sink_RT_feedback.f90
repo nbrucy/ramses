@@ -1,6 +1,6 @@
 !*************************************************************************
 SUBROUTINE update_sink_RT_feedback(ilevel)
-
+! TC: Filenames should NOT have capital letters in them
 
 ! Turn on RT advection if needed.
 ! Update photon group properties from stellar populations.

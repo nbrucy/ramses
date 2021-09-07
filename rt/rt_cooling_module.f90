@@ -446,8 +446,6 @@ contains
                phAbs(igroup) = phAbs(igroup) + dustAbs(igroup)
        end do
 
-
-
        if(iPEH_group .gt. 0) then
           ! Photoelectric absorption: the effective PEH cross section
           ! is photoelectric heating rate / habing flux
@@ -587,7 +585,6 @@ contains
        dCdT2 = dCdT2 * mu                            ! dC/dT2 = mu * dC/dT
        metal_tot=0d0 ; metal_prime=0d0             ! Metal cooling
 
-
        !ramses standard metal cooling
        if(.not. cooling_frig) then
           if(Zsolar(icell) .gt. 0d0) &
@@ -597,7 +594,6 @@ contains
             !this is the frig cooling
             call rt_metal_cool(T2(icell),nH(icell),dXion(1),mu,metal_tot,metal_prime)
        endif
-
 
        X_nHkb= X/(1.5 * nH(icell) * kB)            ! Multiplication factor
        rate  = X_nHkb*(Hrate - Crate - Zsolar(icell)*metal_tot)
