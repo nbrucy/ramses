@@ -53,6 +53,11 @@ subroutine condinit_galbox(x,u,dx,nn)
   use amr_commons
   use hydro_parameters
   use galbox_module
+
+#ifdef RT  
+  use rt_parameters,only: isH2
+#endif
+
   implicit none
 
   ! amr data
@@ -226,7 +231,20 @@ if(first_call) then
   end do
 
 
-
+!!if H2 is treated then initialise X = [HI]/[H]tot
+#ifdef RT
+#ifdef SOLVERmhd
+   if(isH2) then
+   !assume no H2 initially (pure HI)
+   q(1:nn,9)=1. 
+   endif
+#else
+   if(isH2) then
+   !assume no H2 initially (pure HI)
+   q(1:nn,6)=1. 
+   endif
+#endif
+#endif
 
 
 !!! Step 3: Convert primitive to conservative variables
@@ -253,6 +271,8 @@ if(first_call) then
   u(1:nn,5)=u(1:nn,5)+0.125d0*(q(1:nn,8)+q(1:nn,nvar+3))**2
   u(1:nn,6:8)=q(1:nn,6:8)
 #endif
+
+
 
 
 #ifdef SOLVERmhd
