@@ -1,0 +1,190 @@
+&RUN_PARAMS
+hydro=.true.
+nrestart=0
+nremap=50
+nsubcycle=2,2,2,2,2,2
+verbose=.false.
+rt=.true.
+poisson=.true.
+pic=.true.
+sink=.true.
+stellar=.true.
+/
+
+&AMR_PARAMS
+levelmin=5
+levelmax=7
+ngridmax=50000
+npartmax=10000
+boxlen=1000.0
+/
+
+&REFINE_PARAMS
+interpol_type=0
+interpol_var=1
+jeans_refine=12,12,12,12,12,12
+/
+
+&OUTPUT_PARAMS
+noutput=2
+tend=0.2
+/
+
+&UNITS_PARAMS
+units_density = 2.3247434d-24 ! mu * 1.66e-24, where mu = 1.4
+units_time = 2.5395079d15 ! 1/sqrt(G * units_density)
+units_length = 3.08568d18 ! 1 pc in cm
+/
+
+&INIT_PARAMS
+condinit_kind='galbox'
+/
+
+&POISSON_PARAMS
+gravity_type=-1 ! 0 = self-gravity, -1 = self-gravity + vertical galactic potential
+gravity_params=1.42d-3, 5.49d-4, 0.18d3 ! a1, a2, z0
+! a1 = Star potential coefficient in kpc Myr-2
+! a2 = DM potential coefficient in Myr-2
+! z0 = Scale height in pc scale height in pc in kpc Myr-2
+epsilon=1.0d-4
+cg_levelmin=999
+cic_levelmax=12
+/
+
+&SINK_PARAMS
+nsinkmax=5000
+create_sinks=.true.
+n_sink=0.0001
+accretion_scheme='threshold'
+mass_sink_seed=0.00001
+c_acc=0.1
+/
+
+&STELLAR_PARAMS
+!iseed=21
+!sn_feedback_sink=.True.
+make_stellar_glob=.false.
+nstellarmax=10000
+imf_index=-2.35
+imf_low=8.
+imf_high=120.
+lt_a=0.23840797
+lt_b=2.20522946
+lt_m0=148.158972
+lt_t0=3.26515722
+stf_K=9.634642584812752d48 ! s**(-1)
+stf_m0=2.728098824280431d1 ! Msun
+stf_a=6.840015602892084d0
+stf_b=4.353614230584390d0
+stf_c=1.142166657042991d0
+hii_w=1.1
+hii_alpha= 3.11626026739d-13 ! cm**3/s
+hii_c=12.5 ! km/s
+hii_t=4.0 ! Myr
+hii_T2=0.0d0 ! K
+stellar_msink_th=120.
+/
+
+&FEED_PARAMS
+!SN_on=.false.
+Vsat=300.
+Tsat=1.e6
+Vdisp=1.
+/
+
+! Forced driven turbulence
+&TURB_PARAMS
+turb=.true.
+turb_type=1
+turb_seed=1
+comp_frac=0.25
+turb_T=0.5 ! 0.5 Myr autocorrelation time
+turb_Ndt=100
+turb_rms=1e-2
+turb_min_rho=0.01
+turb2d=.true.
+/
+
+&GALBOX_PARAMS
+turb=10. ! in km/s
+dens0=1.5 ! in H_cc
+height0=150. ! in pc
+bx=0.5 ! in units of WNM B
+by=0. ! in units of WNM B
+bz=0. ! in units of WNM B
+boundary_frig=.true.
+/
+
+&COOLING_PARAMS
+isothermal=.false.
+cooling=.true.
+z_ave=1.0
+/
+
+!&SF_PARAMS
+!jeans_ncells=4 ! 4* 2**(15 - levelmax_active)
+!g_star=1.66667D0
+!n_star=10
+!eps_star=0.10D0
+!nlev_sf=8
+!sf_temp_crit=.true.
+!T2_star=100
+!r/
+
+&HYDRO_PARAMS
+pressure_fix=.true.
+gamma=1.6666667
+courant_factor=0.5
+slope_type=1
+riemann='hlld'
+riemann2d='hlld'
+smallr=1e-4
+rho_floor=.true.
+!temp_max=1e7
+switch_solv=100.
+switch_solv_dens=3.
+/
+
+!&BOUNDARY_PARAMS
+!nboundary=6
+!ibound_min= 0, 0, 0, 0,-1, 1
+!ibound_max= 0, 0, 0, 0,-1, 1
+!jbound_min= 0, 0,-1, 1,-1,-1
+!jbound_max= 0, 0,-1, 1, 1, 1
+!kbound_min=-1, 1,-1,-1,-1,-1
+!kbound_max=-1, 1, 1, 1, 1, 1
+!bound_type= 2, 2, 0, 0, 0, 0
+!no_inflow=.true.
+!/
+
+&RT_PARAMS
+rt_sink=.true.
+X=0.76d0
+Y=0.24d0
+rt_output_coolstats=.true.
+rt_flux_scheme='glf'
+rt_smooth=.true.
+rt_courant_factor=0.8           ! courant number for RT timesteps
+rt_c_fraction=1d-4            ! fraction of actual lightspeed set to RT lightspeed
+rt_otsa=.false.                                                                 ! no OTSA
+!rt_err_grad_xHII=0.1
+!rt_nregion=1   !--------------------------------------------------------------------
+!rt_region_type(1)='square'
+!rt_reg_x_center=0.5
+!rt_reg_y_center=0.5
+!rt_reg_z_center=0.5
+!rt_reg_length_x=1000.0
+!rt_reg_length_y=1000.0
+!rt_reg_length_z=1000.0
+/
+
+&RT_GROUPS
+group_csn(1,:)= 3.8808E-18, 7.6280E-22, 0.0000
+group_cse(1,:)= 3.6627E-18, 1.1054E-21, 0.0000
+group_csn(2,:)= 8.9878E-19, 6.1154E-18, 0.0000
+group_cse(2,:)= 8.7025E-19, 5.9879E-18, 0.0000
+group_csn(3,:)= 1.0528E-19, 1.5058E-18, 1.3239E-18
+group_cse(3,:)= 1.0448E-19, 1.4969E-18, 1.3173E-18
+group_egy     = 16.970, 28.161, 57.638
+spec2group    = 1, 2, 3
+/
