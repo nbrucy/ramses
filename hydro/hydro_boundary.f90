@@ -251,6 +251,11 @@ subroutine special_boundary(ilevel)
    integer::ilevel
  
    select case (special_boundary_kind)
+
+   case('galbox')
+      call special_boundary_galbox(ilevel)
+      return
+ 
  
    case DEFAULT
       return

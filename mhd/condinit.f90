@@ -43,6 +43,9 @@ subroutine  condinit(x,u,dx,nn)
   case('orzag_tang')
      call orzag_tang_condinit(x, q, dx, nn)
 
+  case('galbox')
+      call galbox_condinit(x, q, dx, nn)
+
   ! Add here, if you wish, some user-defined initial conditions
   ! ........
 
