@@ -337,6 +337,9 @@ contains
     real(dp),save:: rho, TR, one_over_C_v, E_rad, dE_T, fluxMag, mom_fact
     real(dp),save:: G0, eff_peh, cdex, ncr
     logical::newAtomicCons=.true.
+
+    real(dp)::kph0
+
     !---------------------------------------------------------------------
     dt_ok=.false.
     nHe=0.25*nH(icell)*Y/X  !         Helium number density
@@ -678,7 +681,22 @@ contains
     cr = alpha(ixHII) * ne * dxion(ixHII) + 2. * de * dxH2 !   HI creation
     photoRate=0.
     if(rt) photoRate = SUM(signc(:,ixHII)*dNp)    !                  [s-1]
+
+
     if(haardt_madau) photoRate = photoRate + UVrates(ixHII,1)*ss_factor
+
+
+    ! G0 is the UV field (in units of Habing field - 1.274e-4 erg cm-2 s-1 sr-1)
+    G0 = 1.0_dp
+!    G0 = G0*p_UV              ! p_UV: parameter of variation of UV
+                              ! defined in the namelist
+!    k1_0 = 3.0d-17            ! cm3 s-1 Formation (Kaufman+1999) 3d-17/sqrt(100)
+    kph0 = 3.3d-11*G0         ! s-1 Photodissociation (Eq 29 Glover&MacLow2007)
+                              ! This value is coherent with what is obtained with the Meudon PDR code (see tests - BG)
+
+    if(h2_frig)  photoRate = photoRate + kph0
+
+
     de = beta(ixHII) * ne + photoRate             !         HI destruction
     if(cosmic_rays) de = de + cosray_HI
     if(isH2) de = de + 2. * alpha(ixHI)

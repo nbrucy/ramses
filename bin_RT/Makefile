@@ -18,7 +18,7 @@ SOLVER = mhd
 # Patch
 PATCH =
 # Use RT? 1=Yes, 0=No
-RT = 0
+RT = 1
 # Use turbulence? 1=Yes, 0=No (requires fftw3)
 USE_TURB=0
 # Use MPI? 1=Yes, 0=No
@@ -35,9 +35,9 @@ NMETALS = 0
 # ATON flages: Uncomment to enable ATON
 ATON_FLAGS = #-DATON
 # Number of ions for RT
-NIONS = 0
+NIONS = 4
 # Number of photon groups for RT
-NGROUPS = 0
+NGROUPS = 4
 # Number of passive scalars
 NPSCAL = 0
 

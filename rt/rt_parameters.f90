@@ -153,4 +153,8 @@ module rt_parameters
 
   ! RT on sinks?
   logical::rt_sink      =.false.   ! Radiative transfer on sinks activated
+
+  !dissociation of H2 from frig
+  logical::h2_frig  =.false.
+
 end module rt_parameters
