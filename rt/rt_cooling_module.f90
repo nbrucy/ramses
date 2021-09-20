@@ -666,11 +666,32 @@ contains
        photoRate=0.
        if(rt) photoRate = SUM(signc(:,ixHI)*dNp)
        if(haardt_madau) photoRate = photoRate + UVrates(ixHI,1)*ss_factor
+
+       ! G0 is the UV field (in units of Habing field - 1.274e-4 erg cm-2 s-1 sr-1)
+       G0 = 1.0_dp
+       !    G0 = G0*p_UV              ! p_UV: parameter of variation of UV
+       ! defined in the namelist
+       !    k1_0 = 3.0d-17            ! cm3 s-1 Formation (Kaufman+1999) 3d-17/sqrt(100)
+       kph0 = 3.3d-11*G0         ! s-1 Photodissociation (Eq 29 Glover&MacLow2007)
+       ! This value is coherent with what is obtained with the Meudon PDR code (see tests - BG)
+
+       if(h2_frig)  photoRate = photoRate + kph0
+
        de = beta(ixHI) * nH(icell) + photoRate           ! H2 Destruction
+
        if(cosmic_rays) de = de + cosray_H2
        dxH2 = (cr*ddt(icell)+xH2)/(1.+de*ddt(icell))
        dxH2 = MIN(MAX(dxH2, x_min), 0.5)
+
+
+!       if(myid .eq. 1 .and. icell .eq. 1) then 
+!          write(*,*) 'dxion(ixHI),xH2, nH(icell), TK', dxion(ixHI), xH2, nH(icell), TK
+!          write(*,*) 'alpha(ixHI), photoRate,kph0',alpha(ixHI),photoRate,kph0
+!       endif
+
     endif !if(isH2)
+
+
     ! Update xHI (also if .not. isH2, for stability)**********************
     if(rt_OTSA .or. .not. rt_advect) then         !    Recombination rates
        alpha(ixHII) = inp_coolrates_table(tbl_AlphaB_HII, TK,.false.)
@@ -684,18 +705,6 @@ contains
 
 
     if(haardt_madau) photoRate = photoRate + UVrates(ixHII,1)*ss_factor
-
-
-    ! G0 is the UV field (in units of Habing field - 1.274e-4 erg cm-2 s-1 sr-1)
-    G0 = 1.0_dp
-!    G0 = G0*p_UV              ! p_UV: parameter of variation of UV
-                              ! defined in the namelist
-!    k1_0 = 3.0d-17            ! cm3 s-1 Formation (Kaufman+1999) 3d-17/sqrt(100)
-    kph0 = 3.3d-11*G0         ! s-1 Photodissociation (Eq 29 Glover&MacLow2007)
-                              ! This value is coherent with what is obtained with the Meudon PDR code (see tests - BG)
-
-    if(h2_frig)  photoRate = photoRate + kph0
-
 
     de = beta(ixHII) * ne + photoRate             !         HI destruction
     if(cosmic_rays) de = de + cosray_HI
