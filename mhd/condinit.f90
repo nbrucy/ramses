@@ -133,8 +133,6 @@ subroutine boundary_frig(ilevel)
      call boundary_frig_galbox(ilevel)
   case('cloud')
      return
-  case('group')
-     return
   case('default')
      return
 

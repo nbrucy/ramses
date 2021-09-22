@@ -214,27 +214,6 @@ subroutine read_cloud_params(nml_ok)
   z_refine = z_refine*boxlen
   r_refine = r_refine*boxlen
 
-  ! Also scale any RT sources
-!  rt_src_x_center = rt_src_x_center * boxlen
-!  rt_src_y_center = rt_src_y_center * boxlen
-!  rt_src_z_center = rt_src_z_center * boxlen
-
-
-  ! Set the sink formation threshold based on the Jeans criterion
-!  cellsize = boxlen * 0.5**nlevelmax * pcincm / scale_l
-!  n_sink = 881.0 / cellsize**2 ! Scaled to give 1e6 for 30pc/1024
-!  n_clfind = 0.1 * n_sink
-!  if(myid==1) write(*,*) "SETTING n_sink, n_clfind TO", n_sink, n_clfind
-
-  ! Feedback parameters
-  ! Removed - done in read_params instead
-  !call read_feedback_params(nml_ok)
-
-  ! Use scale_tout parameter - allows scaling outputs to, e.g., t_ff
-!  if (scale_tout.ne.1d0) then
-!     tout = tout*scale_tout
-!  endif
-
 end subroutine read_cloud_params
 
 !================================================================
@@ -446,11 +425,6 @@ subroutine condinit_cloud(x,u,dx,nn)
          ener_rot = ener_rot + d_c/(1.+eli) * omega**2 * (yi**2 + zi**2)
         endif
      enddo
-!       eli = (yi/r_0)**2 + (zi/r_0/rap)**2
-!        if( eli .lt. zeta**2) then
-!          col_d = r_0*d_c/sqrt(1.+eli)*atan( sqrt( (zeta**2-eli)/(1.+eli) ) )
-!          mass_tot2 = mass_tot2 + col_d
-!        endif
      enddo
      enddo
     close(20)
@@ -557,13 +531,6 @@ subroutine condinit_cloud(x,u,dx,nn)
 
          ! Is this a valid cell for the turbulence?
          turbvalid = .true.
-         !if( ind_i .lt. 1 .or. ind_i .gt. n_size) write(*,*) 'ind_i ',ind_i,boxlen,x(i,1),n_size
-         !if( ind_j .lt. 1 .or. ind_j .gt. n_size) write(*,*) 'ind_j ',ind_j
-         !if( ind_k .lt. 1 .or. ind_k .gt. n_size) write(*,*) 'ind_k ',ind_k
-
-         !if( ind_i .lt. 1 .or. ind_i .gt. n_size) turbvalid=.false.
-         !if( ind_j .lt. 1 .or. ind_j .gt. n_size) turbvalid=.false.
-         !if( ind_k .lt. 1 .or. ind_k .gt. n_size) turbvalid=.false.
          ! Periodic hack
          ind_i = 1+modulo(ind_i-1, n_size)
          ind_j = 1+modulo(ind_j-1, n_size)
@@ -609,13 +576,9 @@ subroutine condinit_cloud(x,u,dx,nn)
 
 !Set all scalar variables to 0 initially
 !Include, radiation, extinction and passive scalar
-!#ifdef RT
-!  if (rt) then
      DO i=1,nn
         q(i,9:nvar) = 0d0
      ENDDO ! LAYS EGGS
-!  end if
-!#endif
 
 
 
@@ -660,13 +623,6 @@ subroutine condinit_cloud(x,u,dx,nn)
      ENDDO
 
        q(i,6:8)           = q(i,6:8)           / dble(nticks)**2
-
-!new version rotates the rotation velocity
-     !rotates the magnetic field of an angle theta
-!       bx=q(i,6)
-!       by=q(i,7)
-!       q(i,6) =  bx*cos(thet_mag) + by*sin(thet_mag)
-!       q(i,7) =  bx*sin(thet_mag) - by*cos(thet_mag)
 
        q(i,nvar+1:nvar+3) = q(i,6:8)
   ENDDO
