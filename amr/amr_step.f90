@@ -456,6 +456,10 @@ recursive subroutine amr_step(ilevel,icount)
   !---------------------
   ! Do RT/Chemistry step
   !---------------------
+#ifdef NEXTINCT
+ call extinction_fine(ilevel)
+#endif
+
 #ifdef RT
   if(rt .and. rt_advect) then
                                call timer('radiative transfer','start')

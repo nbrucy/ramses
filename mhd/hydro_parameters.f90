@@ -40,7 +40,7 @@ module hydro_parameters
   integer,parameter::nvar_trad=nrad+1   ! Total number of radiative variables (= temperature + radiative energies)
 
 #ifndef NEXTINCT
-  integer,parameter::nextinct = 0       ! Add a variable to store extinction coefficient [0,1]
+  integer,parameter::nextinct = 0       ! Add a variable to store extinction coefficient
 #else
   integer,parameter::nextinct = NEXTINCT
 #endif
@@ -68,11 +68,20 @@ module hydro_parameters
   ! First index of variables (in fact index just before the first index)
   ! so that we can loop over 1,nener for instance
   integer,parameter::firstindex_ent=8     ! for non-thermal energies
-  integer,parameter::firstindex_er=8+nent ! for radiative energies
-  integer,parameter::firstindex_fr=8+nener ! for radiative fluxes (if M1)
-  integer,parameter::firstindex_extinct=8+nent+nrad ! for extinction
-  integer,parameter::firstindex_pscal=8+nent+nrad+nextinct ! for passive scalars
+!  integer,parameter::firstindex_er=8+nent ! for radiative energies
+!  integer,parameter::firstindex_fr=8+nener ! for radiative fluxes (if M1)
+
+
+#ifdef NIONS
+  integer,parameter::firstindex_pscal=8+nent+NIONS ! for passive scalars
+#else
+  integer,parameter::firstindex_pscal=8+nent ! for passive scalars
+#endif
+  
+
   integer::lastindex_pscal ! last index for passive scalars other than internal energy
+
+
   ! Initialize NVAR
 #ifndef NVAR
   integer,parameter::nvar=8+nent+nrad+nextinct+npscal
@@ -81,6 +90,9 @@ module hydro_parameters
 #endif
 
 
+!check the Makefile for consistencies
+  !the extinction variables are put at the end say typically nvar-1 and nvar 
+  integer,parameter::firstindex_extinct=nvar + 1 - nextinct ! for extinction
 
 
 

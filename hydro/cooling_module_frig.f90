@@ -880,11 +880,15 @@ end subroutine get_cell_index2
 !! subroutine column_density
 !! It is here where we actually add the contributions of the cells in the shell
 !! to the column densities
+!! PH 20/09/2021 adapted it to ramses RT with H2 formation 
 
 subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_dens, H2column_dens)
   use amr_commons
   use hydro_commons
   use cooling_module
+
+  use rt_parameters,only: isH2,iIons
+
   implicit none
 
   integer,parameter                                                   :: ndir=6  
@@ -910,6 +914,9 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
 
   integer                                               :: ix, iy,iz
 
+
+
+  
   !---  m, n loop limits  ------------------------------------------
   ! here we define the limits for the loops around the direction to the cell center
   ! For the vertical directions (m =0, NdirExt_m), the azimuthal angle covers 2*pi,
@@ -1071,7 +1078,17 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
 !                             column_dens(i,m,n) = column_dens(i,m,n) + dx_cross_ext*uold(cell_ind2,1)   
 #if NSCHEM != 0
                              !if(myid .EQ. 1) write(*,*) "***VAL: Calculating H2column_dens, neulS+1=", neulS+1, "nH2=", uold(cell_ind2,neulS+1)
-                             H2column_dens(i,mloop,nl) = H2column_dens(i,mloop,nl) + dx_cross_ext*uold(cell_ind2,neulS+1)
+
+!                             H2column_dens(i,mloop,nl) = H2column_dens(i,mloop,nl) + dx_cross_ext*uold(cell_ind2,neulS+1)
+
+                             !PH adapted for the RT with H2 - H2 abundance is : 0.5 ( 1 - XHI -XHII)
+                             !question : check about uold(*,1) density or H total abundance (possible issue with He)
+                             if(isH2) then 
+                                   H2column_dens(i,mloop,nl) = H2column_dens(i,mloop,nl) + dx_cross_ext*(uold(cell_ind2,1)-uold(cell_ind2,iIons)-uold(cell_ind2,iIons+1)) / 2. 
+                             endif
+                             
+
+
                              if(isnan(H2column_dens(i,mloop,nl))) write(*,*) "WARNING: CONT",uold(cell_ind2,neulS+1), Mdx_ext(ind_oct, ix, iy, iz, mn), dx_loc, mloop, nloop, nl, mn, m, n, ind_oct
 #endif
                           end do
@@ -1377,10 +1394,12 @@ end subroutine get_mn
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! 2012 VV
+!! initialisation for extinction calculation (Valdivia & Hennebelle 2014).
 !! This routine precalculates the correction factors and the value of pi (pi_g).
 !! It is called from "adaptative_loop.f90" if in the namelist radiative=.true.
+!! Note PH 20/09/2021 changed the name form init_radiative in init_extinction
 
-subroutine init_radiative
+subroutine init_extinction
   use amr_commons
   use hydro_commons
   use cooling_module
@@ -1575,7 +1594,7 @@ subroutine init_radiative
      end do                  !ind2
   end do                     !ind1
 
-end subroutine init_radiative
+end subroutine init_extinction
 !=====================================================================================================
 !=====================================================================================================
 !=====================================================================================================
@@ -2094,6 +2113,9 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
   use cooling_module
   use hydro_parameters
 
+  use rt_parameters,only: isH2,iIons
+
+  
   implicit none
 #ifndef WITHOUTMPI
   include 'mpif.h'
@@ -2285,10 +2307,13 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
      end do
 
 
-#if NEXTINCT>0
-     do i=1,nleaf
-        nH2(i)=MAX(uold(ind_leaf(i),neulS+1),smallr)
-     end do
+#if NEXTINCT>1
+     if(isH2) then 
+        do i=1,nleaf
+           nH2(i) = (uold(ind_leaf(i),1) - uold(ind_leaf(i),iIons) - uold(ind_leaf(i),iIons+1)) / 2.  
+           nH2(i)=MAX(nH2(i),smallr)
+        end do
+     endif
 #endif
 
 
@@ -2311,7 +2336,13 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
                  
                  column_dens_loc(ind_ll,index_m,index_n) = column_dens(ind_ll,index_m,index_n) + dx*Mdx_cross_int(index_m,index_n)*nH(i)
 #if NEXTINCT>1
-                 H2column_dens_loc(ind_ll,index_m,index_n) = H2column_dens(ind_ll,index_m,index_n) + dx*Mdx_cross_int(index_m,index_n)*nH2(i)
+                 !PH adapted for the RT with H2 - H2 abundance is : 0.5 ( 1 - XHI -XHII)
+                 !question : check about uold(*,1) density or H total abundance (possible issue with He)
+                 if(isH2) then 
+                    H2column_dens_loc(ind_ll,index_m,index_n) = H2column_dens(ind_ll,index_m,index_n) + dx*Mdx_cross_int(index_m,index_n)*nH2(i)
+                 endif
+
+!
                  !if(isnan(H2column_dens_loc(ind_ll,mloop,nl))) write(*,*) "WARNING: INT",H2column_dens(ind_ll,index_m,index_n), nH2(i), Mdx_cross_int(index_m,index_n), dx, index_m, index_n
 #endif
                  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~         
@@ -2363,13 +2394,14 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
                        column_dens_loc(ind_ll,mloop,nl) = column_dens_loc(ind_ll,mloop,nl) + dx*Mdx_cross_loc(ind,ii,mloop,nl)*uold(indc2,1)        
 #if NEXTINCT>1
 
-                       H2column_dens_loc(ind_ll,mloop,nl) = H2column_dens_loc(ind_ll,mloop,nl) + dx*Mdx_cross_loc(ind,ii,mloop,nl)*uold(indc2,neulS+1)  
 
-!                       if(isnan(uold(indc2,neulS+1))) write(*,*) "WARNING LOC: nH2 is NaN: ", uold(indc2,1), uold(indc2,neulS+1), Mdx_cross_loc(ind,ii,mloop,nl) 
-!                       if(Mdx_cross_loc(ind,ii,mloop,nl) .NE. 0.0) H2column_dens_loc(ind_ll,mloop,nl) = H2column_dens_loc(ind_ll,mloop,nl) + dx*Mdx_cross_loc(ind,ii,mloop,nl)*uold(indc2,neulS+1)  
-!                       if(Mdx_cross_loc(ind,ii,mloop,nl) .NE. 0.0) H2column_dens_loc(ind_ll,mloop,nl) = H2column_dens_loc(ind_ll,mloop,nl) + dx*Mdx_cross_loc(ind,ii,mloop,nl)*uold(indc2,1)        
-!                       if(isnan(H2column_dens_loc(ind_ll,mloop,nl))) write(*,*) "WARNING: LOC", uold(indc2,neulS+1), Mdx_cross_loc(ind,ii,mloop,nl), mloop, nloop, nl, dx, ind, ii
-!                       if(isnan(uold(indc2,neulS+1)) .AND. Mdx_cross_loc(ind,ii,mloop,nl) .NE. 0.0) write(*,*) "WARNING LOC: nH2 is NaN and Mdx ne 0 !!!", uold(indc2,1), uold(indc2,neulS+1), Mdx_cross_loc(ind,ii,mloop,nl) 
+
+                       if(isH2) then 
+                          H2column_dens_loc(ind_ll,mloop,nl) = H2column_dens_loc(ind_ll,mloop,nl) + dx*Mdx_cross_loc(ind,ii,mloop,nl)*(uold(indc2,1)- uold(indc2,iIons)- uold(indc2,iIons+1))*0.5
+                       endif
+
+
+
 #endif
                     end do
                  end do
