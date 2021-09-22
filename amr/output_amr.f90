@@ -68,6 +68,11 @@ subroutine dump_all
      if(sink)then
         filename=TRIM(filedir)//'sink_'//TRIM(nchar)//'.csv'
         call output_sink_csv(filename)
+        ! [UV_PROP_SFR] Save sink mass array
+        if (uv_prop_sfr) then
+          filename=TRIM(filedir)//'sink_mass_arrays_'//TRIM(nchar)//'.dat'
+          call output_sink_mass_arrays(filename)
+        end if
      endif
      ! Copy namelist file to output directory
      filename=TRIM(filedir)//'namelist.txt'

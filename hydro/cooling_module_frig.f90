@@ -2573,6 +2573,7 @@ end subroutine solve2_H2form
 
 subroutine sfr_update_uv()
   !---------------------------------------------------------------------------
+  ! [UV_PROP_SFR] 
   ! called by :
   !     amr_step
   ! purpose :
@@ -2584,12 +2585,13 @@ subroutine sfr_update_uv()
   use amr_commons
   use pm_commons
   use hydro_commons
+  use constants, only: pc2cm
   implicit none
 
-  real(dp), parameter :: pcincm = 3.0856775814671913d18
   integer :: i_old, i_new ! Index of the position of the past and current total sink mass in the array
   real(dp) :: sfr_time_update, time_span, sfr
   real(dp) :: scale_nH, scale_T2, scale_l, scale_d, scale_t, scale_v, scale_m
+  character(len=:), allocatable :: uvsfr_fmt      
 
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
   scale_m = scale_d*scale_l**3d0
@@ -2611,13 +2613,15 @@ subroutine sfr_update_uv()
   ! SFR in the box
   sfr = (sfr_total_mass_sinks(i_new) - sfr_total_mass_sinks(i_old)) / time_span
   ! Divide by the surface of the box to get the surfacic SFR
-  sfr = sfr / (boxlen * scale_l / pcincm)**2
+  sfr = sfr / (boxlen * scale_l / pc2cm)**2
 
   ! Compute the p_UV parameter, equivalent to G0' in the equation (17) in Ostriker, McKee & Leroy 2010
   p_UV = max(sfr / sfr_ref, sfr_pUV_min)
 
   if (myid == 1 .and. sfr_verbose) then
-     write(*,*) "[SFR t=", t  * scale_t / year,"yr] : sfr=", sfr, "[Msun.pc-2.yr-1], p_UV=", p_UV, ", time_span=",time_span,"[yr]"
+     uvsfr_fmt = '*, f8.3, *, es8.3, *, f8.3, *, f8.3, *' 
+     write(*,*) "t = ", t  * scale_t / (1d6 * year)," Myr, surfacic sfr=", sfr, "[Msun.pc-2.yr-1], p_UV = ", &
+     & p_UV, ", time_span = ", time_span / 1d6," [Myr]"
   end if
 
 end subroutine sfr_update_uv

@@ -140,7 +140,7 @@ subroutine init_sink
 
 
 
-  ! [SFR] Allocate array for the history of the mass of the stars
+  ! [UV_PROP_SFR] Allocate array for the history of the mass of the stars
   if(uv_prop_sfr) then
      allocate(sfr_total_mass_sinks(1:sfr_nb_points))
      allocate(sfr_time_mass_sinks(1:sfr_nb_points))
@@ -149,8 +149,6 @@ subroutine init_sink
         sfr_time_mass_sinks(0) = 0.0
      end if
   end if
-
-
 
   ! Loading sinks from the restart
   if(nrestart>0)then
@@ -226,6 +224,22 @@ subroutine init_sink
         nindsink=idsink(nsink)
      end if
      close(10)
+
+   ! [UV_PROP_SFR] Read mass array
+   if (uv_prop_sfr) then
+      if(IOGROUPSIZEREP>0)then
+         call title(((myid-1)/IOGROUPSIZEREP)+1,ncharcpu)
+         fileloc='output_'//TRIM(nchar)//'/group_'//TRIM(ncharcpu)//'/sink_mass_arrays_'//TRIM(nchar)//'.dat'
+      else
+         fileloc='output_'//TRIM(nchar)//'/sink_mass_arrays_'//TRIM(nchar)//'.dat'
+      endif
+
+      open(10, file=fileloc,form='unformatted')
+      read(10) sfr_total_mass_sinks
+      read(10) sfr_time_mass_sinks
+      close(10)
+   end if
+
 
      ! Send the token
 #ifndef WITHOUTMPI
@@ -310,16 +324,6 @@ subroutine init_sink
      sinkint_level=levelmin
 
      close(10)
-
-
-!read uv_prop_sfr : need to be recoded in new sink file version
-     ! [SFR] Read mass array
-!     if (uv_prop_sfr) then
-!        read(ilun) sfr_total_mass_sinks
-!        read(ilun) sfr_time_mass_sinks
-!     end if
-
-
 
      ! Send the token
 #ifndef WITHOUTMPI

@@ -55,8 +55,8 @@ module pm_commons
   real(dp)::ssoft                  ! sink softening lenght in code units
 
 
-  real(dp),allocatable,dimension(:)::sfr_total_mass_sinks ! [SFR] Total mass of the sinks, now and in the past
-  real(dp),allocatable,dimension(:)::sfr_time_mass_sinks ! [SFR] Time where the total mass of sinks was saved
+  real(dp),allocatable,dimension(:)::sfr_total_mass_sinks ! [UV_PROP_SFR] Total mass of the sinks, now and in the past
+  real(dp),allocatable,dimension(:)::sfr_time_mass_sinks ! [UV_PROP_SFR] Time where the total mass of sinks was saved
 
   ! Particles related arrays
   real(dp),allocatable,dimension(:,:)  ::xp       ! Positions
