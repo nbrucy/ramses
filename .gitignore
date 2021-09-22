@@ -8,3 +8,5 @@ ramses2d
 ramses3d
 .DS_Store
 .mmat
+*write_patch.f90
+*write_makefile.f90

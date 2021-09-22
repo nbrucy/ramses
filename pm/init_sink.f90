@@ -334,10 +334,6 @@ subroutine init_sink
 
   end if
 
-
-
-
-
   ! Compute number of cloud particles within sink sphere
   call compute_ncloud_sink
 

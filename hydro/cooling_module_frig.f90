@@ -394,48 +394,6 @@ subroutine cooling_low(T,n,ref)
   froid = froidcII  + froidh  + froido  + froido_m +  froidcII_m
 
 
-  !      froid=froid*1.d-13    !conversion en MKS
-
-
-  !refroidissement par le carbone neutre. On suppose l'equilibre
-  ! de la reaction C + hv <=> C+ + e-
-  ! les taux de reactions et de refroidissement sont pris dans
-  !la these de Karl Joulain.
-
-  ! abondance du carbone relative a n (MKS)
-
-
-  !    C+ + e- => C
-  !       k1 = 4.4d-12 * (T/300.)**(-0.61) !s^-1 cm^-3
-
-  !       k1 = k1
-
-
-  !    C => C+ + e-
-  !       k2 = 2.2d-10
-
-
-  ! on a : [C] = k1/k2 [C+] * [e-]
-  ! on suppose que tout le carbone est sous forme C+
-  ! et que [e-] = [C+]
-
-  ! l'abondance relative de carbone
-  !      nc = k1/k2 * (3.5d-4*0.4)**2 * n
-
-
-  !      froidc =  1.0d-24 * ( 1.4d0 * exp( -23.d0 / T ) &
-  !                     + 3.8d0 * exp( -62.d0 / T )   )
-
-  !      froidc = froidc * nc !(nc est l'abondance relative du carbone)
-
-
-  !       n=exp(log(10.d0)*logn) !ici pas besoin de log
-
-  !       valeur utilisees au 23/08/98
-  !       chaud=4.d0*exp(-24.5d0*log(10.d0))*1.d-7  !un peu empirique ....
-
-
-
 !!!! on calcule le chauffage
 !!! on prend en compte le chauffage sur les grains
 !!! formules 1 et 2  de Wolfire et al. 1995
@@ -545,37 +503,7 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
   end do
 
     
-  !  ! this part checks that grids can find themselves and verify that coordinates are well recovered
-  !  ! you must uncomment it if you need it
-  !         do idim=1,ndim
-  !           do i=1,ngrid
-  !             xpart(i,idim)=xg(ind_grid(i),idim)
-  !           end do
-  !         end do
-  !  
-  !           call get_cell_index(cell_index,cell_levl,xpart,ilevel-1,ngrid)
-  !  
-  !            do i=1,ngrid
-  !             if( son(cell_index(i)) .ne. ind_grid(i) ) then
-  !              write(*,*) 'prob cell',cell_index(i),son(cell_index(i)),ind_grid(i),ilevel-1,cell_levl(i),i
-  !             endif
-  !  
-  !                !get the father of the cell
-  !                ind_father = mod(cell_index(i) -ncoarse,ngridmax)  !father(cell_index(i)) 
-  !                !get the cell position in its oct
-  !                pos_son = (cell_index(i)-ncoarse-ind_father)/ngridmax + 1
-  !  
-  !                !calculate the cell position
-  !                write(*,*) 'dx',dx*2.
-  !                do idim=1,ndim           
-  !                  xx_check(i,idim)=xg(ind_father,idim)+xc(pos_son,idim)*2.
-  !                enddo
-  !                if(myid .eq. 1 .and. (i .eq. 1 .or. i .eq. 2) ) then 
-  !                  write(*,*) 'xx_check',xx_check(i,1)-xg(ind_grid(i),1),xx_check(i,2)-xg(ind_grid(i),2),xx_check(i,3)-xg(ind_grid(i),3)
-  !                endif
-  !            end do 
-  
-  
+ 
   ! define the path direction 
   ! first index is for x,y,z while second is for direction
   ! x,-x,y,-y,z,-z in this order 
@@ -1040,17 +968,14 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
         do inz=l_inf(reg,3), l_sup(reg,3)
            iz = inz + 6                   ! +6 : respect to the center of the cubic shell 
            xpart2(3)= zg_il + dx_loc*inz 
-!           if(xpart2(3) .NE. dx_loc*(INT( xg(ind_grid(i),3)/dx_loc) +0.5_dp + inz)) write(*,*) 'WARNING : zpart_il=',xpart2(3), 'zpart', dx_loc*(INT( xg(ind_grid(i),3)/dx_loc) +0.5_dp + inz) 
 
            do iny=l_inf(reg,2), l_sup(reg,2)    
               iy = iny + 6
               xpart2(2)= yg_il + dx_loc*iny
-!              if(xpart2(2) .ne. dx_loc*(INT( xg(ind_grid(i),2)/dx_loc) +0.5_dp + iny)) write(*,*) 'WARNING : ypart_il=',xpart2(2), 'ypart', dx_loc*(INT( xg(ind_grid(i),2)/dx_loc) +0.5_dp + iny)
 
               do inx=l_inf(reg,1), l_sup(reg,1) 
                  ix = inx +6
                  xpart2(1)= xg_il + dx_loc*inx
-!                 if(xpart2(1) .ne. dx_loc*(INT(xg(ind_grid(i),1)/dx_loc) + 0.5_dp + inx)) write(*,*) 'WARNING : xpart_il=',xpart2(1), 'xpart', dx_loc*(INT(xg(ind_grid(i),1)/dx_loc) + 0.5_dp + inx)
 
                  !+++  04/02/2013  ++++++++++++++++++++
                  ! here we obtain the direction to the center of the cell in the shell
@@ -1058,7 +983,6 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
                  
                  mn = dirMN_ext(ind_oct, ix, iy, iz)
                  
-!                 if(mn .GT. 12) write(*,*) 'WARNING: mn', mn
 
                  if(Mdx_ext_logical(ind_oct, ix, iy, iz, mn)) then
                     
@@ -1520,7 +1444,6 @@ subroutine init_extinction
         xzer(2) = 0.5_dp*xc(ind1,2)  !xc=0.5 et xzer=0.25
         xzer(3) = 0.5_dp*xc(ind1,3)
      end if
-     !if(myid .EQ. 1) write(*,*) ind, xzer(1),xzer(2),xzer(3)
 
      !Here we take into account the surrounding cells. We consider
      !+-5 cells from xzer in each direction. -6 is to avoid negative index
@@ -1536,9 +1459,6 @@ subroutine init_extinction
               dirM_ext(ind,ix,iy,iz) = m
               dirN_ext(ind,ix,iy,iz) = n
               dirMN_ext(ind,ix,iy,iz) = (m -1)*NdirExt_n + n
-
-!              if(myid .EQ.1 .AND. n .GT.3 .AND. xpar(3) .GT. 0) write(*,*) 'WARNING: x=', xpar(1), xpar(2), xpar(3), 'i=', ix, iy, iz
-!              if(dirMN_ext(ind,ix,iy,iz) .GT. 12) write(*,*) 'WARNING : ind=',ind, 'm=',m, 'n=',n, 'mn=', (m -1)*NdirExt_n + n
 
               do n=1, NdirExt_n
                  do m=1, NdirExt_m
@@ -1556,7 +1476,6 @@ subroutine init_extinction
 
   do ind1=1,8
      do ind2=1,8
-        ! if(myid .EQ. 1) write(*,*) 'ind1, ind2',  ind1, ind2
 
         ind = (ind1-1)*8 + ind2    !ind 1 to 64
 
@@ -1577,7 +1496,6 @@ subroutine init_extinction
                  dirN_ext(ind,ix,iy,iz) = n
                  dirMN_ext(ind,ix,iy,iz) = (m -1)*NdirExt_n + n
  
-!                 if(dirMN_ext(ind,ix,iy,iz) .GT. 12) write(*,*) 'WARNING : ind=',ind,'m=',m, 'n=',n, 'mn=', (m -1)*NdirExt_n + n                 
 
                  do n=1, NdirExt_n
                     do m=1, NdirExt_m
@@ -1585,7 +1503,6 @@ subroutine init_extinction
                        mn = (m-1)*NdirExt_n + n
                        Mdx_ext(ind,ix,iy,iz,mn) = dx_factor
                        if(dx_factor .GT. 0) Mdx_ext_logical(ind,ix,iy,iz,mn) = .true.
-                       ! if (myid .EQ. 1)write(*,*)ind, ix,iy,iz,m,n, dx_factor
                     end do   !m
                  end do      !n
               end do         !ix
@@ -1607,7 +1524,6 @@ end subroutine init_extinction
 !PH modifies this as coeff_chi is now stored 
 !these routines have been modified by Benjamin Godard
 subroutine chaud_froid_2(T,n,ref,dRefDT,coeff_chi)    
-!  use hydro_commons,only:NdirExt_m,NdirExt_n
   use amr_parameters
   
   implicit none
@@ -2228,40 +2144,7 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
      if(ndim>2)xc(ind,3)=(dble(iz)-0.5_dp)*dx
   end do
 
-!******************************************************
-!--- GEOMETRICAL CORRECTIONS:  Internal and Local -----
-!  do ind=1,twotondim
-!     xpos(1) = xc(ind,1)
-!     xpos(2) = xc(ind,2)
-!     xpos(3) = xc(ind,3)
-!     
-!     do index_m = 1,NdirExt_m
-!        do index_n = 1,NdirExt_n
-!           call get_dx(xpos,xpos,index_m,index_n,dx,dx_cross_int)        
-!           Mdx_cross_int2(index_m,index_n) = dx_cross_int/2.0_dp
-!        end do
-!     end do
-!     
-!     do ii=1,twotondim
-!        if(ii .NE. ind) then
-!           xcell(1) = xc(ii,1)
-!           xcell(2) = xc(ii,2)
-!           xcell(3) = xc(ii,3)
-!           call get_mn(xpos,xcell, m,n)
-!           Mdirection2(ind,ii) = m
-!           Ndirection2(ind,ii) = n
-!           
-!           do index_m=1,NdirExt_m  
-!              do index_n=1,NdirExt_n
-!                 call get_dx(xpos,xcell,index_m,index_n,dx,dx_cross_loc)
-!                 Mdx_cross_loc2(ind,ii,index_m,index_n) = dx_cross_loc
-!              end do
-!           end do
-!        end if
-!     end do
-!
-!  end do
-!----------------------------------------------------
+
 !******************************************************
 
 
@@ -2375,7 +2258,6 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
                  ! knowing the index of the target cell and the sibling cell we can find 
                  ! the closest direction from the target cell center to the sibling cell center.
                 
-!                 if(isnan(uold(indc2,neulS+1))) write(*,*) "WARNING LOC: nH2 is NaN: ", xpos/dx    !i, ii, uold(indc2,1), uold(indc2,neulS+1), xpos
                  m = Mdirection(ind,ii)
                  n = Ndirection(ind,ii)
                  
@@ -2393,15 +2275,9 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
                        
                        column_dens_loc(ind_ll,mloop,nl) = column_dens_loc(ind_ll,mloop,nl) + dx*Mdx_cross_loc(ind,ii,mloop,nl)*uold(indc2,1)        
 #if NEXTINCT>1
-
-
-
                        if(isH2) then 
                           H2column_dens_loc(ind_ll,mloop,nl) = H2column_dens_loc(ind_ll,mloop,nl) + dx*Mdx_cross_loc(ind,ii,mloop,nl)*(uold(indc2,1)- uold(indc2,iIons)- uold(indc2,iIons+1))*0.5
                        endif
-
-
-
 #endif
                     end do
                  end do
@@ -2525,9 +2401,6 @@ end subroutine extinctionfine1
 SUBROUTINE simple_chem(ilevel)
   use amr_commons
   use hydro_commons
-  !USE hydro_parameters
-  !use chemo_parameters
-  !use thermochemistry
   implicit none
 #ifndef WITHOUTMPI
   include 'mpif.h'
@@ -2545,18 +2418,15 @@ SUBROUTINE simple_chem(ilevel)
   ! Operator splitting step for cooling source term
   ! by vector sweeps
   ncache=active(ilevel)%ngrid
-  !if(myid .EQ. 1) write(*,*) '***VAL: Entering SIMPLE_CHEM'
   do igrid=1,ncache,nvector
      ngrid=MIN(nvector,ncache-igrid+1)
      do i=1,ngrid
         ind_grid(i)=active(ilevel)%igrid(igrid+i-1)
      end do
-     !if(verbose)write(*,110)ind_grid,ngrid,ilevel
      if(verbose)write(*,*) '***VAL: Ready to call simple_chemostep1' ! : ind_grid,ngrid,ilevel=',ind_grid,ngrid,ilevel
      call simple_chemostep1(ind_grid,ngrid,ilevel)
   end do
 
-!110 format('   Ready to call chemostep1 with ind_grid,ngrid,ilevel=:',i2,i2,i2)
 111 format('   Entering simple_chem for level',i2)
 
 end subroutine simple_chem
@@ -2620,7 +2490,6 @@ subroutine simple_chemostep1(ind_grid,ngrid,ilevel) !
      end do
      ! Conversion factor from user units to cgs units
      call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
-!     scale_nHmy=scale_d/(1.4*mp)   !!! VAL: ND chem
  
      dt_ilev = dtnew(ilevel)
 
@@ -2835,13 +2704,6 @@ subroutine solve2_H2form(nH2, ntot, k1, k2, dt_ilev)
   !                        = k1*n*(1-2*xH2(t+dt)) - k2*xH2(t+dt)
   ! nH2(t+dt) =  (xH2(t) - k1*n*dt)/( 1 + (2*k1*n+k2)*dt)
   !---------------------------------------------------------------
-!if(myid .EQ. 1) then
-!  write(*,*) "=============================================="
-!  write(*,*) "=====            TEST                    ====="
-!  write(*,*) "       temps                   xH2            "
-!endif
-
-  !if(myid .EQ. 1) write(*,*) '***VAL: Entering SOLVE2_H2FORM'
 
 
   do while ( temps < dt_tot)
@@ -2851,16 +2713,9 @@ subroutine solve2_H2form(nH2, ntot, k1, k2, dt_ilev)
      dtchem = MIN(ABS(xH2/denom), dt_tot)
      dtchem = 5d-2*MAX(1.0/(2*k1ntot + k2), dtchem)
 
-!     dtchem = abs(xH2/(k1*ntot - (2.0*k1*ntot + k2)*xH2))      !PH estimation of time step
-!     dtchem = 0.01*dtchem
-!     if(myid .EQ. 1) write(*,*) '***VAL: SOLVE2_H2', denom, dtchem, dt_tot-temps
 
      dt = min(dtchem, dt_tot-temps)
      temps = temps + dt
-
-
-!     if(myid.EQ.1) write(*,*)  temps, xH2
-!     if(myid.EQ.1) write(*,*)  temps, dtchem, dt_tot-temps, dt
 
      dennew = (1.0 + (2.0*k1ntot + k2)*dt)
      if(isnan(dennew)) write(*,*) "WARNING: (IN) dennew is NaN", temps,k1ntot, k2, dt 
@@ -2877,28 +2732,11 @@ subroutine solve2_H2form(nH2, ntot, k1, k2, dt_ilev)
      xH = 1.0 - 2.0*xH2new
      xH2 = xH2new
 
-
-
-
-!     if(xH .GT. 1.0) write(*,*) "WARNING: (IN) HI fraction GT 1, xH, xH2", xH, xH2new
-!     if(xH .LT. 0.0) write(*,*) "WARNING: (IN) HI fraction LT 0, xH, xH2", xH, xH2new
-
-
   end do
 
   if(isnan(xH2)) write(*,*) "WARNING: (OUT) H2 fraction is NaN"    
   if(xH2new .GT. 0.5 .OR. xH .LT. 0.0 ) write(*,*) "WARNING: (OUT) xH2 GT 0.5, xH, xH2", xH, xH2new
   if(xH2new .LT. 0.0 .OR. xH .GT. 1.0) write(*,*) "WARNING: (OUT) xH2 LT 0, xH, xH2", xH, xH2new
-!  if(xH .GT. 1.0) write(*,*) "WARNING: HI (OUT) fraction GT 1, xH, xH2", xH, xH2new
-!  if(xH .LT. 0.0) write(*,*) "WARNING: HI (OUT) fraction LT 0, xH, xH2", xH, xH2new
-
-
-
-!  write(*,*) "=============================================="
-
-
-!  write(*,*) nH, nH2,dt_ilev, dt_tot, dt, dtchem, xH, xH2 
-!  nH  = xH*ntot
 
   if(isnan(xH2)) write(*,*) "WARNING: (END) xH2 is nan"
   xH2 = min(xH2, xH2max)
@@ -2908,7 +2746,6 @@ subroutine solve2_H2form(nH2, ntot, k1, k2, dt_ilev)
   if(nH2 .LT. 0.0) write(*,*) "WARNING END: ", ntot, xH2, nH2 
 
 end subroutine solve2_H2form
-
 
 subroutine sfr_update_uv()
   !---------------------------------------------------------------------------

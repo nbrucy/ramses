@@ -11,13 +11,7 @@ recursive subroutine amr_step(ilevel,icount)
   use coolrates_module, only: update_coolrates_tables
   use rt_cooling_module, only: update_UVrates
 #endif
-
-!  use cloud_module, only: rt_feedback,rt_protostar_fld
-  !use rt_cooling_module, only: rt_protostar_m1
   use feedback_module
-
-
-
 #if USE_TURB==1
   use turb_commons
 #endif
