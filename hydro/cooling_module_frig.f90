@@ -60,7 +60,7 @@ subroutine  calc_temp(NN,TT,dt_tot_unicode)
     ! HARD-CODED mu TO MAKE TEMPERATURE AGREE WITH HENNEBELLE CODE
     mu = 1.4
     !
-    ! Cette routine fonctionne en cgs
+    ! cgs units are used here
     ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     kb  =  1.38062d-16   ! erg/degre
@@ -78,17 +78,10 @@ subroutine  calc_temp(NN,TT,dt_tot_unicode)
         return
     endif
 
-    !if( TT*scale_T2 .gt. 50.) then
-    !TT = 50. / scale_T2
-    !return
-    !endif
-
     vardt = 10.**(1./10.); varrel = 0.2
 
     dt_tot = dt_tot_unicode * scale_t ! * 3.08d18 / sqrt(kb_mm)
     TT     = TT * scale_T2
-
-    !  nn = (rho/(gramme/cm3)) /mm
 
     itermax = 0 ; itermoy = 0.
 
@@ -96,11 +89,9 @@ subroutine  calc_temp(NN,TT,dt_tot_unicode)
 
     if (NN .le. smallr) then
         if( NN .le. 0)  write(*,*) 'prob dens',NN
-        NN = smallr  !max(NN,smallr)
+        NN = smallr  
     endif
 
-
-    ! alpha_ct = NN*kb_mm/(gamma-1.)
     alpha_ct = NN*kb/(gamma-1.)
 
     ! eps - a small offset of T to find gradient in T
@@ -110,7 +101,6 @@ subroutine  calc_temp(NN,TT,dt_tot_unicode)
     do while ( temps < dt_tot)
         if (TT .lt.0) then
             write(*,*) 'prob Temp',TT, NN
-            !         write(*,*) 'repair assuming isobariticity'
             NN = max(NN,smallr)
             TT = min(4000./NN,8000.)  !2.*4000. / NN
         endif
@@ -133,9 +123,6 @@ subroutine  calc_temp(NN,TT,dt_tot_unicode)
 
         ! TODO STG - COPY THIS FUNCTION UP TO HERE, USE ref, drefdT TO 
         !            REPLACE rt_cmp_metals SOMEHOW
-
-
-        !       write(*,*) 'check',TTold, TT,NN,ref,dRefdT,iter
 
 
         if (iter == 0) then
@@ -192,47 +179,46 @@ subroutine cooling_high(T,n,ref)
     use amr_parameters
     implicit none
 
-    real(dp) :: T,P,N,x,ne                    !x est le taux d'ionisation
+    real(dp) :: T,P,N,x,ne                    ! x is the ionisation rate
     real(dp) :: T2, ref2
-    real(dp) :: froid,chaud,ref,nc, froidc
-    real(dp) :: froidcII, froido, froidh
-    real(dp) :: froidc_m,froidcII_m,froido_m
-    real(dp) :: param, G0, epsilon,k1,k2,bet,froidrec
+    real(dp) :: cold,hot,ref,nc, cold_c
+    real(dp) :: cold_cII, cold_o, cold_h
+    real(dp) :: cold_c_m,cold_cII_m,cold_o_m
+    real(dp) :: param, G0, epsilon,k1,k2,bet,cold_rec
     real(dp) :: eps
 
     real(dp) :: logT, intcst, logT2
     real(dp) :: ion, neut
     real(dp) :: refion
 
-    !taux de refroidissement base sur Dopita et Sutherland
+    ! cooling rate based on Dopita and Sutherland
 
     logT=log10(T)
 
     if (logT .LT. 4.0) then
-        froid=0.1343*logT**3-1.3906*logT**2+5.1554*logT-31.967
+        cold=0.1343*logT**3-1.3906*logT**2+5.1554*logT-31.967
     else if (logT .LT. 4.25) then
-        froid=12.64*logT-75.56
+        cold=12.64*logT-75.56
     else if (logT .LT. 4.35) then
-        froid=-0.3*logT-20.565
+        cold=-0.3*logT-20.565
     else if (logT .LT. 4.9) then
-        froid=1.745*logT-29.463
+        cold=1.745*logT-29.463
     else if (logT .LT. 5.4) then
-        froid=-20.9125
+        cold=-20.9125
     else if (logT .LT. 5.9) then
-        froid=-1.795*logT-11.219
+        cold=-1.795*logT-11.219
     else if (logT .LT. 6.2) then
-        froid=-21.8095
+        cold=-21.8095
     else if (logT .LT. 6.7) then
-        froid=-1.261*logT-13.991
+        cold=-1.261*logT-13.991
     else
-        froid=-22.44
+        cold=-22.44
     endif
 
-    froid=-1.0*10.0**(froid)
+    cold=-1.0*10.0**(cold)
 
-!    chaud = 1.E-25
-    chaud = 0.
-    ref= chaud*n + (n**2)*(froid)
+    hot = 0.
+    ref= hot*n + (n**2)*(cold)
 
 end subroutine cooling_high
 
@@ -246,33 +232,29 @@ subroutine cooling_low(T,n,ref)
 
   implicit none
 
-  real(dp) :: T,P,N,x,ne,x_ana                 !x est le taux d'ionisation
-  real(dp) :: froid,chaud,ref,nc, froidc
-  real(dp) :: froidcII, froido, froidh
-  real(dp) :: froidc_m,froidcII_m,froido_m
-  real(dp) :: param, G0, epsilon,k1,k2,bet,froidrec
+  real(dp) :: T,P,N,x,ne,x_ana                ! x is the ionisation rate
+  real(dp) :: cold,hot,ref,nc, cold_c
+  real(dp) :: cold_cII, cold_o, cold_h
+  real(dp) :: cold_c_m,cold_cII_m,cold_o_m
+  real(dp) :: param, G0, epsilon,k1,k2,bet,cold_rec
+
+  ! cooling and heating function computed from the cooling of 
+  ! chemical elements
 
 
-  !fonction de chauffage et de refroidissement calculee a partir des
-  !refroidissements des differents elements
+  ! Carbon abondance 3.5 10-4, depletion 0.4
 
-
-
-  !abondance de carbone 3.5 10-4, depletion 0.4
-
-!!! on calcule l'ionisation
-!!! on suppose que si x est superieure a 1.d-4 elle est domine par
-!!! l'hydrogene et que la valeur inf est donne par le carbone
-!!! et vaut 3.5 1.d-4 * depletion * densite
-
-!!! Pour les electrons dus a l'hydrogene on prend la
-!!! formule donnee par Wolfire et al. 2003 appendice C2.
-!!! on prend un taux d'ionisation de 1.d-16 G0'=GO/1.7
+!!! We compute the ionisation
+!!! We assume that if x is over 1.d-4  then it is dominated by oxygen
+!!! and that the minimal value is given by the carbon and is 
+!!! 3.5 1.d-4 * depletion * density
+  
+!!! For the electrons due to hydrogen we take the formula
+!!! from  Wolfire et al. 2003 appendice C2.
+!!! The ionization rate is set to 1.d-16 G0'=GO/1.7
 !!! Z'd = 1 et phipah=0.5
 
-
-
-  ne = 2.4d-3*((T/100d0)**0.25d0)/0.5d0 !formule C15 Wolfire et al. 2003
+  ne = 2.4d-3*((T/100d0)**0.25d0)/0.5d0 ! formula C15 of Wolfire et al. 2003
 
   ! Analytic ionisation in absence of photoionisation
   x_ana = ne / N   ! ionisation
@@ -280,75 +262,40 @@ subroutine cooling_low(T,n,ref)
   x_ana = max(x_ana,3.5d-4*0.4d0)
   x = x_ana ! (Different variables in case we need photoionised values later)
 
-  !transition hyperfine a basse temperature: carbone et oxygene
-  !chiffre pris dans la these de Karl Joulain
-
-  !refroidissement par le carbone
-
-
-
-
-  !      froidcII = ( 2.2d-23                     !excitation par H
-  !     c          + 5.5d-20 * 2 / sqrt(T) * x ) !excitation par e
-  !     c              * 3.5d-4 * 0.4d0 * exp(-92.d0 / T)
-
-
  ! NOTE - HERE WE USE THE NON-PHOTOIONISED RATES AS THIS MIGHT 
  !        BE TOO HIGH AT x=1
-  froidcII =  92. * 1.38E-16 * 2. * (2.8E-7* ((T/100.)**(-0.5))*x_ana + 8.E-10*((T/100.)**(0.07))) &
+  cold_cII =  92. * 1.38E-16 * 2. * (2.8E-7* ((T/100.)**(-0.5))*x_ana + 8.E-10*((T/100.)**(0.07))) &
        * 3.5E-4 * 0.4 * exp(-92./ T)
-  !     c               3.d-4  * exp(-92. / T)
 
 
-  !refroidissement par l'oxygene
-  !abondance 8.6 10-4 depletion 0.8
+  ! oxygen-prompted cooling
+  ! abondance 8.6 10-4 depletion 0.8
 
-  froido = 1.E-26 * sqrt(T) * (24. * exp(-228./ T) + 7. * exp(-326./ T) )
+  cold_o = 1.E-26 * sqrt(T) * (24. * exp(-228./ T) + 7. * exp(-326./ T) )
 
-
-  !      froido =  230.d0*1.38d-16 * (
-  !     c            1.4d-8*x + 9.2d-11 *(T /100.d0)**(0.67) )
-  !     c     * exp(-230.d0 / T)
-
-  !      froido = froido +  330.d0*1.38d-16 *(
-  !     c            1.4d-8*x + 4.3d-11 *(T /100.d0)**(0.8) )
-  !     c     * exp(-330.d0 / T)
-
-  !      froido = froido +  98.d0*1.38d-16 * (
-  !     c            5.d-9 *x + 1.1d-10* (T /100.d0)**(0.44) )
-  !    c      * exp(-98.d0 / T)
+  ! take oxygen abondance into account
+  cold_o = cold_o * 4.5E-4
 
 
-  !       froido = 2.5d-27 * (T/100)**0.4 * exp(-228.d0 / T)
-
-
-  !on tient compte de l'abondance du
-  froido = froido * 4.5E-4
-
-
-  !refroidissement par l'hydrogene
-  ! formule de Spitzer 1978
+  ! Hydrogen-prompted cooling
+  ! formula from Spitzer 1978
   ! NOTE - RT function handles hydrogen cooling out of equilibrium
-  froidh = 0d0
+  cold_h = 0d0
   if (.not. rt) then
-     froidh = 7.3E-19 * x * exp(-118400./ T )
+     cold_h = 7.3E-19 * x * exp(-118400./ T )
   endif
 
-  !refroidissement par les raies metastables des metaux
-  !chiffre pris dans Hollenbach and McKee 1989 (ApJ 342, 306)
+  ! cooling from metastables metal lines
+  ! formulas from Hollenbach and McKee 1989 (ApJ 342, 306)
 
-
-
-
-
-  !carbone une fois ionise ,1 transitions 2P 4P
-  ! le poids est 1
+  ! Ionised carbon, 1 transition 2P 4P
+  ! weight is 1
   ! 2P->4P :
+  ! The excitation coefficients depends on the temperature above 10^4 K
   ! les expressions des coefficients d'excitation ont une dependance
-  !en la temperature differente au dela de 10000K
-  !abondance 3.5 d-4 depletion 0.4
+  ! abondance 3.5 d-4 depletion 0.4
 
-         froidcII_m = 6.2d4 * 1.38d-16 * 1.d0 * &    !transition 2P->4P
+         cold_cII_m = 6.2d4 * 1.38d-16 * 1.d0 * &    !transition 2P->4P
         ( 2.3d-8* (T/10000.)**(-0.5) * x + 1.d-12 ) *exp(-6.2d4 / T) &
            * 3.5d-4 * 0.4
 
@@ -356,50 +303,49 @@ subroutine cooling_low(T,n,ref)
 
 
          if ( T .le. 1.d4 ) then
-         froido_m = 2.3d4 * 1.38d-16 / 3.d0 * &
+         cold_o_m = 2.3d4 * 1.38d-16 / 3.d0 * &
         ( 5.1d-9 * (T/10000.)**(0.57) * x + 1.d-12) *exp(-2.3d4/T)
   
-         froido_m = froido_m + &
+         cold_o_m = cold_o_m + &
               4.9d4 * 1.38d-16 / 3.d0  * &
         ( 2.5d-9 * (T/10000.)**(0.57) * x + 1.d-12) *exp(-4.9d4/T)
   
 
-         froido_m = froido_m + &
+         cold_o_m = cold_o_m + &
               2.6d4 * 1.38d-16 * 1.d0  * &
         ( 5.2d-9 * (T/10000.)**(0.57) * x + 1.d-12) *exp(-2.6d4/T)
 
          else
 
-         froido_m = 2.3d4 * 1.38d-16 / 3.d0 * &
+         cold_o_m = 2.3d4 * 1.38d-16 / 3.d0 * &
         ( 5.1d-9 * (T/10000.)**(0.17) * x + 1.d-12) *exp(-2.3d4/T)
   
-         froido_m = froido_m + &
+         cold_o_m = cold_o_m + &
               4.9d4 * 1.38d-16 / 3.d0  * &
         ( 2.5d-9 * (T/10000.)**(0.13) * x + 1.d-12) *exp(-4.9d4/T)
 
 
-         froido_m = froido_m + &
+         cold_o_m = cold_o_m + &
               2.6d4 * 1.38d-16 * 1.d0  * &
         ( 5.2d-9 * (T/10000.)**(0.15) * x + 1.d-12) *exp(-2.6d4/T)
 
 
          endif
 
-  !! abondance de l'oxygene
-         froido_m = froido_m *   4.5d-4
+  !! oxigen abondance 
+     cold_o_m = cold_o_m *   4.5d-4
 
 
 
-!!! on somme les refroidissements
-  froid = froidcII  + froidh  + froido  + froido_m +  froidcII_m
+!!! sum of the cooling terms
+  cold = cold_cII  + cold_h  + cold_o  + cold_o_m +  cold_cII_m
 
 
-!!!! on calcule le chauffage
-!!! on prend en compte le chauffage sur les grains
-!!! formules 1 et 2  de Wolfire et al. 1995
+!!!! Computation of the heating term
+!!! Heating on grains is taken into account
+!!! formula 1 et 2  of Wolfire et al. 1995
 
-!!!! G0 est le flux UV par rapport au flux defini par Habing et
-!!!! Draine
+!!!! G0 is the UV flux compared to the one given by Habing et Draine
 
   G0 = 1./1.7
 
@@ -407,25 +353,17 @@ subroutine cooling_low(T,n,ref)
   epsilon = 4.9E-2 / (1. + (param/1925.)**0.73)
   epsilon  = epsilon + 3.7E-2 * (T/1.E4)**0.7 / (1. + (param/5.E3) )
 
+  hot = 1.E-24 * epsilon
 
-  chaud = 1.E-24 * epsilon
+  ! for a UV flux of G0/1.7
+  hot = hot * G0
 
-
-  ! pour un flux de rayonnement G0/1.7
-  chaud = chaud * G0
-
-  !refroidissement recombinaison sur les grains charges positivement
+  ! recombination cooling on positively charged grains
   bet = 0.74/(T**0.068)
-  froidrec = 4.65E-30*(T**0.94)*(param**bet)*x
+  cold_rec = 4.65E-30*(T**0.94)*(param**bet)*x
 
 
-
-  !! chaud=1.d-32 !un peu empirique ....
-
-  !      froidc=0.d0
-
-
-  ref= chaud*n - (n**2)*(froid + froidrec) !!!+ froidc)
+  ref = hot*n - (n**2)*(cold + cold_rec)
 
   return
 
@@ -1058,15 +996,10 @@ subroutine  calc_temp_extinc(NN,TT,dt_tot_unicode,coeff_chi)
   real(dp)            :: scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2
   
   
-  ! Cette routine fonctionne en cgs
+  ! cgs units are used here
   ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   
   kb  =  1.38062d-16   ! erg/degre
-  !  uma =  1.660531e-24  ! gramme
-  !  mu  =  1.4
-  !  mm = mu*uma 
-  !  kb_mm = kb / mm 
-  !  TT = TT  / kb  !/ kb_mm 
   
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
   
@@ -1074,17 +1007,6 @@ subroutine  calc_temp_extinc(NN,TT,dt_tot_unicode,coeff_chi)
      TT = 50. / scale_T2
      return
   endif
-  
-  !use for the shell problem to keep high the temperature of the coronal gas 
-  ! if( TT * scale_T2 .ge. 20000. ) then 
-  !    return
-  ! endif
-  
-  
-  !if( TT*scale_T2 .gt. 50.) then
-  !TT = 50. / scale_T2
-  !return
-  !endif
   
   
   vardt = 10.**(1./10.); varrel = 0.2
@@ -1094,9 +1016,7 @@ subroutine  calc_temp_extinc(NN,TT,dt_tot_unicode,coeff_chi)
   dt_tot = dt_tot_unicode * scale_t ! * 3.08d18 / sqrt(kb_mm)
   TT     = TT * scale_T2
   
-  
-  !  nn = (rho/(gramme/cm3)) /mm
-  
+    
   itermax = 0 ; itermoy = 0.
   
   
@@ -1106,8 +1026,6 @@ subroutine  calc_temp_extinc(NN,TT,dt_tot_unicode,coeff_chi)
      NN = smallr  !max(NN,smallr)
   endif
   
-  
-  !     alpha1 = NN*kb_mm/(gamma-1.)
   alpha1 = NN*kb/(gamma-1.)
   
   iter = 0 ; temps = 0.
@@ -1129,9 +1047,8 @@ subroutine  calc_temp_extinc(NN,TT,dt_tot_unicode,coeff_chi)
      
      !! here we pass the value of the column density
      
-!     call chaud_froid_2(TT,NN,ref,dRefdT,vcolumn_dens,scale_l,coeff_chi)             
 !PH modifies this as coeff_chi is now stored 
-     call chaud_froid_2(TT,NN,ref,dRefDT,coeff_chi)    
+     call hot_cold_2(TT,NN,ref,dRefDT,coeff_chi)    
      !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
      
      if (iter == 0) then
@@ -1166,13 +1083,8 @@ subroutine  calc_temp_extinc(NN,TT,dt_tot_unicode,coeff_chi)
      
      dt_max = dt_tot - temps
      if (dt > 0.7*dt_max) dt = dt_max*(1.+1.0E-12)
-     !        write(*,987) temps, TT
-     !987     format(E10.3,2x,E10.3)
-     !        read (*,*)
   enddo
   
-  
-  !  if (TT .ge. 50.)  TT=50.
   
   !!now convert temperature in code units
   TT = TT / scale_T2
@@ -1200,7 +1112,7 @@ subroutine get_dx(x0,xcel,m,n,dx0,dx_cross)
   real(dp), intent (out)                :: dx_cross
 
   real(dp), dimension(3,2)              :: xplane
-  real(dp), dimension(2,3)              :: sol                  !2 solutions et 3 coordonnees par solution
+  real(dp), dimension(2,3)              :: sol                  ! 2 solutions and 2 coordinates per solution
   real(dp), dimension(3)                :: xx
 
   real(dp)                              :: dx_2,xal1, xal2, solaux
@@ -1298,7 +1210,6 @@ subroutine get_mn(x0,x1,m,n)
   else                           ! otherwise it depends on the values of sin and cos
      cos_phi= (x1(1)-x0(1))/rr
      sin_phi= (x1(2)-x0(2))/rr
-!     if(abs(cos_phi) .GT. 1 .OR. abs(sin_phi) .GT. 1) write(*,*) 'WARNING: forbidden values for cos, sin =', cos_phi, sin_phi
      
      if(sin_phi .GE. 0) then
         phi = acos(cos_phi)
@@ -1520,10 +1431,10 @@ end subroutine init_extinction
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! 2012 VV Modified to include the extinction
-!subroutine chaud_froid_2(T,n,ref,dRefDT,vcolumn_dens,sc_l,coeff_chi)    
+!subroutine hot_cold_2(T,n,ref,dRefDT,vcolumn_dens,sc_l,coeff_chi)    
 !PH modifies this as coeff_chi is now stored 
 !these routines have been modified by Benjamin Godard
-subroutine chaud_froid_2(T,n,ref,dRefDT,coeff_chi)    
+subroutine hot_cold_2(T,n,ref,dRefDT,coeff_chi)    
   use amr_parameters
   
   implicit none
@@ -1547,22 +1458,22 @@ subroutine chaud_froid_2(T,n,ref,dRefDT,coeff_chi)
   real(dp)                 :: ne_2
   real(dp)                 :: x_1
   real(dp)                 :: x_2
-  real(dp)                 :: froidcII_1
-  real(dp)                 :: froidcII_2
-  real(dp)                 :: froido_1
-  real(dp)                 :: froido_2
-  real(dp)                 :: froidh_1
-  real(dp)                 :: froidh_2
-  real(dp)                 :: froidrec_1
-  real(dp)                 :: froidrec_2
-  real(dp)                 :: chaud_ph_1
-  real(dp)                 :: chaud_ph_2
-  real(dp)                 :: chaud_cr
+  real(dp)                 :: cold_cII_1
+  real(dp)                 :: cold_cII_2
+  real(dp)                 :: cold_o_1
+  real(dp)                 :: cold_o_2
+  real(dp)                 :: cold_h_1
+  real(dp)                 :: cold_h_2
+  real(dp)                 :: cold_rec_1
+  real(dp)                 :: cold_rec_2
+  real(dp)                 :: hot_ph_1
+  real(dp)                 :: hot_ph_2
+  real(dp)                 :: hot_cr
 
-  real(dp)                 :: froid_1
-  real(dp)                 :: froid_2
-  real(dp)                 :: chaud_1
-  real(dp)                 :: chaud_2
+  real(dp)                 :: cold_1
+  real(dp)                 :: cold_2
+  real(dp)                 :: hot_1
+  real(dp)                 :: hot_2
   real(dp)                 :: ref_1
   real(dp)                 :: ref_2
 
@@ -1626,28 +1537,28 @@ subroutine chaud_froid_2(T,n,ref,dRefDT,coeff_chi)
   !     c - cooling by recombination on positively charged grains
   ! ======================================================================================
 
-  CALL COOL_CP(T_1, x_cp, x_1, froidcII_1)
-  CALL COOL_CP(T_2, x_cp, x_2, froidcII_2)
+  CALL COOL_CP(T_1, x_cp, x_1, cold_cII_1)
+  CALL COOL_CP(T_2, x_cp, x_2, cold_cII_2)
 
-  CALL COOL_O(T_1, x_o, froido_1)
-  CALL COOL_O(T_2, x_o, froido_2)
+  CALL COOL_O(T_1, x_o, cold_o_1)
+  CALL COOL_O(T_2, x_o, cold_o_2)
 
-  froidh_1 = 0d0
-  froidh_2 = 0d0
+  cold_h_1 = 0d0
+  cold_h_2 = 0d0
   !if rt this cooling is taken into account in the rt module
   if (.not. rt) then
-     CALL COOL_H(T_1, x_1, froidh_1)
-     CALL COOL_H(T_2, x_2, froidh_2)
+     CALL COOL_H(T_1, x_1, cold_h_1)
+     CALL COOL_H(T_2, x_2, cold_h_2)
   endif
 
 
 
-  CALL COOL_REC(G0, T_1, phi_pah, x_1, N, froidrec_1)
-  CALL COOL_REC(G0, T_2, phi_pah, x_2, N, froidrec_2)
+  CALL COOL_REC(G0, T_1, phi_pah, x_1, N, cold_rec_1)
+  CALL COOL_REC(G0, T_2, phi_pah, x_2, N, cold_rec_2)
 
   ! Sum all cooling functions
-  froid_1 = froidcII_1 + froido_1 + froidh_1 + froidrec_1
-  froid_2 = froidcII_2 + froido_2 + froidh_2 + froidrec_2
+  cold_1 = cold_cII_1 + cold_o_1 + cold_h_1 + cold_rec_1
+  cold_2 = cold_cII_2 + cold_o_2 + cold_h_2 + cold_rec_2
 
   ! ======================================================================================
   ! 3 - set the heating rates
@@ -1655,31 +1566,31 @@ subroutine chaud_froid_2(T,n,ref,dRefDT,coeff_chi)
   !     b - cosmic rays (for dark cloud cores, Goldsmith 2001, Eq. 3)
   ! ======================================================================================
 
-  CALL HEAT_PH (G0, T_1, phi_pah, x_1, N, chaud_ph_1)
-  CALL HEAT_PH (G0, T_2, phi_pah, x_2, N, chaud_ph_2)
+  CALL HEAT_PH (G0, T_1, phi_pah, x_1, N, hot_ph_1)
+  CALL HEAT_PH (G0, T_2, phi_pah, x_2, N, hot_ph_2)
 
-  chaud_cr = 1.0E-27_dp
+  hot_cr = 1.0E-27_dp
 
   ! Sum all heating functions
-  chaud_1 = chaud_ph_1 + chaud_cr
-  chaud_2 = chaud_ph_2 + chaud_cr
+  hot_1 = hot_ph_1 + hot_cr
+  hot_2 = hot_ph_2 + hot_cr
 
   ! ======================================================================================
   ! 4 - compute the net heating rate (in erg cm-3 s-1) and the output variables
   ! ======================================================================================
-  ref_1 = n * chaud_1 - n**2.0_dp * froid_1
-  ref_2 = n * chaud_2 - n**2.0_dp * froid_2
+  ref_1 = n * hot_1 - n**2.0_dp * cold_1
+  ref_2 = n * hot_2 - n**2.0_dp * cold_2
 
   ref    = ref_1
   dRefDT = (ref_2-ref_1) / T / eps
 
-end subroutine chaud_froid_2
+end subroutine hot_cold_2
 
 
 SUBROUTINE ELEC_DENS(zeta_p, G0_p, T, phi, xcp, nH, ne)
     !---------------------------------------------------------------------------
     ! called by :
-    !     chaud_froid_2
+    !     hot_cold_2
     ! purpose :
     !     compute the local electron density based on Wolfire et al. 
     !     (2003, eq. C9) and adding to this equation the abundance of
@@ -1718,11 +1629,10 @@ SUBROUTINE ELEC_DENS(zeta_p, G0_p, T, phi, xcp, nH, ne)
 
 END SUBROUTINE ELEC_DENS
 
-
 SUBROUTINE COOL_CP(T, xcp, xe, cool)
     !---------------------------------------------------------------------------
     ! called by :
-    !     chaud_froid_2
+    !     hot_cold_2
     ! purpose :
     !     compute the cooling rate due to the hyperfine 
     !     (and metastable - NOT USED HERE) lines of C+
@@ -1747,31 +1657,12 @@ SUBROUTINE COOL_CP(T, xcp, xe, cool)
     ! Ref : Wolfire et al. (2003, Eq. C1 & C2)
     cool = ( 2.25e-23_dp + 1.0e-20_dp * (T/100.0_dp)**(-0.5_dp) * xe ) * exp(-92.0_dp / T) * xcp
 
-    ! Ref : Karl Joulain thesis
-    ! cool = 92. * 1.38e-16_dp * 2.0_dp * xcp * exp(-92.0_dp / T)
-    !      * ( 2.8e-7_dp * (T/100.0_dp)**(-0.50_dp) * xe &
-    !        + 8.e-10_dp * (T/100.0_dp)**( 0.07_dp) )
-
-    ! old hyperfine
-    !      cool = ( 2.2d-23                    ! excitation par H
-    !           + 5.5d-20 * 2 / sqrt(T) * xe ) ! excitation par e 
-    !           * xcp * exp(-92.d0 / T)
-
-
-    ! refroidissement par les raies metastables des metaux
-    ! chiffre pris dans Hollenbach and McKee 1989 (ApJ 342, 306)
-    ! carbone une fois ionise , 1 transitions 2P 4P
-    ! cool = cool &
-    !      + 6.2e+4_dp * 1.38e-16_dp * xcp * exp(-6.2e4_dp / T) &
-    !      * ( 2.3e-8_dp * (T/1.0e+4_dp)**(-0.5_dp) * xe + 1.e-12_dp ) 
-
 END SUBROUTINE COOL_CP
-
 
 SUBROUTINE COOL_O(T, xo, cool)
     !---------------------------------------------------------------------------
     ! called by :
-    !     chaud_froid_2
+    !     hot_cold_2
     ! purpose :
     !     compute the cooling rate due to the hyperfine 
     !     (and metastable - NOT USED HERE) lines of O
@@ -1794,53 +1685,13 @@ SUBROUTINE COOL_O(T, xo, cool)
     ! Ref : Wolfire et al. (2003, Eq. C3)
     cool = 7.81e-24_dp * (T/100.0_dp)**(0.4_dp) * exp(-228.0_dp/T) * xo
 
-    ! Ref : Karl Joulain thesis
-    ! cool = 1.e-26_dp * sqrt(T) * xo &
-    !      * ( 24.0_dp * exp(-228.0_dp / T) &
-    !        +  7.0_dp * exp(-326.0_dp / T) )
-
-    ! old hyperfine
-    !      cool =  230.d0*1.38d-16 * xo * exp(-230.d0 / T) &
-    !           * ( 1.4d-8*xe + 9.2d-11 *(T /100.d0)**(0.67) ) 
-    !                    
-
-    !      cool = cool + 330.d0*1.38d-16 * xo * exp(-330.d0 / T)  &
-    !           * ( 1.4d-8*xe + 4.3d-11 *(T /100.d0)**(0.8) ) 
-
-    !      cool = cool +  98.d0*1.38d-16 * xo * exp(-98.d0 / T) &
-    !           * ( 5.d-9 *xe + 1.1d-10* (T /100.d0)**(0.44) ) 
-
-    !      cool = 2.5d-27 * (T/100)**0.4 * exp(-228.d0 / T) * xo
-
-
-    ! refroidissement par les raies metastables des metaux
-    ! chiffre pris dans Hollenbach and McKee 1989 (ApJ 342, 306)
-
-    ! !!! CHOOSE among the three expressions for each case in temperature !!!
-
-    ! IF ( T .le. 1.d4 ) THEN 
-    !     cool = cool + 2.3d4 * 1.38d-16 / 3.d0 * xo * exp(-2.3d4/T) &
-    !          * ( 5.1d-9 * (T/10000.)**(0.57) * xe + 1.d-12)
-    !     cool = cool + 4.9d4 * 1.38d-16 / 3.d0 * xo * exp(-4.9d4/T) &
-    !          * ( 2.5d-9 * (T/10000.)**(0.57) * xe + 1.d-12) 
-    !     cool = cool + 2.6d4 * 1.38d-16 * 1.d0 * xo * exp(-2.6d4/T) &
-    !          * ( 5.2d-9 * (T/10000.)**(0.57) * xe + 1.d-12) 
-    ! ELSE
-    !     cool = cool + 2.3d4 * 1.38d-16 / 3.d0 * xo * exp(-2.3d4/T) &
-    !          * ( 5.1d-9 * (T/10000.)**(0.17) * xe + 1.d-12) 
-    !     cool = cool + 4.9d4 * 1.38d-16 / 3.d0 * xo * exp(-4.9d4/T) &
-    !          * ( 2.5d-9 * (T/10000.)**(0.13) * xe + 1.d-12)
-    !     cool = cool + 2.6d4 * 1.38d-16 * 1.d0 * xo * exp(-2.6d4/T) &
-    !          * ( 5.2d-9 * (T/10000.)**(0.15) * x + 1.d-12)
-    ! ENDIF
-
 END SUBROUTINE COOL_O
 
 
 SUBROUTINE COOL_H(T, xe, cool)
     !---------------------------------------------------------------------------
     ! called by :
-    !     chaud_froid_2
+    !     hot_cold_2
     ! purpose :
     !     compute the cooling rate due to the electronic lines of H
     !     Ref : taken from Spitzer (1978)
@@ -1868,7 +1719,7 @@ END SUBROUTINE COOL_H
 SUBROUTINE COOL_REC(G0_p, T, phi, xe, nH, cool)
     !---------------------------------------------------------------------------
     ! called by :
-    !     chaud_froid_2
+    !     hot_cold_2
     ! purpose :
     !     compute the cooling rate due to the recombination
     !     of electrons on positively charged PAH
@@ -1908,7 +1759,7 @@ END SUBROUTINE COOL_REC
 SUBROUTINE HEAT_PH(G0_p, T, phi, xe, nH, heat)
     !---------------------------------------------------------------------------
     ! called by :
-    !     chaud_froid_2
+    !     hot_cold_2
     ! purpose :
     !     compute the heating rate due to the photoelectric effect
     !     Ref : Wolfire et al. (2003, Eqs. 19 & 20)
@@ -1978,7 +1829,6 @@ subroutine extinction_fine(ilevel)
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
 
-  !  if(myid .EQ. 1) write(*,*) 'STATUS: starting cooling_fine, ilevel=', ilevel
   ! Valeska
   !--------------------------------------------------------------------
   ! The write option permits us to construct a column density map projected 
@@ -2085,7 +1935,6 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
 
 
   !Valeska
-!  vcol_dens(:) = 0.
   column_dens(:,:,:) = 0.
   H2column_dens(:,:,:) = 0.
   vcolumn_dens(:,:) = 0.
@@ -2353,7 +2202,6 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
                  valexp = max(cst1*(one + xshield)**0.5, small_arg)
                  e_valexp = exp(valexp)
                  if(isnan(exp(valexp))) write(*,*) "WARNING: exp(valexp) is nan: valexp=", valexp
-!                 if(exp(valexp) .LT. small_exp) write(*,*) "WARNING: exp(valexp).LT. small_exp",exp(valexp), e_valexp                             
                  fshield = 0.035*e_valexp / (one + xshield)**0.5
                  fshield = fshield + 0.965/(one + xshield/b5)**2.0
                  valexp = max(coeff*column_dens_loc(ind_ll,index_m,index_n), small_arg)
@@ -2363,7 +2211,6 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
               end do
            end do
            uold(ind_leaf(i),firstindex_extinct+2) = m_kph/(NdirExt_m*NdirExt_n)
-!           kdest = kph0*uold(ind_leaf(i),neulS+2)
 #endif
 
 
@@ -2554,29 +2401,14 @@ subroutine simple_chemostep1(ind_grid,ngrid,ilevel) !
 
         if(myid .EQ. 1 .AND. nH2 .LT. 0) write(*,*) "WARNING nH2 LT 0:", ind, i, nH2, ntot
 
-!        k2 = kph0 *uold(ind_leaf(i),neulS)*fshield    !kph0*<exp(-tau_(d,1000) )>*fshield
         if(isnan(uold(ind_leaf(i),firstindex_extinct+2))) write(*,*) "WARNING (simple_chemostep1 BEFORE solve) uold( ,neulS+2) is nan, i, ind_leaf(i)",i, ind_leaf(i) 
         k2 = kph0 * uold(ind_leaf(i),firstindex_extinct+2) ! kph_0*<fshield*exp(-tau_(d,1000) )> (eq 31, Glover&MacLow2006) 
         k1 = k1_0*sqrt(T2(i)/100.0_dp)/(1.0_dp + (T2(i)/464.0_dp)**1.5_dp)        ! k1 = k1_0*sqrt(T/100K)*S(T)
 
-!        if(isnan(k2))  write(*,*) "WARNING (simple_chemostep1) k2 is NaN: uold=", uold(ind_leaf(i),neulS+2)
-!        k2 = kph0
+
                                              
         ! 2nd: I solve the evolution of H2 for the next step
-!        if(myid .EQ. 1) write(*,*) "CALLING SOLVE2_H2FORM"
         call solve2_H2form(nH2, ntot, k1, k2, dt_ilev)   !!! xH and xH2 must be in/out variables.
-
-!        call solve2_H2form(nH2, ntot, k1_0, 0., dt_ilev)   !!! xH and xH2 must be in/out variables.
-
-
-!        if(once) then
-!           write(*,*) nh2,ntot,k1_0,dt_ilev*scale_t,t*scale_t
-
-!           once=.false.
-!        endif
-
-
-!        call solve_H2form(nH2, ntot, k1, k2, dt_ilev)   !!! xH and xH2 must be in/out variables.
 
         if(nH2/ntot .GT. 0.5 .OR. nH2/ntot .LT. 0.0) write(*,*) "WARNING: xH2,nH2,ntot", nH2/ntot, nH2,ntot
         if(isnan(nH2)) write(*,*)"WARNING(simple_chemostep1 AFTER): nH2 is nan, i, ind_leaf(i)",i, ind_leaf(i)
@@ -2605,8 +2437,6 @@ subroutine simple_chemostep1(ind_grid,ngrid,ilevel) !
 
   end do      ! cells
 
-!  if(myid .EQ. 1) write(*,*) '***VAL: EXIT SIMPLE_CHEMOSTEP1, finished loop over cells'
-
 end subroutine simple_chemostep1
 !###########################################################                                          
 !###########################################################                                          
@@ -2627,7 +2457,6 @@ subroutine solve_H2form(nH2, ntot, k1, k2, dt_ilev)
   dt_tot = dt_ilev * scale_t ! * 3.08d18 / sqrt(kb_mm)
   dt = dt_tot/1000.0
 
-!  xH  = nH  !/ntot
   xH2 = nH2/ntot
   xH = 1.0 - 2.0*xH2
   dtchem = 0.8/abs(k1 - k2*xH2)
@@ -2656,8 +2485,6 @@ subroutine solve_H2form(nH2, ntot, k1, k2, dt_ilev)
 
   end do
 
-!  write(*,*) nH, nH2,dt_ilev, dt_tot, dt, dtchem, xH, xH2 
-!  nH  = xH*ntot
   nH2 = xH2*ntot
 end subroutine solve_H2form
 !###########################################################                                          
@@ -2683,11 +2510,8 @@ subroutine solve2_H2form(nH2, ntot, k1, k2, dt_ilev)
 
   dennew = 1.0
   dt_tot = dt_ilev * scale_t ! * 3.08d18 / sqrt(kb_mm)
-!  dt = dt_tot*1.d-5         ! Timestep seed
   dtchem = dt
-!  denom = 1.0
 
-!  xH  = nH  !/ntot
   if(myid .EQ. 1 .AND. nH2 .LT. 0.0) write(*,*) 'WARNING initial nH2 LT 0.0', nH2 
   xH2 = MAX(nH2/ntot,xH2min)
   if(myid .EQ. 1 .AND. xH2 .GT. 0.5) write(*,*) 'WARNING initial xH2 GT 0.5', xH2 
