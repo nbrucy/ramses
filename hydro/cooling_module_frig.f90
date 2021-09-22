@@ -2452,8 +2452,9 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
            end do
            coeff_chi  = extinct/(NdirExt_m*NdirExt_n)
 
-           !store extinction in variable firstindex_extinct+1
-           uold(ind_leaf(i),firstindex_extinct+1) = coeff_chi
+           !it is assumed (see init_hydro and output_hydro that extinction variables are stored between
+           ! nvar-nextinct+1 and nvar 
+           uold(ind_leaf(i),nvar) = coeff_chi
 
 #if NEXTINCT>1
            cst2 = scale_l* boxlen
@@ -2486,7 +2487,9 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
                  m_kph = m_kph + kph                  !mean kph                                                                                    
               end do
            end do
-           uold(ind_leaf(i),firstindex_extinct+2) = m_kph/(NdirExt_m*NdirExt_n)
+           !self-schielding times dust extinction is stored in variable nvar - 1
+           !futur self-schielding (e.g. CO) should be stored in nvar - NN 
+           uold(ind_leaf(i),nvar-nextinct+1) = m_kph/(NdirExt_m*NdirExt_n)
 !           kdest = kph0*uold(ind_leaf(i),neulS+2)
 #endif
 
