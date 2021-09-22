@@ -167,13 +167,28 @@ subroutine init_hydro
                     uold(ind_grid(i)+iskip,5)=e+0.5*d*(u**2+v**2+w**2)+0.5*(A**2+B**2+C**2)
                  end do
 #if NVAR > 8+NENER
-                 do ivar=9+nener,nvar ! Read passive scalars if any
+#ifndef NEXTINCT 
+                 do ivar = 9+nener, nvar ! Read passive scalars if any
+#else 
+                 do ivar = 9+nener, nvar - nextinct ! Read passive scalars if any
+#endif
                     read(ilun)xx
                     do i=1,ncache
                        uold(ind_grid(i)+iskip,ivar)=xx(i)*max(uold(ind_grid(i)+iskip,1),smallr)
                     end do
                  end do
 #endif
+
+
+#ifdef NEXTINCT 
+                 do ivar = nvar+1 - nextinct, nvar ! Read extinction variables if any
+                    read(ilun)xx
+                    do i=1,ncache
+                       uold(ind_grid(i)+iskip,ivar)=xx(i)
+                    end do
+                 end do
+#endif
+
               end do
               deallocate(ind_grid,xx)
            end if

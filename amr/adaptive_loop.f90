@@ -58,6 +58,9 @@ subroutine adaptive_loop
   if(pic)call init_tree              ! Initialize particle tree
   if(nrestart==0)call init_refine_2  ! Build initial AMR grid again
 
+  if(extinction) call init_extinction ! Geometrical contributions for extinction calculation
+
+  
 #ifndef WITHOUTMPI
   muspt=0
   tot_pt=-1
