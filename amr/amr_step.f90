@@ -448,6 +448,15 @@ recursive subroutine amr_step(ilevel,icount)
   endif
 
   !---------------------
+  ! [UV_PROP_SFR] 
+  ! Update background uv emmision according to surfacic SFR
+  ! Will change the value of p_uv
+  !---------------------
+  if(uv_prop_sfr) then
+      call sfr_update_uv
+  endif
+
+  !---------------------
   ! Do RT/Chemistry step
   !---------------------
 #ifdef NEXTINCT
