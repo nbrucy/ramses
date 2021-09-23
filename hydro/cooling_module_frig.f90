@@ -2620,7 +2620,7 @@ subroutine sfr_update_uv()
 
   if (myid == 1 .and. sfr_verbose) then
      uvsfr_fmt = '*, f8.3, *, es8.3, *, f8.3, *, f8.3, *' 
-     write(*,*) "t = ", t  * scale_t / (1d6 * year)," Myr, surfacic sfr=", sfr, "[Msun.pc-2.yr-1], p_UV = ", &
+     write(*, uvsfr_fmt) "t = ", t  * scale_t / (1d6 * year)," Myr, surfacic sfr=", sfr, "[Msun.pc-2.yr-1], p_UV = ", &
      & p_UV, ", time_span = ", time_span / 1d6," [Myr]"
   end if
 
