@@ -753,8 +753,9 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
   use hydro_commons
   use cooling_module
 
+#ifdef RT
   use rt_parameters,only: isH2,iIons
-
+#endif
   implicit none
 
   integer,parameter                                                   :: ndir=6  
@@ -945,13 +946,12 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
 
                              !PH adapted for the RT with H2 - H2 abundance is : 0.5 ( 1 - XHI -XHII)
                              !question : check about uold(*,1) density or H total abundance (possible issue with He)
-                             if(isH2) then 
+#ifdef RT
+                              if(isH2) then 
                                    H2column_dens(i,mloop,nl) = H2column_dens(i,mloop,nl) + dx_cross_ext*(uold(cell_ind2,1)-uold(cell_ind2,iIons)-uold(cell_ind2,iIons+1)) / 2. 
                              endif
-                             
-
-
                              if(isnan(H2column_dens(i,mloop,nl))) write(*,*) "WARNING: CONT",uold(cell_ind2,neulS+1), Mdx_ext(ind_oct, ix, iy, iz, mn), dx_loc, mloop, nloop, nl, mn, m, n, ind_oct
+#endif
 #endif
                           end do
                        end do
@@ -1879,8 +1879,9 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
   use cooling_module
   use hydro_parameters
 
+#ifdef RT
   use rt_parameters,only: isH2,iIons
-
+#endif 
   
   implicit none
 #ifndef WITHOUTMPI
@@ -2040,12 +2041,14 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
 
 
 #if NEXTINCT>1
+#ifdef RT
      if(isH2) then 
         do i=1,nleaf
            nH2(i) = (uold(ind_leaf(i),1) - uold(ind_leaf(i),iIons) - uold(ind_leaf(i),iIons+1)) / 2.  
            nH2(i)=MAX(nH2(i),smallr)
         end do
      endif
+#endif
 #endif
 
 
@@ -2068,14 +2071,14 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
                  
                  column_dens_loc(ind_ll,index_m,index_n) = column_dens(ind_ll,index_m,index_n) + dx*Mdx_cross_int(index_m,index_n)*nH(i)
 #if NEXTINCT>1
+#ifdef RT
                  !PH adapted for the RT with H2 - H2 abundance is : 0.5 ( 1 - XHI -XHII)
                  !question : check about uold(*,1) density or H total abundance (possible issue with He)
                  if(isH2) then 
                     H2column_dens_loc(ind_ll,index_m,index_n) = H2column_dens(ind_ll,index_m,index_n) + dx*Mdx_cross_int(index_m,index_n)*nH2(i)
                  endif
 
-!
-                 !if(isnan(H2column_dens_loc(ind_ll,mloop,nl))) write(*,*) "WARNING: INT",H2column_dens(ind_ll,index_m,index_n), nH2(i), Mdx_cross_int(index_m,index_n), dx, index_m, index_n
+#endif
 #endif
                  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~         
                  ! column_dens_loc(ind_ll,index_m,index_n) = dx*Mdx_cross_int(index_m,index_n)*nH(i) !if just internal contribution is needed
@@ -2124,9 +2127,12 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
                        
                        column_dens_loc(ind_ll,mloop,nl) = column_dens_loc(ind_ll,mloop,nl) + dx*Mdx_cross_loc(ind,ii,mloop,nl)*uold(indc2,1)        
 #if NEXTINCT>1
+#ifdef RT
+
                        if(isH2) then 
                           H2column_dens_loc(ind_ll,mloop,nl) = H2column_dens_loc(ind_ll,mloop,nl) + dx*Mdx_cross_loc(ind,ii,mloop,nl)*(uold(indc2,1)- uold(indc2,iIons)- uold(indc2,iIons+1))*0.5
                        endif
+#endif
 #endif
                     end do
                  end do
