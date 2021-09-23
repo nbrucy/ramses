@@ -197,7 +197,7 @@ recursive subroutine amr_step(ilevel,icount)
      ! Kinetic feedback from giant molecular clouds
      !----------------------------------------------------
                                call timer('feedback','start')
-     if(hydro.and.star.and.eta_sn>0.and.f_w>0)call kinetic_feedback
+     if(ndim==3.and.hydro.and.star.and.eta_sn>0.and.f_w>0)call kinetic_feedback
 
   endif
 
