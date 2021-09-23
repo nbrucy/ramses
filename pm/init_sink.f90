@@ -142,8 +142,8 @@ subroutine init_sink
 
   ! [UV_PROP_SFR] Allocate array for the history of the mass of the stars
   if(uv_prop_sfr) then
-     allocate(sfr_total_mass_sinks(1:sfr_nb_points))
-     allocate(sfr_time_mass_sinks(1:sfr_nb_points))
+     allocate(sfr_total_mass_sinks(1:uvsfr_nb_points))
+     allocate(sfr_time_mass_sinks(1:uvsfr_nb_points))
      if (nrestart==0) then
         sfr_total_mass_sinks(0) = 0.0
         sfr_time_mass_sinks(0) = 0.0

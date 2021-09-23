@@ -2591,7 +2591,7 @@ subroutine sfr_update_uv()
   use amr_commons
   use pm_commons
   use hydro_commons
-  use constants, only: pc2cm
+  use constants, only: pc2cm, Myr2sec
   implicit none
 
   integer :: i_old, i_new ! Index of the position of the past and current total sink mass in the array
@@ -2602,14 +2602,14 @@ subroutine sfr_update_uv()
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
   scale_m = scale_d*scale_l**3d0
 
-  sfr_time_update = sfr_avg_window / sfr_nb_points
+  sfr_time_update = uvsfr_avg_window * Myr2sec / (scale_t * uvsfr_nb_points)
 
-  i_new = modulo(2 + floor(t / sfr_time_update), sfr_nb_points)
+  i_new = modulo(2 + floor(t / sfr_time_update), uvsfr_nb_points)
 
-  if (t < sfr_avg_window) then
+  if (t < uvsfr_avg_window) then
      i_old = 1
   else
-     i_old = modulo(i_new + 1, sfr_nb_points)
+     i_old = modulo(i_new + 1, uvsfr_nb_points)
   end if
 
   sfr_total_mass_sinks(i_new) = sum(msink(1:nsink)) * scale_m/Msun
@@ -2622,9 +2622,9 @@ subroutine sfr_update_uv()
   sfr = sfr / (boxlen * scale_l / pc2cm)**2
 
   ! Compute the p_UV parameter, equivalent to G0' in the equation (17) in Ostriker, McKee & Leroy 2010
-  p_UV = max(sfr / sfr_ref, sfr_pUV_min)
+  p_UV = max(sfr / ssfr_ref, p_UV_min)
 
-  if (myid == 1 .and. sfr_verbose) then
+  if (myid == 1 .and. uvsfr_verbose) then
      uvsfr_fmt = '*, f8.3, *, es8.3, *, f8.3, *, f8.3, *' 
      write(*, uvsfr_fmt) "t = ", t  * scale_t / (1d6 * year)," Myr, surfacic sfr=", sfr, "[Msun.pc-2.yr-1], p_UV = ", &
      & p_UV, ", time_span = ", time_span / 1d6," [Myr]"

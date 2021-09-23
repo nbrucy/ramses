@@ -95,7 +95,8 @@ subroutine read_hydro_params(nml_ok)
 
   ! Cooling / basic chemistry parameters
   namelist/cooling_params/cooling,metal,isothermal,haardt_madau,J21 &
-       & ,a_spec,self_shielding, z_ave,z_reion,ind_rsink,T2max,neq_chem,cooling_frig &
+       & ,a_spec,self_shielding,z_ave,z_reion,ind_rsink,T2max,neq_chem,cooling_frig &
+       & , p_UV, p_UV_min, uv_prop_sfr, uvsfr_verbose, uvsfr_avg_window, uvsfr_nb_points & ! UV HEATING
   !!! FlorentR - PATCH Temperature extrema
        & ,temp_max
   !!! FRenaud

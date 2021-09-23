@@ -205,12 +205,12 @@ module amr_parameters
   real(dp)::p_UV   =1.0D0       ! Parameter of variation of G0 (UV)
 
   ! [UV_PROP_SFR] parameters for SFR dependent UV 
-  logical ::uv_prop_sfr=.false. !  Make p_UV SFR dependent
-  real(dp)::sfr_ref=2.5d-9      ! p_UV = sfr / sfr_ref, in Msun.pc-2.yr-1
-  real(dp)::sfr_avg_window=0.05 ! Time of the window used to compute the average of the SFR
-  integer ::sfr_nb_points=100   ! Number of times the SFR is updated during sfr_avg_window
-  logical ::sfr_verbose=.false. ! Display sfr info at each step
-  real(dp)::sfr_pUV_min=0.0     ! Minimal value for p_UV, initialized with p_UV value in namelist
+  logical ::uv_prop_sfr=.false.   !  Make p_UV SFR dependent
+  real(dp)::ssfr_ref=2.5d-9       ! Reference surfacic sfr. p_UV = ssfr / sssfr_ref, in Msun.pc-2.yr-1
+  real(dp)::uvsfr_avg_window=20   ! Time of the window used to compute the average of the SFR (in Myr)
+  integer ::uvsfr_nb_points=100   ! Number of times the SFR is updated during uvsfr_avg_window
+  logical ::uvsfr_verbose=.false. ! Display sfr info at each step
+  real(dp)::p_UV_min=0.0           ! Minimal value for p_UV, initialized with p_UV value in namelist
 
   ! Output times
   real(dp),dimension(1:MAXOUT)::aout=1.1d0      ! Output expansion factors
