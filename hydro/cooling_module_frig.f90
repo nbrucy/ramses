@@ -2591,43 +2591,48 @@ subroutine sfr_update_uv()
   use amr_commons
   use pm_commons
   use hydro_commons
-  use constants, only: pc2cm, Myr2sec
+  use constants, only: pc2cm, Myr2sec, yr2sec, M_sun
   implicit none
 
   integer :: i_old, i_new ! Index of the position of the past and current total sink mass in the array
-  real(dp) :: sfr_time_update, time_span, sfr
+  real(dp) :: sfr_timestep, time_span, ssfr
   real(dp) :: scale_nH, scale_T2, scale_l, scale_d, scale_t, scale_v, scale_m
   character(len=:), allocatable :: uvsfr_fmt      
 
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
   scale_m = scale_d*scale_l**3d0
 
-  sfr_time_update = uvsfr_avg_window * Myr2sec / (scale_t * uvsfr_nb_points)
+  ! timestep for the computation of the sfr
+  sfr_timestep = uvsfr_avg_window * (Myr2sec / scale_t) / uvsfr_nb_points
 
-  i_new = modulo(2 + floor(t / sfr_time_update), uvsfr_nb_points)
+  ! index where the current total mass of sink will be stored
+  i_new = modulo(2 + floor(t / sfr_timestep), uvsfr_nb_points)
 
-  if (t < uvsfr_avg_window) then
+  ! index where to take the old sink mass for the sfr computation
+  if (t < uvsfr_avg_window * (Myr2sec / scale_t)) then
      i_old = 1
   else
      i_old = modulo(i_new + 1, uvsfr_nb_points)
   end if
 
-  sfr_total_mass_sinks(i_new) = sum(msink(1:nsink)) * scale_m/Msun
-  sfr_time_mass_sinks(i_new) = t * scale_t / year
+  ! Compute current mass in sinks
+  sfr_total_mass_sinks(i_new) = sum(msink(1:nsink)) * scale_m / M_sun
+  sfr_time_mass_sinks(i_new) = t * scale_t / yr2sec
 
+  ! time effectively used for the average of the sfr.
   time_span = sfr_time_mass_sinks(i_new) - sfr_time_mass_sinks(i_old)
   ! SFR in the box
-  sfr = (sfr_total_mass_sinks(i_new) - sfr_total_mass_sinks(i_old)) / time_span
-  ! Divide by the surface of the box to get the surfacic SFR
-  sfr = sfr / (boxlen * scale_l / pc2cm)**2
+  ssfr = (sfr_total_mass_sinks(i_new) - sfr_total_mass_sinks(i_old)) / time_span
+  ! Divide by the surface of the box to get the surfacic SFR (SSFR)
+  ssfr = ssfr / (boxlen * scale_l / pc2cm)**2
 
   ! Compute the p_UV parameter, equivalent to G0' in the equation (17) in Ostriker, McKee & Leroy 2010
-  p_UV = max(sfr / ssfr_ref, p_UV_min)
+  p_UV = max(ssfr / ssfr_ref, p_UV_min)
 
   if (myid == 1 .and. uvsfr_verbose) then
-     uvsfr_fmt = '*, f8.3, *, es8.3, *, f8.3, *, f8.3, *' 
-     write(*, uvsfr_fmt) "t = ", t  * scale_t / (1d6 * year)," Myr, surfacic sfr=", sfr, "[Msun.pc-2.yr-1], p_UV = ", &
-     & p_UV, ", time_span = ", time_span / 1d6," [Myr]"
+     uvsfr_fmt = '("  t=",f10.3, " [Myr]", 2x, "SSFR=", es11.2, " [Msun.pc-2.yr-1]", &
+     & 2x, "p_UV=", f8.3, 2x, "time_span=", f8.3, " [Myr]", 2x)' 
+     write(*, uvsfr_fmt)  t * scale_t / Myr2sec, ssfr, p_uv, time_span / 1e6
   end if
 
 end subroutine sfr_update_uv
