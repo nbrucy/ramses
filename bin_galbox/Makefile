@@ -153,7 +153,7 @@ ifeq ($(GRACKLE),1)
 endif
 MODOBJ += poisson_commons.o hydro_parameters.o hydro_commons.o \
           cooling_module.o  bisection.o sparse_mat.o clfind_commons.o  feedback_module.o \
-          gadgetreadfile.o write_makefile.o write_patch.o write_gitinfo.o
+          gadgetreadfile.o write_makefile.o write_patch.o write_gitinfo.o file_module.o
 ifeq ($(RT),1)
    MODOBJ += rt_parameters.o rt_hydro_commons.o coolrates_module.o \
              rt_spectra.o rt_metal_cooling_module.o rt_cooling_module.o rt_flux_module.o 
@@ -167,7 +167,7 @@ AMROBJ = read_params.o init_amr.o init_time.o init_refine.o tracer_utils.o adapt
          amr_step.o update_time.o output_amr.o flag_utils.o \
          physical_boundaries.o virtual_boundaries.o refine_utils.o \
          nbors_utils.o hilbert.o load_balance.o title.o sort.o cooling_fine.o \
-         units.o light_cone.o movie.o memory.o end.o
+         eos.o units.o light_cone.o movie.o memory.o end.o
 # Particle-Mesh objects
 PMOBJ = init_part.o output_part.o rho_fine.o synchro_fine.o move_fine.o \
         newdt_fine.o particle_tree.o add_list.o remove_list.o star_formation.o \
