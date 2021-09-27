@@ -2577,6 +2577,7 @@ subroutine solve2_H2form(nH2, ntot, k1, k2, dt_ilev)
 
 end subroutine solve2_H2form
 
+
 subroutine sfr_update_uv()
   !---------------------------------------------------------------------------
   ! [UV_PROP_SFR] 
@@ -2595,6 +2596,8 @@ subroutine sfr_update_uv()
   implicit none
 
   integer :: i_old, i_new ! Index of the position of the past and current total sink mass in the array
+  integer, save :: i_last = 1 ! Index of the position in the array the last time sfr_update_uv was called 
+  integer :: i, di ! General purpose indexes
   real(dp) :: sfr_timestep, time_span, ssfr
   real(dp) :: scale_nH, scale_T2, scale_l, scale_d, scale_t, scale_v, scale_m
   character(len=:), allocatable :: uvsfr_fmt      
@@ -2605,24 +2608,43 @@ subroutine sfr_update_uv()
   ! timestep for the computation of the sfr
   sfr_timestep = uvsfr_avg_window * (Myr2sec / scale_t) / uvsfr_nb_points
 
+  ! by how much the index need to be increased
+  di = floor((t - sfr_time_mass_sinks(i_last)) / sfr_timestep)
+
+  ! Safety check for high dt
+  if (di > uvsfr_nb_points / 3) then
+    write(*,*) "[WARNING] dt too high to compute SFR, using p_UV_min"
+    p_UV = p_UV_min
+    return
+  end if
+
   ! index where the current total mass of sink will be stored
-  i_new = modulo(2 + floor(t / sfr_timestep), uvsfr_nb_points)
+  i_new = modulo_tab(i_last + di, uvsfr_nb_points)
 
   ! index where to take the old sink mass for the sfr computation
   if (t < uvsfr_avg_window * (Myr2sec / scale_t)) then
      i_old = 1
   else
-     i_old = modulo(i_new + 1, uvsfr_nb_points)
+     i_old = modulo_tab(i_new + 1, uvsfr_nb_points)
   end if
 
   ! Compute current mass in sinks
-  sfr_total_mass_sinks(i_new) = sum(msink(1:nsink)) * scale_m / M_sun
-  sfr_time_mass_sinks(i_new) = t * scale_t / yr2sec
+  sfr_total_mass_sinks(i_new) = sum(msink(1:nsink))
+  sfr_time_mass_sinks(i_new) = t
 
-  ! time effectively used for the average of the sfr.
-  time_span = sfr_time_mass_sinks(i_new) - sfr_time_mass_sinks(i_old)
+  ! In case di > 1, we have skipped some indexes. Let's fill them now.
+  do i = i_last + 1, i_last + di - 1
+    sfr_total_mass_sinks(modulo_tab(i, uvsfr_nb_points)) = sfr_total_mass_sinks(i_last)
+    sfr_time_mass_sinks(modulo_tab(i, uvsfr_nb_points)) = sfr_time_mass_sinks(i_last)
+  end do
+
+  ! Store for next step
+  i_last = i_new 
+
+  ! time effectively used for the average of the sfr (in year).
+  time_span = (sfr_time_mass_sinks(i_new) - sfr_time_mass_sinks(i_old)) * scale_t / yr2sec
   ! SFR in the box
-  ssfr = (sfr_total_mass_sinks(i_new) - sfr_total_mass_sinks(i_old)) / time_span
+  ssfr = (sfr_total_mass_sinks(i_new) - sfr_total_mass_sinks(i_old)) * scale_m / M_sun / time_span
   ! Divide by the surface of the box to get the surfacic SFR (SSFR)
   ssfr = ssfr / (boxlen * scale_l / pc2cm)**2
 
@@ -2634,5 +2656,19 @@ subroutine sfr_update_uv()
      & 2x, "p_UV=", f8.3, 2x, "time_span=", f8.3, " [Myr]", 2x)' 
      write(*, uvsfr_fmt)  t * scale_t / Myr2sec, ssfr, p_uv, time_span / 1e6
   end if
+
+  contains
+   pure function modulo_tab(a, b) result(modulo_1)
+      !---------------------------------------------------------------------------
+      ! A simple modulo function adapted to Fortran array
+      ! Give the a modulo b representent between 1 and b 
+      ! instead of between 0 and b - 1
+      !---------------------------------------------------------------------------
+      implicit none
+      integer, intent(in) :: a, b
+      integer :: modulo_1
+
+      modulo_1 = 1 + modulo(a - 1, b)
+   end function modulo_tab
 
 end subroutine sfr_update_uv
