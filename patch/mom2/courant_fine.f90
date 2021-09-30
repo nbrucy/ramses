@@ -3,6 +3,9 @@ subroutine courant_fine(ilevel)
   use hydro_commons
   use poisson_commons
   use mpi_mod
+#if USE_TURB==1
+  use turb_commons
+#endif
   implicit none
 #ifndef WITHOUTMPI
   integer::info
