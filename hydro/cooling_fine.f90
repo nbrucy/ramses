@@ -28,7 +28,7 @@ subroutine cooling_fine(ilevel)
      call coolfine1(ind_grid,ngrid,ilevel)
   end do
 
-  if((cooling.and..not.neq_chem).and.ilevel==levelmin.and.cosmo)then
+  if((cooling.and..not.neq_chem.and..not.cooling_frig).and.ilevel==levelmin.and.cosmo)then
 #ifdef grackle
      if(use_grackle==0)then
         if(myid==1)write(*,*)'Computing new cooling table'
@@ -391,7 +391,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
            end if
         end do
 
-        if(cooling .and. delayed_cooling) then
+        if(cooling .and. delayed_cooling .and. .not. cooling_frig) then
            cooling_on(1:nleaf)=.true.
            do i=1,nleaf
               if(uold(ind_leaf(i),idelay)/uold(ind_leaf(i),1) .gt. 1d-3) &
@@ -472,8 +472,13 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
      else
         ! Compute net cooling at constant nH
         if(cooling.and..not.neq_chem)then
-           call solve_cooling(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
-        endif
+            if(cooling_frig) then
+               !use cooling from module_cooling_frig described in Audit & Hennebelle 2005
+               call solve_cooling_frig(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
+            else
+               !use classical ramses cooling
+               call solve_cooling(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
+         endif
      endif
 #else
      ! Compute net cooling at constant nH
@@ -482,9 +487,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
         if(cooling_frig) then
            !use cooling from module_cooling_frig described in Audit & Hennebelle 2005
            call solve_cooling_frig(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
-
         else
-
            !use classical ramses cooling
            call solve_cooling(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
         endif
@@ -579,7 +582,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
         do i=1,nleaf
            uold(ind_leaf(i),neul) = T2min(i) + ekk(i) + err(i) + emag(i)
         end do
-     else if(cooling .or. neq_chem)then
+     else if(cooling .or. neq_chem )then
         do i=1,nleaf
 !!! FlorentR - PATCH Temperature extrema
            uold(ind_leaf(i),neul) = min(T2(i) + T2min(i), temp_max*nH(i)/scale_T2/(gamma-1.0))
