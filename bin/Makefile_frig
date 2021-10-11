@@ -38,6 +38,8 @@ ATON_FLAGS = #-DATON
 NIONS = 0
 # Number of photon groups for RT
 NGROUPS = 0
+#Number of groups for extinction
+NEXTINCT = 2
 # Number of passive scalars
 NPSCAL = 0
 
@@ -46,7 +48,7 @@ NVAR = 2+$(NDIM)
 ifeq ($(SOLVER),mhd)
    NVAR = 8
 endif
-NVAR := $(NVAR)+$(NENER)+$(NPSCAL)+$(NMETALS)
+NVAR := $(NVAR)+$(NENER)+$(NPSCAL)+$(NMETALS)+$(NEXTINCT)
 ifeq ($(RT),1)
    NVAR := $(NVAR)+$(NIONS)
 endif
@@ -60,7 +62,7 @@ GITREMOTE = $(shell git config --get branch.$(GITBRANCH).remote)
 GITREPO = $(shell git config --get remote.$(GITREMOTE).url)
 BUILDDATE = $(shell date +"%D-%T")
 DEFINES = -DNVECTOR=$(NVECTOR) -DNDIM=$(NDIM) -DNPRE=$(NPRE) -DNENER=$(NENER) \
-          -DNVAR=$(NVAR) -DSOLVER$(SOLVER) $(ATON_FLAGS)
+          -DNVAR=$(NVAR) -DNEXTINCT=$(NEXTINCT) -DSOLVER$(SOLVER) $(ATON_FLAGS)
 ifeq ($(GRACKLE),1)
    DEFINES += -Dgrackle
 endif
