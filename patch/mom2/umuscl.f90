@@ -19,7 +19,7 @@
 !  ngrid       => (const)  number of sub-grids
 !  ndim        => (const)  number of dimensions
 ! ----------------------------------------------------------------
-subroutine unsplit(uin,pin,gravin,flux,tmp,dx,dy,dz,dt,ngrid)
+subroutine unsplit(uin,gravin,pin,flux,tmp,dx,dy,dz,dt,ngrid)
   use amr_parameters
   use const
   use hydro_parameters

@@ -471,7 +471,7 @@ subroutine add_viscosity_source_terms(ilevel)
   use poisson_commons
   use pm_commons
   implicit none
-  integer::ilevel,levelmax
+  integer::ilevel
   !--------------------------------------------------------------------------
   ! This routine adds to unew the viscosity terms
   ! with only half a time step. Only the momentum and the
@@ -503,7 +503,7 @@ subroutine add_viscosity_source_terms(ilevel)
   scale=boxlen/dble(nx_loc)
   dx=0.5d0**ilevel
   dx_loc=dx*scale
-  dx_min=(0.5**levelmax)*scale
+  dx_min=(0.5**nlevelmax)*scale
 
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
 
