@@ -143,6 +143,14 @@ subroutine calc_power_spectrum(k, power_spectrum)
       end select
    end if
 
+   if(turb_no_ky .and. k(2) > 0) then
+      power_spectrum = 0.
+   endif
+
+   if(turb_no_kz .and. k(3) > 0) then
+      power_spectrum = 0.
+   endif
+
 end subroutine calc_power_spectrum
 
 subroutine gaussian_cmplx(G)
@@ -283,6 +291,10 @@ subroutine add_turbulence(turb_field, dt)
             call gaussian_cmplx(complex_vec)
             complex_vec = complex_vec * sqrt(dt) * power_spec(i,j,k)
 
+#if NDIM>2
+            complex_vec(3) =  turb_z_factor * complex_vec(3)
+#endif
+
 #if defined(HERMITIAN_FIELD)
             if (own_conjg) then
                ! To be own conjugate, phase must be zero
@@ -293,14 +305,8 @@ subroutine add_turbulence(turb_field, dt)
 
 #if NDIM>1
             ! Helmholtz decomposition!
-            ! PH 05/12/2019 consider the "2D case" for forcing in the XY plane only
-            ! Projection must be done in XY plane and thus k=0
-            if(turb2D .and. (i > 0 .or. j > 0)) then
-               call find_unitk(i, j, 0, halfway, unitk)
-            else
-               call find_unitk(i, j, k, halfway, unitk)
-            endif
-            unitk_cmplx = cmplx(unitk, kind=cdp)
+            call find_unitk(i, j, k, halfway, unitk)
+            unitk_cmplx = cmplx(unitk)
             comp_cmplx = unitk_cmplx *  dot_product(unitk_cmplx,complex_vec)
             sol_cmplx = complex_vec - comp_cmplx
             complex_vec = comp_cmplx*comp_frac + sol_cmplx*sol_frac
@@ -311,11 +317,8 @@ subroutine add_turbulence(turb_field, dt)
             ! F(solenoidal) == 2 * F(compressive)
             ! as per Federrath et al 2010
 
-            ! Remove the purely vertical k mode for 2D turbulence
-            if((.not. turb2D) .or. (i > 0 .or. j > 0)) then
-               turb_field(1:ndimturb,i,j,k) = turb_field(1:ndimturb,i,j,k) + &
-                    & complex_vec(1:ndimturb)
-            endif
+            turb_field(1:ndimturb,i,j,k) = turb_field(1:ndimturb,i,j,k) + &
+             & complex_vec(1:ndimturb)
 #else
             turb_field(1:NDIM,i,j,k) = turb_field(1:NDIM,i,j,k) + &
                & complex_vec
@@ -512,7 +515,7 @@ subroutine proj_rms_norm(sol_frac_in, P)
 
    ! 2D turbulent case for forcing in the XY disk only
    ! Calibration by Simon Iteanu
-   if(turb2D) P =  (0.9 * (1 - sol_frac_in)**2) - 0.88 * (1 - sol_frac_in) + 0.76
+   if(turb_no_kz) P =  (0.9 * (1 - sol_frac_in)**2) - 0.88 * (1 - sol_frac_in) + 0.76
 
 #else
    ! Not tested for NDIM /= 3

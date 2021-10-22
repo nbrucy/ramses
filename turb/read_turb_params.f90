@@ -19,7 +19,8 @@ subroutine read_turb_params(nml_ok)
        & turb_kx_min, turb_kx_max, turb_ky_min, turb_ky_max, turb_kz_min, turb_kz_max,&
        & turb_strat, turb_height, &
        & turb_k_min, turb_k_max, turb1D, turb2D,&
-       & turb_parabolic_center, turb_parabolic_width, turb_power_law_slope
+       & turb_parabolic_center, turb_parabolic_width, turb_power_law_slope, &
+       & turb_no_ky, turb_no_kz, turb_z_factor, turb_strat, turb_height
 
   !--------------------------------------------------
   ! Read namelist; check variables that have been loaded
@@ -64,7 +65,24 @@ subroutine read_turb_params(nml_ok)
 
   if (turb2D) then
      ndimturb = 2
+     if (.not. turb_no_kz) then
+         if (myid == 1) then
+            write (*,*) "2D turbulence: turb_no_kz has been set to .true. for consistency"
+         end if 
+        turb_no_kz = .true.
+     end if 
   end if
+
+  if (turb1D) then
+      ndimturb = 1
+      if (.not. turb_no_kz .or. .not. turb_no_ky) then
+         if (myid == 1) then
+            write (*,*) "1D turbulence: turb_no_kz and turb_no_ky have been set to .true. for consistency"
+         end if
+         turb_no_kz = .true.
+         turb_no_ky = .true.
+      end if 
+   end if
 
   k_limit = (/ turb_kx_min, turb_ky_min, turb_kz_min, turb_kx_max, turb_ky_max, turb_kz_max /)
   do i=1,6
