@@ -13,7 +13,8 @@ subroutine read_turb_params(nml_ok)
   ! Namelist definitions
   !--------------------------------------------------
   namelist/turb_params/turb, turb_seed, turb_type, instant_turb, comp_frac,&
-       & forcing_power_spectrum, turb_T, turb_Ndt, turb_rms, turb_min_rho, turb2D
+       & forcing_power_spectrum, turb_T, turb_Ndt, turb_rms, turb_min_rho, turb2D, &
+       & turb_strat, turb_height
 
   !--------------------------------------------------
   ! Read namelist; check variables that have been loaded
