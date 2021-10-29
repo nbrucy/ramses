@@ -26,10 +26,10 @@ module hydro_parameters
 #endif
   integer,parameter::nvar_trad=nrad+1   ! Total number of radiative variables (= temperature + radiative energies)
 
-#ifndef NEXTINCT
-  integer,parameter::nextinct = 0       ! Add a variable to store extinction coefficient [0,1]
+#if NEXTINCT > 0
+  integer,parameter::nextinct = NEXTINCT       ! Add a variable to store extinction coefficient [0,1]
 #else
-  integer,parameter::nextinct = NEXTINCT
+  integer,parameter::nextinct = 0
 #endif
 
   ! Advect internal energy as a passive scalar, in a supplementary index

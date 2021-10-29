@@ -249,9 +249,10 @@ subroutine set_uold(ilevel)
            div=abs(divu(ind_cell))*dx/dtnew(ilevel)
            ! Estimate of the local truncation errors
            e_trunc=beta_fix*d*max(div,3.0*hexp*dx)**2
-           if(e_cons<e_trunc)then
+!PH 11/10/2021 always do pressure fix
+!           if(e_cons<e_trunc)then
               uold(ind_cell,5)=e_prim+e_kin+e_mag
-           end if
+!           end if
         end do
      end if
   end do

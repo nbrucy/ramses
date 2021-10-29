@@ -152,7 +152,7 @@ SUBROUTINE update_UVrates(aexp)
 END SUBROUTINE update_UVrates
 
 !XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-SUBROUTINE rt_solve_cooling(T2, xion, Np, Fp, p_gas, dNpdt, dFpdt        &
+SUBROUTINE rt_solve_cooling(T2, xion_ext, Np, Fp, p_gas, dNpdt, dFpdt        &
                            ,nH, c_switch, Zsolar, dt, a_exp, nCell)
 ! Semi-implicitly solve for new temperature, ionization states,
 ! photon density/flux, and gas velocity in a number of cells.
@@ -176,7 +176,21 @@ SUBROUTINE rt_solve_cooling(T2, xion, Np, Fp, p_gas, dNpdt, dFpdt        &
   use amr_commons
   implicit none
   real(dp),dimension(1:nvector):: T2
+
+
+!extinction variables are stored are the end of xion 
+
+
+#if NEXTINCT > 0
+  real(dp),dimension(nIons+NEXTINCT, 1:nvector):: xion_ext
+  real(dp),dimension(NEXTINCT, 1:nvector):: ext
+#else
+  real(dp),dimension(nIons, 1:nvector):: xion_ext
+#endif
+
+
   real(dp),dimension(1:nIons, 1:nvector):: xion
+
   real(dp),dimension(1:nGroups, 1:nvector):: Np, dNpdt
   real(dp),dimension(1:ndim, 1:nGroups, 1:nvector):: Fp, dFpdt
   real(dp),dimension(1:ndim, 1:nvector):: p_gas
@@ -192,11 +206,32 @@ SUBROUTINE rt_solve_cooling(T2, xion, Np, Fp, p_gas, dNpdt, dFpdt        &
   real(dp),dimension(nGroups):: dNp
   real(dp),dimension(1:ndim, 1:nGroups):: dFp
   real(dp),dimension(1:ndim):: dp_gas
-  integer::i, ia, ig, nAct, nAct_next, loopcnt, code
+  integer::i, ia, ig, nAct, nAct_next, loopcnt, code, ii
   integer,dimension(1:nvector):: indAct              ! Active cell indexes
   real(dp)::one_over_rt_c_cgs, one_over_egy_IR_erg, one_over_x_FRAC
   real(dp)::one_over_Np_FRAC, one_over_Fp_FRAC, one_over_T_FRAC
   real(dp),dimension(1:nGroups) :: group_egy_ratio, group_egy_erg
+
+
+
+
+#if NEXTINCT > 0
+  ! xion_ext contains both the ion and the extinction variables 
+  ! load the extinction variables from the end of xion_ext
+  do ii=1,NEXTINCT
+     do i=1,ncell
+         ext(ii,i) = xion_ext(ii+nIONS,i) 
+     end do
+  end do
+#endif
+
+  ! load the ions variables from  xion_ext
+  do ii=1,nIONS
+     do i=1,ncell
+         xion(ii,i) = xion_ext(ii,i) 
+     end do
+  end do
+
 
   ! Store some temporary variables reduce computations
   one_over_rt_c_cgs = 1d0 / rt_c_cgs
@@ -266,6 +301,13 @@ SUBROUTINE rt_solve_cooling(T2, xion, Np, Fp, p_gas, dNpdt, dFpdt        &
                             ,Fp(:,:,i),  p_gas(:,i)                      &
                             ,dT2, dXion, dNp, dFp, dp_gas, code)
         endif
+
+!        if(myid .eq. 6 .and. i .eq. 21) then
+!           write(*,*) 'dt, ddt ',dt, ddt(i)
+!           write(*,*) 'T2,nH ',T2(i), nH(i)
+!           write(*,*) 'xion',xion(:,i),ext(:,i)
+!        endif
+
         if(.not. dt_ok) then
            ddt(i)=ddt(i)/2.                    ! Try again with smaller dt
            nAct_next=nAct_next+1 ; indAct(nAct_next) = i
@@ -294,6 +336,18 @@ SUBROUTINE rt_solve_cooling(T2, xion, Np, Fp, p_gas, dNpdt, dFpdt        &
   end do ! end iterative loop
   ! loop statistics
   max_cool_loopcnt=max(max_cool_loopcnt,loopcnt)
+
+
+
+  ! load the ions variables in  xion_ext
+  !Note that the extinction variables are not modified here and do not need to be loaded in xion_ext
+  do ii=1,nIONS
+     do i=1,ncell
+         xion_ext(ii,i) = xion(ii,i) 
+     end do
+  end do
+
+
 contains
 
   !XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -675,7 +729,11 @@ contains
        kph0 = 3.3d-11*G0         ! s-1 Photodissociation (Eq 29 Glover&MacLow2007)
        ! This value is coherent with what is obtained with the Meudon PDR code (see tests - BG)
 
-       if(h2_frig)  photoRate = photoRate + kph0
+
+#if NEXTINCT>1       
+       !ext(1) contains self-shielding times dust attenuation (see extinction_fine1 and cooling_fine)
+       if(h2_frig)  photoRate = photoRate + kph0 * ext(1,icell)
+#endif
 
        de = beta(ixHI) * nH(icell) + photoRate           ! H2 Destruction
 
@@ -1042,7 +1100,13 @@ SUBROUTINE rt_evol_single_cell(astart,aend,dasura,h,omegab,omega0,omegaL &
   real(dp) :: mu_dp
   real(dp) :: n_spec(1:7)
   real(dp),dimension(1:nvector):: T2
+
+#if NEXTINCT > 0
+  real(dp),dimension(1:nIons+NEXTINCT, 1:nvector):: xion
+# else
   real(dp),dimension(1:nIons, 1:nvector):: xion
+#endif
+
   real(dp),dimension(1:nGroups, 1:nvector):: Np, dNpdt
   real(dp),dimension(1:ndim, 1:nGroups, 1:nvector):: Fp, dFpdt
   real(dp),dimension(1:ndim, 1:nvector):: p_gas

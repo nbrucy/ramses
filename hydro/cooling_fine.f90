@@ -88,7 +88,14 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
   logical,dimension(1:nvector),save::cooling_on=.true.
   real(dp)::scale_Np,scale_Fp,work,Npc,Npnew, kIR, E_rad, TR
   real(dp),dimension(1:ndim)::Fpnew
+
+#if NEXTINCT > 0
+  real(dp),dimension(nIons+NEXTINCT, 1:nvector),save:: xion
+  real(dp),dimension(NEXTINCT, 1:nvector),save:: ext
+#else
   real(dp),dimension(nIons, 1:nvector),save:: xion
+#endif
+
   real(dp),dimension(nGroups, 1:nvector),save:: Np, Np_boost=0d0, dNpdt=0d0
   real(dp),dimension(ndim, nGroups, 1:nvector),save:: Fp, Fp_boost=0, dFpdt=0
   real(dp),dimension(ndim, 1:nvector),save:: p_gas, u_gas
@@ -354,6 +361,16 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
      ! Compute cooling time step in second
      dtcool = dtnew(ilevel)*scale_t
 
+
+! store the extinction variables to calculate UV using the Valdivia & Hennebelle 2014 method
+#if NEXTINCT > 0
+     do ii= 1, NEXTINCT
+        do i=1,nleaf
+           ext(ii,i) = uold(ind_leaf(i),ii+nvar-NEXTINCT)
+        end do
+     end do
+#endif
+
 #ifdef RT
      if(neq_chem) then
         ! Get the ionization fractions
@@ -362,6 +379,17 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
               xion(1+ii,i) = uold(ind_leaf(i),iIons+ii)/uold(ind_leaf(i),1)
            end do
         end do
+
+
+#if NEXTINCT > 0
+        ! Store the extinction variables at the end of xion to avoid changing rt_solve_cooling
+        do ii=1,NEXTINCT
+           do i=1,nleaf
+              xion(ii+nIONS,i) = ext(ii,i)
+           end do
+        end do
+#endif
+
 
         ! Get photon densities and flux magnitudes
         do ig=1,nGroups

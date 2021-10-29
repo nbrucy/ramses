@@ -456,7 +456,7 @@ recursive subroutine amr_step(ilevel,icount)
   !---------------------
   ! Do RT/Chemistry step
   !---------------------
-#ifdef NEXTINCT
+#if NEXTINCT>0
  call extinction_fine(ilevel)
 #endif
 

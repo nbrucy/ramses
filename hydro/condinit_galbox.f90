@@ -270,6 +270,7 @@ if(first_call) then
   u(1:nn,5)=u(1:nn,5)+0.125d0*(q(1:nn,7)+q(1:nn,nvar+2))**2
   u(1:nn,5)=u(1:nn,5)+0.125d0*(q(1:nn,8)+q(1:nn,nvar+3))**2
   u(1:nn,6:8)=q(1:nn,6:8)
+  u(1:nn,nvar+1:nvar+3)=q(1:nn,nvar+1:nvar+3)
 #endif
 
 
