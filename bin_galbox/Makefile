@@ -18,7 +18,7 @@ SOLVER = mhd
 # Patch
 PATCH =
 # Use RT? 1=Yes, 0=No
-RT = 0
+RT = 1
 # Use turbulence? 1=Yes, 0=No (requires fftw3)
 USE_TURB=1
 # Use MPI? 1=Yes, 0=No
@@ -35,9 +35,9 @@ NMETALS = 0
 # ATON flages: Uncomment to enable ATON
 ATON_FLAGS = #-DATON
 # Number of ions for RT
-NIONS = 0
+NIONS = 3
 # Number of photon groups for RT
-NGROUPS = 0
+NGROUPS = 3
 #Number of groups for extinction
 NEXTINCT = 0
 
@@ -168,14 +168,15 @@ ifeq ($(GRACKLE),1)
 endif
 MODOBJ += poisson_commons.o hydro_parameters.o hydro_commons.o \
           cooling_module.o  bisection.o sparse_mat.o clfind_commons.o  feedback_module.o \
-          gadgetreadfile.o write_makefile.o write_patch.o write_gitinfo.o
+          gadgetreadfile.o write_makefile.o write_patch.o write_gitinfo.o file_module.o
 ifeq ($(RT),1)
    MODOBJ += rt_parameters.o rt_hydro_commons.o coolrates_module.o \
-             rt_spectra.o rt_metal_cooling_module.o rt_cooling_module.o rt_flux_module.o
+             rt_spectra.o rt_metal_cooling_module.o rt_cooling_module.o rt_flux_module.o 
 endif
 ifeq ($(USE_TURB),1)
    MODOBJ += turb_parameters.o turb_commons.o
 endif
+MODOBJ += cooling_module_frig.o
 
 AMROBJ = read_params.o init_amr.o init_time.o init_refine.o tracer_utils.o adaptive_loop.o \
          amr_step.o update_time.o output_amr.o flag_utils.o \

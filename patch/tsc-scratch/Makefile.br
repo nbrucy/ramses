@@ -14,13 +14,13 @@ NDIM = 3
 # Float precision size
 NPRE = 8
 # hydro/mhd solver
-SOLVER = hydro
+SOLVER = mhd
 # Patch
-PATCH =
+PATCH = ../patch/back-reaction
 # Use RT? 1=Yes, 0=No
 RT = 0
 # Use turbulence? 1=Yes, 0=No (requires fftw3)
-USE_TURB=1
+USE_TURB=0
 # Use MPI? 1=Yes, 0=No
 MPI = 1
 MPIF90 = mpif90
@@ -39,7 +39,7 @@ NIONS = 0
 # Number of photon groups for RT
 NGROUPS = 0
 # Number of passive scalars
-NPSCAL = 0
+NPSCAL = 4
 
 # Compute NVAR
 NVAR = 2+$(NDIM)
@@ -52,7 +52,7 @@ ifeq ($(RT),1)
 endif
 
 # Set to one to use 'include "mpif.h"' instead of more recent "use mpi"
-OLD_MPI_SUPPORT = 0
+OLD_MPI_SUPPORT = 1
 #############################################################################
 GITBRANCH = $(shell git rev-parse --abbrev-ref HEAD)
 GITHASH = $(shell git log --pretty=format:'%H' -n 1)
@@ -130,8 +130,8 @@ ifeq ($(GRACKLE),1)
    LIBS_OBJ     = -I$(HOME)/local/include -DCONFIG_BFLOAT_8 -DH5_USE_16_API -fPIC
 endif
 ifeq ($(USE_TURB),1)
-   LIBS_TURB = -L$(FFTW3_DIR)/lib -lfftw3
-   LIBS_OBJ_TURB = -I$(FFTW3_DIR)/include -lfftw3
+   LIBS_TURB = -L$(HOME)/local/lib -lfftw3
+   LIBS_OBJ_TURB = -I$(HOME)/local/include -lfftw3
 endif
 LIBS = $(LIBMPI) $(LIBS_GRACKLE) $(LIBS_TURB)
 #############################################################################
@@ -181,8 +181,7 @@ POISSONOBJ = init_poisson.o phi_fine_cg.o interpol_phi.o force_fine.o \
 # Hydro objects
 HYDROOBJ = init_hydro.o init_flow_fine.o write_screen.o output_hydro.o \
            courant_fine.o godunov_fine.o uplmde.o umuscl.o interpol_hydro.o \
-           godunov_utils.o condinit.o condinit_group.o condinit_cloud.o \
-					 hydro_flag.o hydro_boundary.o boundana.o \
+           godunov_utils.o condinit.o hydro_flag.o hydro_boundary.o boundana.o \
            read_hydro_params.o synchro_hydro_fine.o
 # RT objects
 RTOBJ = rt_init_hydro.o rt_init_xion.o rt_init.o rt_init_flow_fine.o \

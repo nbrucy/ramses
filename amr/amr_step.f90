@@ -11,13 +11,7 @@ recursive subroutine amr_step(ilevel,icount)
   use coolrates_module, only: update_coolrates_tables
   use rt_cooling_module, only: update_UVrates
 #endif
-
-!  use cloud_module, only: rt_feedback,rt_protostar_fld
-  !use rt_cooling_module, only: rt_protostar_m1
   use feedback_module
-
-
-
 #if USE_TURB==1
   use turb_commons
 #endif
@@ -203,7 +197,7 @@ recursive subroutine amr_step(ilevel,icount)
      ! Kinetic feedback from giant molecular clouds
      !----------------------------------------------------
                                call timer('feedback','start')
-     if(hydro.and.star.and.eta_sn>0.and.f_w>0)call kinetic_feedback
+     if(ndim==3.and.hydro.and.star.and.eta_sn>0.and.f_w>0)call kinetic_feedback
 
   endif
 
@@ -454,6 +448,15 @@ recursive subroutine amr_step(ilevel,icount)
   endif
 
   !---------------------
+  ! [UV_PROP_SFR] 
+  ! Update background uv emmision according to surfacic SFR
+  ! Will change the value of p_uv
+  !---------------------
+  if(uv_prop_sfr) then
+      call sfr_update_uv
+  endif
+
+  !---------------------
   ! Do RT/Chemistry step
   !---------------------
 #if NEXTINCT>0
@@ -468,7 +471,7 @@ recursive subroutine amr_step(ilevel,icount)
      ! Still need a chemistry call if RT is defined but not
      ! actually doing radiative transfer (i.e. rt==false):
                                call timer('cooling','start')
-     if(hydro .and. (neq_chem.or.cooling.or.T2_star>0.0))call cooling_fine(ilevel)
+     if(hydro .and. (neq_chem.or.cooling.or.T2_star>0.0.or.barotropic_eos))call cooling_fine(ilevel)
   endif
   ! Regular updates and book-keeping:
   if(ilevel==levelmin) then
@@ -484,7 +487,7 @@ recursive subroutine amr_step(ilevel,icount)
 #else
                                call timer('cooling','start')
   if((hydro).and.(.not.static_gas)) then
-    if(neq_chem.or.cooling.or.T2_star>0.0)call cooling_fine(ilevel)
+    if(neq_chem.or.cooling.or.T2_star>0.0.or.barotropic_eos)call cooling_fine(ilevel)
   endif
 #endif
 
@@ -664,7 +667,7 @@ subroutine rt_step(ilevel)
      call rt_set_uold(ilevel)
 
                                call timer('cooling','start')
-     if(neq_chem.or.cooling.or.T2_star>0.0)call cooling_fine(ilevel)
+     if(neq_chem.or.cooling.or.T2_star>0.0.or.barotropic_eos)call cooling_fine(ilevel)
                                call timer('radiative transfer','start')
 
      do ivar=1,nrtvar

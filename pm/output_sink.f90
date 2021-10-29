@@ -32,3 +32,24 @@ subroutine output_sink_csv(filename)
   close(123)
 
 end subroutine output_sink_csv
+
+subroutine output_sink_mass_arrays(filename)
+  use amr_commons
+  use pm_commons
+  implicit none
+  character(LEN=80)::filename,fileloc
+  ! [UV_PROP_SFR] save sink mass array
+  if (uv_prop_sfr) then
+
+    if(verbose) write(*,*) 'Entering output_sink_mass_arrays'
+
+    fileloc=TRIM(filename)
+    open(unit=123,file=TRIM(fileloc),form='unformatted')
+    rewind(123)
+
+    write(123) sfr_total_mass_sinks
+    write(123) sfr_time_mass_sinks
+
+    close(123)
+  end if
+end subroutine output_sink_mass_arrays

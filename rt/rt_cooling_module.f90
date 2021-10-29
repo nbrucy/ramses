@@ -740,16 +740,7 @@ contains
        if(cosmic_rays) de = de + cosray_H2
        dxH2 = (cr*ddt(icell)+xH2)/(1.+de*ddt(icell))
        dxH2 = MIN(MAX(dxH2, x_min), 0.5)
-
-
-!       if(myid .eq. 1 .and. icell .eq. 1) then 
-!          write(*,*) 'dxion(ixHI),xH2, nH(icell), TK', dxion(ixHI), xH2, nH(icell), TK
-!          write(*,*) 'alpha(ixHI), photoRate,kph0',alpha(ixHI),photoRate,kph0
-!       endif
-
     endif !if(isH2)
-
-
     ! Update xHI (also if .not. isH2, for stability)**********************
     if(rt_OTSA .or. .not. rt_advect) then         !    Recombination rates
        alpha(ixHII) = inp_coolrates_table(tbl_AlphaB_HII, TK,.false.)
@@ -760,10 +751,7 @@ contains
     cr = alpha(ixHII) * ne * dxion(ixHII) + 2. * de * dxH2 !   HI creation
     photoRate=0.
     if(rt) photoRate = SUM(signc(:,ixHII)*dNp)    !                  [s-1]
-
-
     if(haardt_madau) photoRate = photoRate + UVrates(ixHII,1)*ss_factor
-
     de = beta(ixHII) * ne + photoRate             !         HI destruction
     if(cosmic_rays) de = de + cosray_HI
     if(isH2) de = de + 2. * alpha(ixHI)

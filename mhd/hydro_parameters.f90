@@ -2,23 +2,6 @@ module hydro_parameters
   use amr_parameters
 
   ! Number of independant variables
-!#ifndef NENER
-!  integer,parameter::nener=0
-!#else
-!  integer,parameter::nener=NENER
-!#endif
-!#ifndef NVAR
-!  integer,parameter::nvar=8+nener
-!#else
-!  integer,parameter::nvar=NVAR
-!#endif
-
-
-
-
-
-
-  ! Number of independant variables
 #ifndef NENER
   integer,parameter::nener=0
 #else
@@ -94,11 +77,6 @@ module hydro_parameters
   !the extinction variables are put at the end say typically nvar-1 and nvar 
   integer,parameter::firstindex_extinct=nvar + 1 - nextinct ! for extinction
 
-
-
-
-
-
   ! Size of hydro kernel
   integer,parameter::iu1=-1
   integer,parameter::iu2=+4
@@ -146,6 +124,9 @@ module hydro_parameters
   real(dp)::floor_C=1d-10   ! Bz floor
   real(dp)::floor_b2=1d-10  ! B L2 norm floor
   real(dp)::mass_sph=0.0D0   ! mass_sph
+  !!! FlorentR - PATCH Temperature extrema
+  real(dp)::temp_max = 1d99
+!!! FRenaud
 #if NENER>0
   real(dp),dimension(1:NENER)::err_grad_prad=-1.0
 #endif
@@ -156,8 +137,6 @@ module hydro_parameters
 
   ! Initial condition parameter
   character(LEN=10)::condinit_kind =''
-
-
   ! Initial conditions hydro variables
   real(dp),dimension(1:MAXREGION)::d_region=0.
   real(dp),dimension(1:MAXREGION)::u_region=0.
@@ -200,8 +179,6 @@ module hydro_parameters
   integer ::interpol_type=1
   integer ::interpol_mag_type=-1
 
-
-
   ! EXTINCTION RELATED PARAMETERS
   ! get_dx
   real(dp)                 :: pi_g           !pi for a global calculation (done in cooling_fine)
@@ -233,7 +210,6 @@ module hydro_parameters
   integer::ivirial1=9
   integer::ivirial2=9
   integer::inener=9
-
 
 !!! BrucyN - rho_floor
   logical  :: rho_floor  = .false.  ! whether to set a minimal value (equal to smallr) to density

@@ -89,7 +89,7 @@ SUBROUTINE rt_metal_cool_mashup(T,N,x,mu,cool)
      ! Patrick's low-temperature cooling function
 !     call cooling_low(T,N,coolph)
      !note dRefDT and coeff_chi not used here
-     call chaud_froid_2(T,N,coolph,dRefDT,coeff_chi)    
+     call hot_cold_2(T,N,coolph,dRefDT,coeff_chi)    
 
      cool = -coolph
   else
@@ -99,7 +99,7 @@ SUBROUTINE rt_metal_cool_mashup(T,N,x,mu,cool)
      ! 1) The is in CIE, not NEQ (see Sutherland & Dopita, 1993)
      ! 2) This seems to include hydrogen, which we already have in RAMSES-RT
      ! 3) Pretty close agreement > 10^6 with rt_cmp_cooling anyway
-     !call chaud_froid_2(T,N,coolph,dRefdT)
+     !call hot_cold_2(T,N,coolph,dRefdT)
      !cool = -coolph
   end if
   ! Handle photoionisation in range where it matters (based on Ferland 2003)

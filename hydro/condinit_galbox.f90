@@ -23,7 +23,7 @@ subroutine read_galbox_params()
   !--------------------------------------------------
   ! Namelist definitions
   !--------------------------------------------------
-  namelist/galbox_params/turb, Height0, dens0,Bx,By,Bz,boundary_frig
+  namelist/galbox_params/turb,Height0,dens0,Bx,By,Bz,boundary_frig
 
   ! Read namelist file
   call getarg(1,infile) ! get the name of the namelist
@@ -88,11 +88,11 @@ subroutine condinit_galbox(x,u,dx,nn)
   real(dp):: temper
 
 
-  !start initialising q and u to zero
+  ! start initialising q and u to zero
   u=0.
   q=0.
 
-  !for mass_sph refinnement - 10. as a reference for coarse level (convenient when in cc for instance)
+  ! for mass_sph refinnement - 10. as a reference for coarse level (convenient when in cc for instance)
   mass_sph = 10. * (boxlen*(0.5**levelmin))**3
 
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
@@ -100,16 +100,16 @@ subroutine condinit_galbox(x,u,dx,nn)
   mag_norm = sqrt(1.*8000./scale_T2*2.*1.5)
 
 
-
 !!! Step 1 : Read params and initialize turbulent velocity field
 if(first_call) then
      
-     if(myid .eq. 1) write(*,*) 'mag_norm', mag_norm
+     if(myid .eq. 1) write(*,*) '[condinit] mag_norm', mag_norm
 
      call read_galbox_params()
 
      if(myid .eq. 1) then 
-        write(*,*) 'turb, Height0, dens0,Bx,By,Bz',turb, Height0, dens0,Bx,By,Bz
+        write(*,*) '[condinit] turb, Height0, dens0, Bx, By, Bz'
+        write(*,*) turb, Height0, dens0, Bx, By, Bz
      endif
 
      ! Read the turbulent velocity field used as initial condition

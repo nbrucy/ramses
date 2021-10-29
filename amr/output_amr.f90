@@ -61,13 +61,18 @@ subroutine dump_all
      call output_makefile(filename)
      filename=TRIM(filedir)//'patches.txt'
      call output_patch(filename)
-     if(cooling .and. .not. neq_chem)then
+     if(cooling .and. .not. neq_chem .and. .not. cooling_frig)then
         filename=TRIM(filedir)//'cooling_'//TRIM(nchar)//'.out'
         call output_cool(filename)
      end if
      if(sink)then
         filename=TRIM(filedir)//'sink_'//TRIM(nchar)//'.csv'
         call output_sink_csv(filename)
+        ! [UV_PROP_SFR] Save sink mass array
+        if (uv_prop_sfr) then
+          filename=TRIM(filedir)//'sink_mass_arrays_'//TRIM(nchar)//'.dat'
+          call output_sink_mass_arrays(filename)
+        end if
      endif
      ! Copy namelist file to output directory
      filename=TRIM(filedir)//'namelist.txt'
@@ -673,6 +678,7 @@ end subroutine savegadget
 subroutine create_output_dirs(filedir)
   use mpi_mod
   use amr_commons
+  use file_module, ONLY: mkdir
   implicit none
   character(LEN=80), intent(in):: filedir
 #ifdef NOSYSTEM
@@ -685,6 +691,7 @@ subroutine create_output_dirs(filedir)
 #ifndef WITHOUTMPI
   integer :: info
 #endif
+  integer, parameter :: mode = int(O'755')
   
   if (.not.withoutmkdir) then
     if (myid==1) then
@@ -695,8 +702,9 @@ subroutine create_output_dirs(filedir)
 #else
       filecmd='mkdir -p '//TRIM(filedir)
       ierr=1
-      call system(filecmd,ierr)
+!      call system(filecmd,ierr)
 !      call EXECUTE_COMMAND_LINE(filecmd,exitstat=ierr,wait=.true.)
+      call mkdir(TRIM(filedir),mode,ierr) 
       if(ierr.ne.0 .and. ierr.ne.127)then
         write(*,*) 'Error - Could not create ',TRIM(filedir),' error code=',ierr
 #ifndef WITHOUTMPI

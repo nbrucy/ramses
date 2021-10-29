@@ -179,13 +179,15 @@ module amr_parameters
   logical::second_order=.false.      ! Only works for constant t-stop
   real(dp)::dust_to_gas=1.0          ! Dust-to-gas mass ratio.
   real(dp),dimension(1:3)::accel_gr=0 ! constant external grain force
+  integer,dimension(1:2)::trajectories=0 ! determines whether or not to output trajectories, which particles to output, and how many.
 
   logical ::self_shielding=.false.
   logical ::pressure_fix=.false.
   logical ::nordlund_fix=.true.
   logical ::cooling=.false.
   logical ::neq_chem=.false.            ! Non-equilbrium chemistry activated
-  logical ::isothermal=.false.
+  logical ::isothermal=.false.          ! Enable equation of state for gas (heating and cooling disabled if .true.)
+  logical ::barotropic_eos=.false.      ! New keyword to replace the confusing name "isothermal"
   logical ::metal=.false.
   logical ::haardt_madau=.false.
   logical ::delayed_cooling=.false.
@@ -199,17 +201,31 @@ module amr_parameters
   logical ::sf_imf=.false.              ! Activate IMF sampling for SN feedback when resolution allows it
   logical ::sf_compressive=.false.      ! Advect compressive and solenoidal turbulence terms separately
 
- !PH 27/08/2021 parameter for extinction and for SFR dependent UV 
+ !PH 27/08/2021 parameters for extinction
   logical ::extinction=.false.
   logical ::simplechem=.false.  ! H2 formation only
   real(dp)::p_UV   =1.0D0       ! Parameter of variation of G0 (UV)
 
-  logical ::uv_prop_sfr=.false.  ! Make p_UV SFR dependent
-  real(dp)::sfr_ref=2.5d-9      ! p_UV = sfr / sfr_ref, in Msun.pc-2.yr-1
-  real(dp)::sfr_avg_window=0.05 ! Time of the window used to compute the average of the SFR
-  integer ::sfr_nb_points=100   ! Number of times the SFR is updated during sfr_avg_window
-  logical ::sfr_verbose=.false. ! Display sfr info at each step
-  real(dp)::sfr_pUV_min=0.0     ! Minimal value for p_UV, initialized with p_UV value in namelist
+  ! [UV_PROP_SFR] parameters for SFR dependent UV 
+  logical ::uv_prop_sfr=.false.   !  Make p_UV SFR dependent
+  real(dp)::ssfr_ref=2.5d-9       ! Reference surfacic sfr. p_UV = ssfr / sssfr_ref, in Msun.pc-2.yr-1
+  real(dp)::uvsfr_avg_window=20   ! Time of the window used to compute the average of the SFR (in Myr)
+  integer ::uvsfr_nb_points=100   ! Number of times the SFR is updated during uvsfr_avg_window
+  logical ::uvsfr_verbose=.false. ! Display sfr info at each step
+  real(dp)::p_UV_min=0.0           ! Minimal value for p_UV, initialized with p_UV value in namelist
+  ! EOS parameters
+  character(len=20)::barotropic_eos_form='legacy'  !Type of barotropic EOS: choose from:
+                                        !'isothermal': constant temperature T0
+                                        !'polytrope': T = T0*(rho/rho0)**(gamma-1) or P ~ rho**gamma for ideal gas
+                                        !'double_polytrope': isothermal with T0 below rho0 and polytropic with gamma above
+                                        !'custom': for patching your own eos
+                                        !'legacy': same as polytrop but using the old n_star, g_star and T2_star
+  real(dp)::polytrope_rho=1.0d50        ! sets rho0 in EOS = density normalisation or knee-density, in g/cm3
+  real(dp)::polytrope_rho_cu=1.0d50     ! rho0 in code units
+  real(dp)::polytrope_index=1.0d0       ! sets gamma in EOS = polytropic index
+  real(dp)::T_eos=10                    ! sets T0 in EOS: isothermal temperature or temperature normalisation, in K
+  real(dp)::mu_gas=1d0                  ! molecular weight
+  real(dp)::T2_eos=10                   ! = T/mu, used in the computations
 
   ! Output times
   real(dp),dimension(1:MAXOUT)::aout=1.1d0      ! Output expansion factors

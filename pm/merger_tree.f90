@@ -2452,6 +2452,8 @@ subroutine read_progenitor_data()
 
   endif ! nprogs > 0
 
+  if (.not.make_mock_galaxies) deallocate(prog_mpeak)
+
 
 
 
@@ -3102,6 +3104,7 @@ subroutine make_galaxies()
   use clfind_commons
   use pm_commons, only: xp, vp, idp, npart
   use mpi_mod
+  use file_module, ONLY: mkdir
   
   implicit none
   integer               :: ipeak, mbpart, iprog
@@ -3132,7 +3135,9 @@ subroutine make_galaxies()
   integer::idim
   integer::i,ip
   integer::nalloc1,nalloc2
-
+  integer, parameter :: mode = int(O'755')
+  integer::ierr
+  
   logical::opened
   
   allocate(mpeak(1:npeaks_max))
@@ -3264,7 +3269,8 @@ subroutine make_galaxies()
   conedir = "cone_gal_" // trim(istep_str) // "/"
   conecmd = "mkdir -p " // trim(conedir)
   if(.not.withoutmkdir) then
-     if (myid==1) call system(conecmd)
+!     if (myid==1) call system(conecmd)
+     if (myid==1) call mkdir(trim(conedir),mode,ierr)
   endif
 
 #ifndef WITHOUTMPI

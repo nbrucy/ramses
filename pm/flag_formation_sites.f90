@@ -194,7 +194,7 @@ subroutine flag_formation_sites
 !!$        ! Avoid formation of crazy spins
 !!$        ok=ok.and.(kinetic_support(jj)<factG*mass_sink_seed*M_sun/(scale_d*scale_l**3)/(ir_cloud*dx_min/aexp))
         ! Clumps should not be thermally supported against gravity
-        ok=ok.and.(thermal_support(jj)<-grav_term(jj))
+        !ok=ok.and.(thermal_support(jj)<-grav_term(jj))
         ! Then create a sink at the peak position
         if (ok)then
            form(jj)=1

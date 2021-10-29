@@ -147,7 +147,7 @@ VPATH += ../hydro:../pm:../poisson:../amr:../io
 #############################################################################
 # All objects
 MODOBJ = mpi_mod.o amr_parameters.o amr_commons.o random.o pm_parameters.o \
-         pm_commons.o poisson_parameters.o dump_utils.o constants.o
+         pm_commons.o poisson_parameters.o dump_utils.o constants.o file_module.o
 ifeq ($(GRACKLE),1)
    MODOBJ += grackle_parameters.o
 endif
@@ -167,7 +167,7 @@ AMROBJ = read_params.o init_amr.o init_time.o init_refine.o tracer_utils.o adapt
          amr_step.o update_time.o output_amr.o flag_utils.o \
          physical_boundaries.o virtual_boundaries.o refine_utils.o \
          nbors_utils.o hilbert.o load_balance.o title.o sort.o cooling_fine.o \
-         units.o light_cone.o movie.o memory.o end.o
+         eos.o units.o light_cone.o movie.o memory.o end.o
 # Particle-Mesh objects
 PMOBJ = init_part.o output_part.o rho_fine.o synchro_fine.o move_fine.o \
         newdt_fine.o particle_tree.o add_list.o remove_list.o star_formation.o \
@@ -183,7 +183,7 @@ POISSONOBJ = init_poisson.o phi_fine_cg.o interpol_phi.o force_fine.o \
 # Hydro objects
 HYDROOBJ = init_hydro.o init_flow_fine.o write_screen.o output_hydro.o \
            courant_fine.o godunov_fine.o uplmde.o umuscl.o interpol_hydro.o \
-           godunov_utils.o condinit.o condinit_group.o condinit_cloud.o condinit_galbox.o \
+           godunov_utils.o condinit.o  condinit_cloud.o condinit_galbox.o \
 			  hydro_flag.o hydro_boundary.o boundana.o \
            read_hydro_params.o synchro_hydro_fine.o
 # RT objects
