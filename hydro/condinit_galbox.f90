@@ -5,10 +5,11 @@ module galbox_module
   ! This module contains the variable needed for galbox IC
   !================================================================
 
-  real(dp),save::turb=0.
-  real(dp),save::dens0=0.
-  real(dp),save::Height0=0.
-  real(dp),save::Bx=0.,By=0.,Bz=0.
+  real(dp),save::turb=0.           ! Initial rms of the turbulence in km/s
+  real(dp),save::dens0=1.          ! Midplane density in in code units
+  real(dp),save::Height0=150.      ! Initial scale height in code units
+  real(dp),save::Bx=0.,By=0.,Bz=0. ! Initial magnetic field in WNN units
+  real(dp),save::temperature=8000  ! Initial temperature in Kelvin
   logical :: boundary_frig = .false. !use the boundary_frig routine 
 
 end module galbox_module
@@ -23,7 +24,7 @@ subroutine read_galbox_params()
   !--------------------------------------------------
   ! Namelist definitions
   !--------------------------------------------------
-  namelist/galbox_params/turb,Height0,dens0,Bx,By,Bz,boundary_frig
+  namelist/galbox_params/turb,Height0,dens0,Bx,By,Bz,temperature,boundary_frig
 
   ! Read namelist file
   call getarg(1,infile) ! get the name of the namelist
@@ -211,8 +212,7 @@ if(first_call) then
      ! density
      q(i,1) = dens0 * max(exp(-x(i,3)**2 / (2.*Height0**2)), 1.d-2) ! exponential profile along z
      ! pressure
-     temper = (8000. / scale_T2 ) / dens0
-     q(i,5) =  q(i,1)*temper
+     q(i,5) =  q(i,1) * temperature / scale_T2
 
      ! initialise the turbulent velocity field
      ! make a zero order interpolation (should be improved)
