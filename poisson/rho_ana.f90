@@ -6,6 +6,8 @@ subroutine rho_ana(x,d,dx,ncell)
   use amr_parameters
   use hydro_parameters
   use poisson_parameters
+  use constants, only: mH, pi, Myr2sec, factG_in_cgs
+
   implicit none
   integer ::ncell                         ! Number of cells
   real(dp)::dx                            ! Cell size
@@ -19,17 +21,11 @@ subroutine rho_ana(x,d,dx,ncell)
   !================================================================
   integer::i
   real(dp)::dmass,emass,xmass,ymass,zmass,rr,rx,ry,rz,dd
-  real(dp):: a1,a2,z0,a1_rho,a2_rho,G,mp,pi,Myear_s
+  real(dp):: a1,a2,z0,a1_rho,a2_rho
 
   select case (gravity_type)
 
   case(-1)
-
-     ! Some constants
-     pi = ACOS(-1.)
-     mp = 1.660531d-24  ! proton mass in gram
-     G = 6.67d-8 ! Gravitational constant (cgs)
-     Myear_s = 1.d6 * 365. * 3600. * 24.
 
      ! Add the vertical galactic gravitational field
      ! Kuijken & Gilmore 1989 taken from Joung & MacLow (2006)
@@ -45,8 +41,8 @@ subroutine rho_ana(x,d,dx,ncell)
      ! g = -a1 z / sqrt(z^2+z0^2) - a2 z
      ! rho = 1/(4piG) (a1 / z0) ( (z/z0)^2 + 1)^(-3/2) + a2/(4piG)
 
-     a1_rho = a1 / (4.*pi*G) / (z0/1.d3) / (Myear_s)**2 / mp
-     a2_rho = a2 / (4.*pi*G)             / (Myear_s)**2 / mp
+     a1_rho = a1 / (4.*pi*factG_in_cgs) / (z0/1.d3) / (Myr2sec)**2 / mH
+     a2_rho = a2 / (4.*pi*factG_in_cgs)             / (Myr2sec)**2 / mH
 
      do i=1,ncell
         rz=x(i,3)-0.5*boxlen
