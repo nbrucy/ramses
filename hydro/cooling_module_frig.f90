@@ -756,6 +756,7 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
 #ifdef RT
   use rt_parameters,only: isH2,iIons
 #endif
+
   implicit none
 
   integer,parameter                                                   :: ndir=6  
@@ -781,7 +782,7 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
 
   integer                                               :: ix, iy,iz
 
-
+  real(dp)                                              :: dist_grid , weight
 
   
   !---  m, n loop limits  ------------------------------------------
@@ -927,6 +928,15 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
                     
                     call get_cell_index2(cell_ind2,cell_levl2,xpart2,il)
                     
+
+                    !PH 29/11/2019
+                    !calculate the distance of the cells from the grid
+                    dist_grid = sqrt( (xzero(1)-xpart2(1))**2 + (xzero(2)-xpart2(2))**2 + (xzero(3)-xpart2(3))**2 ) 
+                    !if above a threshold, then we put the weigth of this cells to zero
+                    weight=0.
+                    if(dist_grid .lt. dist_screen)  weight=1. 
+
+
                     if (cell_ind2 .NE. -1) then  
                        m = dirM_ext(ind_oct, ix, iy, iz)
                        n = dirN_ext(ind_oct, ix, iy, iz)
@@ -937,7 +947,7 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
                              nl = 1+ mod(n+ nloop+ NdirExt_n, NdirExt_n)       !cyclic value
                              mn = (mloop -1)*NdirExt_n + nl                                 
                              dx_cross_ext = dx_loc*Mdx_ext(ind_oct, ix, iy, iz, mn)   !!! ajouter true/false
-                             column_dens(i,mloop,nl) = column_dens(i,mloop,nl) + dx_cross_ext*uold(cell_ind2,1)   
+                             column_dens(i,mloop,nl) = column_dens(i,mloop,nl) + dx_cross_ext*uold(cell_ind2,1) * weight   
 !                             column_dens(i,m,n) = column_dens(i,m,n) + dx_cross_ext*uold(cell_ind2,1)   
 #if NSCHEM != 0
                              !if(myid .EQ. 1) write(*,*) "***VAL: Calculating H2column_dens, neulS+1=", neulS+1, "nH2=", uold(cell_ind2,neulS+1)
@@ -946,10 +956,11 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
 
                              !PH adapted for the RT with H2 - H2 abundance is : 0.5 ( 1 - XHI -XHII)
                              !question : check about uold(*,1) density or H total abundance (possible issue with He)
+
 #ifdef RT
                               if(isH2) then 
-                                   H2column_dens(i,mloop,nl) = H2column_dens(i,mloop,nl) + dx_cross_ext*(uold(cell_ind2,1)-uold(cell_ind2,iIons)-uold(cell_ind2,iIons+1)) / 2. 
-                             endif
+                                 H2column_dens(i,mloop,nl) = H2column_dens(i,mloop,nl) + dx_cross_ext*(uold(cell_ind2,1)-uold(cell_ind2,iIons)-uold(cell_ind2,iIons+1)) / 2.  * weight
+                              endif
                              if(isnan(H2column_dens(i,mloop,nl))) write(*,*) "WARNING: CONT",uold(cell_ind2,neulS+1), Mdx_ext(ind_oct, ix, iy, iz, mn), dx_loc, mloop, nloop, nl, mn, m, n, ind_oct
 #endif
 #endif
@@ -1923,7 +1934,7 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
   integer                                              :: deltam
   !-----   simple_chem   --------------------------------------------------------------!
   real(dp)                                             :: xshield, fshield, kph, m_kph, b5   ! cgs                                                 
-  real(dp)                                             :: small_exp=1d-10, e_valexp, small_arg=-50.0_dp
+  real(dp)                                             :: small_exp=1d-10, e_valexp, small_arg=-20.0_dp
   real(dp)                                             :: cst1 = -8.5d-4, one=1.0, cst2, coeff, valexp
   real(dp)                                             :: mH2 = 3.347449d-24           ! g                                                         
   real(dp)                                             :: kbcgs  =  1.380658d-16       ! erg/degre                                                 
@@ -2183,8 +2194,9 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
            end do
            coeff_chi  = extinct/(NdirExt_m*NdirExt_n)
 
-           !store extinction in variable firstindex_extinct+1
-           uold(ind_leaf(i),firstindex_extinct+1) = coeff_chi
+           !it is assumed (see init_hydro and output_hydro that extinction variables are stored between
+           ! nvar-nextinct+1 and nvar 
+           uold(ind_leaf(i),nvar) = coeff_chi
 
 #if NEXTINCT>1
            cst2 = scale_l* boxlen
@@ -2194,7 +2206,7 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
            m_kph = 0.0
            do index_m=1,NdirExt_m
               do index_n=1,NdirExt_n
-                 xshield = H2column_dens_loc(ind_ll,index_m,index_n)*cst2/(5d14)   !Glover & MacLow 2007, Eq (32)                                  
+                 xshield = max(H2column_dens_loc(ind_ll,index_m,index_n)*cst2/(5d14),0.)   !Glover & MacLow 2007, Eq (32)                                  
                  if(isnan(xshield)) write(*,*) "WARNING: xshield is NaN", index_m, index_n, H2column_dens_loc(ind_ll,index_m,index_n)
                  !--------------------------------------------------------                                                                         
                  !!!-----   Now it is not possible to use bthermal   -----                                                                         
@@ -2209,14 +2221,31 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
                  e_valexp = exp(valexp)
                  if(isnan(exp(valexp))) write(*,*) "WARNING: exp(valexp) is nan: valexp=", valexp
                  fshield = 0.035*e_valexp / (one + xshield)**0.5
+
+!                 if(isnan(fshield)) write(*,*) fshield, e_valexp, one, xshield
+
                  fshield = fshield + 0.965/(one + xshield/b5)**2.0
+
+!                 if(isnan(fshield)) write(*,*)  one, xshield/b5
+
                  valexp = max(coeff*column_dens_loc(ind_ll,index_m,index_n), small_arg)
                  kph = exp(valexp) !coeff*column_dens_loc(ind_ll,index_m,index_n))                                                                 
-                 kph = kph*fshield                    !kph = fshield(N_H2)*exp(-tau_{d,1000}) *kph0                                                
+
+
+ !                if(isnan(kph)) then 
+ !                   write(*,*) 'self-shielding is Nan',kph,fshield
+ !                endif
+                                           
+                 kph = kph*fshield                    !kph = fshield(N_H2)*exp(-tau_{d,1000}) *kph0     
+
                  m_kph = m_kph + kph                  !mean kph                                                                                    
               end do
            end do
-           uold(ind_leaf(i),firstindex_extinct+2) = m_kph/(NdirExt_m*NdirExt_n)
+
+           !self-schielding times dust extinction is stored in variable nvar - 1
+           !futur self-schielding (e.g. CO) should be stored in nvar - NN 
+           uold(ind_leaf(i),nvar-nextinct+1) = m_kph/(NdirExt_m*NdirExt_n)
+!           kdest = kph0*uold(ind_leaf(i),neulS+2)
 #endif
 
 
@@ -2577,6 +2606,7 @@ subroutine solve2_H2form(nH2, ntot, k1, k2, dt_ilev)
 
 end subroutine solve2_H2form
 
+
 subroutine sfr_update_uv()
   !---------------------------------------------------------------------------
   ! [UV_PROP_SFR] 
@@ -2591,43 +2621,83 @@ subroutine sfr_update_uv()
   use amr_commons
   use pm_commons
   use hydro_commons
-  use constants, only: pc2cm, Myr2sec
+  use constants, only: pc2cm, Myr2sec, yr2sec, M_sun
   implicit none
 
   integer :: i_old, i_new ! Index of the position of the past and current total sink mass in the array
-  real(dp) :: sfr_time_update, time_span, sfr
+  integer, save :: i_last = 1 ! Index of the position in the array the last time sfr_update_uv was called 
+  integer :: i, di ! General purpose indexes
+  real(dp) :: sfr_timestep, time_span, ssfr
   real(dp) :: scale_nH, scale_T2, scale_l, scale_d, scale_t, scale_v, scale_m
   character(len=:), allocatable :: uvsfr_fmt      
 
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
   scale_m = scale_d*scale_l**3d0
 
-  sfr_time_update = uvsfr_avg_window * Myr2sec / (scale_t * uvsfr_nb_points)
+  ! timestep for the computation of the sfr
+  sfr_timestep = uvsfr_avg_window * (Myr2sec / scale_t) / uvsfr_nb_points
 
-  i_new = modulo(2 + floor(t / sfr_time_update), uvsfr_nb_points)
+  ! by how much the index need to be increased
+  di = floor((t - sfr_time_mass_sinks(i_last)) / sfr_timestep)
 
-  if (t < uvsfr_avg_window) then
+  ! Safety check for high dt
+  if (di > uvsfr_nb_points / 3) then
+    write(*,*) "[WARNING] dt too high to compute SFR, using p_UV_min"
+    p_UV = p_UV_min
+    return
+  end if
+
+  ! index where the current total mass of sink will be stored
+  i_new = modulo_tab(i_last + di, uvsfr_nb_points)
+
+  ! index where to take the old sink mass for the sfr computation
+  if (t < uvsfr_avg_window * (Myr2sec / scale_t)) then
      i_old = 1
   else
-     i_old = modulo(i_new + 1, uvsfr_nb_points)
+     i_old = modulo_tab(i_new + 1, uvsfr_nb_points)
   end if
 
-  sfr_total_mass_sinks(i_new) = sum(msink(1:nsink)) * scale_m/Msun
-  sfr_time_mass_sinks(i_new) = t * scale_t / year
+  ! Compute current mass in sinks
+  sfr_total_mass_sinks(i_new) = sum(msink(1:nsink))
+  sfr_time_mass_sinks(i_new) = t
 
-  time_span = sfr_time_mass_sinks(i_new) - sfr_time_mass_sinks(i_old)
+  ! In case di > 1, we have skipped some indexes. Let's fill them now.
+  do i = i_last + 1, i_last + di - 1
+    sfr_total_mass_sinks(modulo_tab(i, uvsfr_nb_points)) = sfr_total_mass_sinks(i_last)
+    sfr_time_mass_sinks(modulo_tab(i, uvsfr_nb_points)) = sfr_time_mass_sinks(i_last)
+  end do
+
+  ! Store for next step
+  i_last = i_new 
+
+  ! time effectively used for the average of the sfr (in year).
+  time_span = (sfr_time_mass_sinks(i_new) - sfr_time_mass_sinks(i_old)) * scale_t / yr2sec
   ! SFR in the box
-  sfr = (sfr_total_mass_sinks(i_new) - sfr_total_mass_sinks(i_old)) / time_span
-  ! Divide by the surface of the box to get the surfacic SFR
-  sfr = sfr / (boxlen * scale_l / pc2cm)**2
+  ssfr = (sfr_total_mass_sinks(i_new) - sfr_total_mass_sinks(i_old)) * scale_m / M_sun / time_span
+  ! Divide by the surface of the box to get the surfacic SFR (SSFR)
+  ssfr = ssfr / (boxlen * scale_l / pc2cm)**2
 
   ! Compute the p_UV parameter, equivalent to G0' in the equation (17) in Ostriker, McKee & Leroy 2010
-  p_UV = max(sfr / ssfr_ref, p_UV_min)
+  p_UV = max(ssfr / ssfr_ref, p_UV_min)
 
   if (myid == 1 .and. uvsfr_verbose) then
-     uvsfr_fmt = '*, f8.3, *, es8.3, *, f8.3, *, f8.3, *' 
-     write(*, uvsfr_fmt) "t = ", t  * scale_t / (1d6 * year)," Myr, surfacic sfr=", sfr, "[Msun.pc-2.yr-1], p_UV = ", &
-     & p_UV, ", time_span = ", time_span / 1d6," [Myr]"
+     uvsfr_fmt = '("  t=",f10.3, " [Myr]", 2x, "SSFR=", es11.2, " [Msun.pc-2.yr-1]", &
+     & 2x, "p_UV=", f8.3, 2x, "time_span=", f8.3, " [Myr]", 2x)' 
+     write(*, uvsfr_fmt)  t * scale_t / Myr2sec, ssfr, p_uv, time_span / 1e6
   end if
+
+  contains
+   pure function modulo_tab(a, b) result(modulo_1)
+      !---------------------------------------------------------------------------
+      ! A simple modulo function adapted to Fortran array
+      ! Give the a modulo b representent between 1 and b 
+      ! instead of between 0 and b - 1
+      !---------------------------------------------------------------------------
+      implicit none
+      integer, intent(in) :: a, b
+      integer :: modulo_1
+
+      modulo_1 = 1 + modulo(a - 1, b)
+   end function modulo_tab
 
 end subroutine sfr_update_uv

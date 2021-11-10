@@ -10,3 +10,4 @@ ramses3d
 .mmat
 *write_patch.f90
 *write_makefile.f90
+*launch.json

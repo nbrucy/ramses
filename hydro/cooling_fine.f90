@@ -28,7 +28,7 @@ subroutine cooling_fine(ilevel)
      call coolfine1(ind_grid,ngrid,ilevel)
   end do
 
-  if((cooling.and..not.neq_chem).and.ilevel==levelmin.and.cosmo)then
+  if((cooling.and..not.neq_chem.and..not.cooling_frig).and.ilevel==levelmin.and.cosmo)then
 #ifdef grackle
      if(use_grackle==0)then
         if(myid==1)write(*,*)'Computing new cooling table'
@@ -88,7 +88,14 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
   logical,dimension(1:nvector),save::cooling_on=.true.
   real(dp)::scale_Np,scale_Fp,work,Npc,Npnew, kIR, E_rad, TR
   real(dp),dimension(1:ndim)::Fpnew
+
+#if NEXTINCT > 0
+  real(dp),dimension(nIons+NEXTINCT, 1:nvector),save:: xion
+  real(dp),dimension(NEXTINCT, 1:nvector),save:: ext
+#else
   real(dp),dimension(nIons, 1:nvector),save:: xion
+#endif
+
   real(dp),dimension(nGroups, 1:nvector),save:: Np, Np_boost=0d0, dNpdt=0d0
   real(dp),dimension(ndim, nGroups, 1:nvector),save:: Fp, Fp_boost=0, dFpdt=0
   real(dp),dimension(ndim, 1:nvector),save:: p_gas, u_gas
@@ -363,6 +370,16 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
      ! Compute cooling time step in second
      dtcool = dtnew(ilevel)*scale_t
 
+
+! store the extinction variables to calculate UV using the Valdivia & Hennebelle 2014 method
+#if NEXTINCT > 0
+     do ii= 1, NEXTINCT
+        do i=1,nleaf
+           ext(ii,i) = uold(ind_leaf(i),ii+nvar-NEXTINCT)
+        end do
+     end do
+#endif
+
 #ifdef RT
      if(neq_chem) then
         ! Get the ionization fractions
@@ -371,6 +388,17 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
               xion(1+ii,i) = uold(ind_leaf(i),iIons+ii)/uold(ind_leaf(i),1)
            end do
         end do
+
+
+#if NEXTINCT > 0
+        ! Store the extinction variables at the end of xion to avoid changing rt_solve_cooling
+        do ii=1,NEXTINCT
+           do i=1,nleaf
+              xion(ii+nIONS,i) = ext(ii,i)
+           end do
+        end do
+#endif
+
 
         ! Get photon densities and flux magnitudes
         do ig=1,nGroups
@@ -391,7 +419,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
            end if
         end do
 
-        if(cooling .and. delayed_cooling) then
+        if(cooling .and. delayed_cooling .and. .not. cooling_frig) then
            cooling_on(1:nleaf)=.true.
            do i=1,nleaf
               if(uold(ind_leaf(i),idelay)/uold(ind_leaf(i),1) .gt. 1d-3) &
@@ -472,8 +500,13 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
      else
         ! Compute net cooling at constant nH
         if(cooling.and..not.neq_chem)then
-           call solve_cooling(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
-        endif
+            if(cooling_frig) then
+               !use cooling from module_cooling_frig described in Audit & Hennebelle 2005
+               call solve_cooling_frig(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
+            else
+               !use classical ramses cooling
+               call solve_cooling(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
+         endif
      endif
 #else
      ! Compute net cooling at constant nH
@@ -482,9 +515,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
         if(cooling_frig) then
            !use cooling from module_cooling_frig described in Audit & Hennebelle 2005
            call solve_cooling_frig(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
-
         else
-
            !use classical ramses cooling
            call solve_cooling(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
         endif
@@ -579,7 +610,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
         do i=1,nleaf
            uold(ind_leaf(i),neul) = T2min(i) + ekk(i) + err(i) + emag(i)
         end do
-     else if(cooling .or. neq_chem)then
+     else if(cooling .or. neq_chem )then
         do i=1,nleaf
 !!! FlorentR - PATCH Temperature extrema
            uold(ind_leaf(i),neul) = min(T2(i) + T2min(i), temp_max*nH(i)/scale_T2/(gamma-1.0))

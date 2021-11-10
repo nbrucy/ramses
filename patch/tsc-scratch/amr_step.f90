@@ -11,7 +11,6 @@ recursive subroutine amr_step(ilevel,icount)
   use coolrates_module, only: update_coolrates_tables
   use rt_cooling_module, only: update_UVrates
 #endif
-  use feedback_module
 #if USE_TURB==1
   use turb_commons
 #endif
@@ -20,7 +19,7 @@ recursive subroutine amr_step(ilevel,icount)
 #ifndef WITHOUTMPI
   integer::mpi_err
 #endif
-  integer, intent(in)::ilevel,icount
+  integer::ilevel,icount
   !-------------------------------------------------------------------!
   ! This routine is the adaptive-mesh/adaptive-time-step main driver. !
   ! Each routine is called using a specific order, don't change it,   !
@@ -33,10 +32,6 @@ recursive subroutine amr_step(ilevel,icount)
   if(numbtot(1,ilevel)==0)return
 
   if(verbose)write(*,999)icount,ilevel
-
-
-  call boundary_frig(ilevel)
-
 
   !-------------------------------------------
   ! Make new refinements and update boundaries
@@ -163,7 +158,7 @@ recursive subroutine amr_step(ilevel,icount)
 #if NDIM==3
         if(clumpfind .and. ndim==3) call clump_finder(.true.,.false.)
 #endif
-        
+
         call dump_all
 
         if (output_now_all.EQV..true.) then
@@ -197,26 +192,9 @@ recursive subroutine amr_step(ilevel,icount)
      ! Kinetic feedback from giant molecular clouds
      !----------------------------------------------------
                                call timer('feedback','start')
-     if(ndim==3.and.hydro.and.star.and.eta_sn>0.and.f_w>0)call kinetic_feedback
+     if(hydro.and.star.and.eta_sn>0.and.f_w>0)call kinetic_feedback
 
   endif
-
-
-     !----------------------------------------------------
-     ! Feedback on sink particles
-     !----------------------------------------------------
-     if(stellar) then
-        if(make_stellar_glob) then
-           call make_stellar_from_sinks_glob
-        else
-           call make_stellar_from_sinks
-        endif
-     endif
-     if (sn_feedback_sink) then
-        call make_sn_stellar
-     endif
-
-
 
   !--------------------
   ! Poisson source term
@@ -267,16 +245,6 @@ recursive subroutine amr_step(ilevel,icount)
      ! Compute gravitational acceleration
      call force_fine(ilevel,icount)
 
-     ! Synchronize remaining particles for gravity
-     if(pic)then
-                               call timer('particles','start')
-        if(static_dm.or.static_stars)then
-           call synchro_fine_static(ilevel)
-        else
-           call synchro_fine(ilevel)
-        end if
-     end if
-
      if(hydro)then
                                call timer('poisson','start')
 
@@ -310,9 +278,6 @@ recursive subroutine amr_step(ilevel,icount)
   ! Update photon packages according to star particles
                                call timer('radiative transfer','start')
   if(rt .and. rt_star) call update_star_RT_feedback(ilevel)
-
-  ! Now update photon packages on sink particles
-  if(rt .and. rt_sink) call update_sink_RT_feedback(ilevel)
 #endif
 
 #if USE_TURB==1
@@ -324,16 +289,9 @@ recursive subroutine amr_step(ilevel,icount)
   end if
 #endif
 
-  !----------------------
-  ! Compute new time step
-  !----------------------
-                               call timer('courant','start')
-  call newdt_fine(ilevel)
-  if(ilevel>levelmin)then
-     dtnew(ilevel)=MIN(dtnew(ilevel-1)/real(nsubcycle(ilevel-1)),dtnew(ilevel))
-  end if
-
+  !-----------------------
   ! Set unew equal to uold
+  !-----------------------
                                call timer('hydro - set unew','start')
   if(hydro)call set_unew(ilevel)
 
@@ -342,6 +300,27 @@ recursive subroutine amr_step(ilevel,icount)
                                call timer('radiative transfer','start')
   if(rt)call rt_set_unew(ilevel)
 #endif
+
+  !--------------------------------------------
+  ! Synchronize remaining particles for gravity
+  !--------------------------------------------
+  if(pic)then
+                               call timer('particles','start')
+     if(static_dm.or.static_stars)then
+        call synchro_fine_static(ilevel)
+     else
+        call synchro_fine(ilevel)
+     end if
+  end if
+
+  !----------------------
+  ! Compute new time step
+  !----------------------
+                               call timer('courant','start')
+  call newdt_fine(ilevel)
+  if(ilevel>levelmin)then
+     dtnew(ilevel)=MIN(dtnew(ilevel-1)/real(nsubcycle(ilevel-1)),dtnew(ilevel))
+  end if
 
   !---------------------------
   ! Recursive call to amr_step
@@ -383,6 +362,7 @@ recursive subroutine amr_step(ilevel,icount)
      call grow_sink(ilevel,.false.)
   end if
 #endif
+  ! Call to move_fine was previously here. No longer!
   !-----------
   ! Hydro step
   !-----------
@@ -405,16 +385,6 @@ recursive subroutine amr_step(ilevel,icount)
 #else
      end do
 #endif
-     ! MC Tracer
-     ! Communicate fluxes accross boundaries
-     if(MC_tracer)then
-                                call timer('tracer','start')
-        do ivar=1,twondim
-           call make_virtual_reverse_dp(fluxes(1,ivar),ilevel-1)
-           call make_virtual_fine_dp(fluxes(1,ivar),ilevel-1)
-        end do
-     end if
-
      if(momentum_feedback>0)then
         call make_virtual_reverse_dp(pstarnew(1),ilevel)
      endif
@@ -446,23 +416,23 @@ recursive subroutine amr_step(ilevel,icount)
      call upload_fine(ilevel)
 
   endif
-
-  !---------------------
-  ! [UV_PROP_SFR] 
-  ! Update background uv emmision according to surfacic SFR
-  ! Will change the value of p_uv
-  !---------------------
-  if(uv_prop_sfr) then
-      call sfr_update_uv
-  endif
+  ! ERM: Moved the below block of code to being after the hydro step.
+  !---------------
+  ! Deposit mass/momenta, evolve momenta, move particles
+  !---------------
+  if(pic)then
+                               call timer('particles','start')
+     call init_dust_fine(ilevel) !ERM: Added call to init_dust_fine just before move_fine
+     if(static_dm.or.static_stars)then
+        call move_fine_static(ilevel) ! Only remaining particles
+     else
+        call move_fine(ilevel) ! Only remaining particles
+     end if
+  end if
 
   !---------------------
   ! Do RT/Chemistry step
   !---------------------
-#if NEXTINCT>0
- call extinction_fine(ilevel)
-#endif
-
 #ifdef RT
   if(rt .and. rt_advect) then
                                call timer('radiative transfer','start')
@@ -471,7 +441,7 @@ recursive subroutine amr_step(ilevel,icount)
      ! Still need a chemistry call if RT is defined but not
      ! actually doing radiative transfer (i.e. rt==false):
                                call timer('cooling','start')
-     if(hydro .and. (neq_chem.or.cooling.or.T2_star>0.0.or.barotropic_eos))call cooling_fine(ilevel)
+     if(hydro .and. (neq_chem.or.cooling.or.T2_star>0.0))call cooling_fine(ilevel)
   endif
   ! Regular updates and book-keeping:
   if(ilevel==levelmin) then
@@ -487,21 +457,9 @@ recursive subroutine amr_step(ilevel,icount)
 #else
                                call timer('cooling','start')
   if((hydro).and.(.not.static_gas)) then
-    if(neq_chem.or.cooling.or.T2_star>0.0.or.barotropic_eos)call cooling_fine(ilevel)
+    if(neq_chem.or.cooling.or.T2_star>0.0)call cooling_fine(ilevel)
   endif
 #endif
-
-  !---------------
-  ! Move particles
-  !---------------
-  if(pic)then
-                               call timer('particles','start')
-     if(static_dm.or.static_stars)then
-        call move_fine_static(ilevel) ! Only remaining particles
-     else
-        call move_fine(ilevel) ! Only remaining particles
-     end if
-  end if
 
   !----------------------------------
   ! Star formation in leaf cells only
@@ -541,9 +499,6 @@ recursive subroutine amr_step(ilevel,icount)
      endif
   end if
 #endif
-
-  call boundary_frig(ilevel)
-
 
   !-----------------------
   ! Compute refinement map
@@ -595,14 +550,7 @@ recursive subroutine amr_step(ilevel,icount)
      if(icount==2)dtnew(ilevel-1)=dtold(ilevel)+dtnew(ilevel)
   end if
 
-  ! Reset move flag flag
-  if(MC_tracer) then
-                                call timer('tracer','start')
-     ! Decrease the move flag by 1
-     call reset_tracer_move_flag(ilevel)
-  end if
-
-999 format(' Entering amr_step(',i1,') for level',i2)
+999 format(' Entering amr_step',i1,' for level',i2)
 
 end subroutine amr_step
 
@@ -651,7 +599,6 @@ subroutine rt_step(ilevel)
      if (i_substep > 1) call rt_set_unew(ilevel)
 
      if(rt_star) call star_RT_feedback(ilevel,dtnew(ilevel))
-     if(rt_sink) call sink_RT_feedback(ilevel,dtnew(ilevel))
 
      ! Hyperbolic solver
      if(rt_advect) call rt_godunov_fine(ilevel,dtnew(ilevel))
@@ -667,7 +614,7 @@ subroutine rt_step(ilevel)
      call rt_set_uold(ilevel)
 
                                call timer('cooling','start')
-     if(neq_chem.or.cooling.or.T2_star>0.0.or.barotropic_eos)call cooling_fine(ilevel)
+     if(neq_chem.or.cooling.or.T2_star>0.0)call cooling_fine(ilevel)
                                call timer('radiative transfer','start')
 
      do ivar=1,nrtvar

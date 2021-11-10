@@ -137,10 +137,10 @@ subroutine backup_hydro(filename, filename_desc)
               field_name = 'pressure'
               call generic_dump(field_name, info_var_count, xdp, unit_out, dump_info_flag, unit_info)
 #if NVAR > 8+NENER
-# ifndef NEXTINCT 
-              do ivar = 9+nener, nvar ! Write passive scalars if any
+# if  NEXTINCT > 0 
+              do ivar = 9+nener, nvar  - nextinct ! Write passive scalars if any
 # else 
-              do ivar = 9+nener, nvar - nextinct ! Write passive scalars if any
+              do ivar = 9+nener, nvar ! Write passive scalars if any
 #endif
                  do i = 1, ncache
                     xdp(i) = uold(ind_grid(i)+iskip, ivar)/max(uold(ind_grid(i)+iskip, 1), smallr)
@@ -154,14 +154,18 @@ subroutine backup_hydro(filename, filename_desc)
               end do
 #endif
 
-# ifdef NEXTINCT 
+# if NEXTINCT > 0
               do ivar = nvar+1 - nextinct, nvar ! Write extinction variables if any
                  do i = 1, ncache
                     xdp(i) = uold(ind_grid(i)+iskip, ivar)
                  end do
+                    if(ivar .eq. nvar) field_name='dust extinction'
+#if NEXTINCT > 1
+                    if(ivar .eq. nvar-1) field_name='H2 self-schielding'
+#endif
                  call generic_dump(field_name, info_var_count, xdp, unit_out, dump_info_flag, unit_info)
               end do
-# endif 
+#endif 
 
 
 

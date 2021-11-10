@@ -221,6 +221,7 @@ subroutine add_gravity_source_terms(ilevel)
   !--------------------------------------------------------------------------
   integer::i,ind,iskip,ind_cell
   real(dp)::d,u,v,w,e_kin,e_prim,d_old,fact
+  real(dp)::req=0_dp
 
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
@@ -238,7 +239,8 @@ subroutine add_gravity_source_terms(ilevel)
         e_kin=0.5d0*d*(u**2+v**2+w**2)
         e_prim=unew(ind_cell,ndim+2)-e_kin
         d_old=max(uold(ind_cell,1),smallr)
-        fact=d_old/d*0.5d0*dtnew(ilevel)
+        if(strict_equilibrium>0)req=rho_eq(ind_cell)
+        fact=(d_old-req)/d*0.5d0*dtnew(ilevel)
         if(ndim>0)then
            u=u+f(ind_cell,1)*fact
            unew(ind_cell,2)=d*u
@@ -469,7 +471,7 @@ subroutine add_viscosity_source_terms(ilevel)
   use poisson_commons
   use pm_commons
   implicit none
-  integer::ilevel,levelmax
+  integer::ilevel
   !--------------------------------------------------------------------------
   ! This routine adds to unew the viscosity terms
   ! with only half a time step. Only the momentum and the
@@ -501,7 +503,7 @@ subroutine add_viscosity_source_terms(ilevel)
   scale=boxlen/dble(nx_loc)
   dx=0.5d0**ilevel
   dx_loc=dx*scale
-  dx_min=(0.5**levelmax)*scale
+  dx_min=(0.5**nlevelmax)*scale
 
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
 
@@ -668,10 +670,14 @@ subroutine godfine1(ind_grid,ncache,ilevel)
   integer ,dimension(1:nvector,0:twondim         ),save::ibuffer_father
   real(dp),dimension(1:nvector,0:twondim  ,1:nvar),save::u1
   real(dp),dimension(1:nvector,1:twotondim,1:nvar),save::u2
+  real(dp),dimension(1:nvector,1:twotondim       ),save::req2=0.0d0
+  real(dp),dimension(1:nvector,1:twotondim       ),save::peq2=0.0d0
 
   real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar),save::uloc
   real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:ndim),save::gloc=0.0d0
   real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2),save::ploc=0.0d0
+  real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2),save::req_loc=0.0d0
+  real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2),save::peq_loc=0.0d0
   real(dp),dimension(1:nvector,if1:if2,jf1:jf2,kf1:kf2,1:nvar,1:ndim),save::flux
   real(dp),dimension(1:nvector,if1:if2,jf1:jf2,kf1:kf2,1:2,1:ndim),save::tmp
   logical ,dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2),save::ok
@@ -683,7 +689,7 @@ subroutine godfine1(ind_grid,ncache,ilevel)
   integer::i1min,i1max,j1min,j1max,k1min,k1max
   integer::i2min,i2max,j2min,j2max,k2min,k2max
   integer::i3min,i3max,j3min,j3max,k3min,k3max
-  real(dp)::dx,scale,oneontwotondim
+  real(dp)::dx,scale,oneontwotondim,d
 
   oneontwotondim = 1d0/dble(twotondim)
 
@@ -777,6 +783,21 @@ subroutine godfine1(ind_grid,ncache,ilevel)
            end do
         end do
 
+        ! Gather equilibrium model
+        if(strict_equilibrium>0)then
+           do idim=1,ndim
+              do i=1,nexist
+                 req_loc(ind_exist(i),i3,j3,k3)=rho_eq(ind_cell(i))
+                 peq_loc(ind_exist(i),i3,j3,k3)=p_eq(ind_cell(i))
+              end do
+              ! Use straight injection for buffer cells
+              do i=1,nbuffer
+                 req_loc(ind_nexist(i),i3,j3,k3)=req2(i,ind_son)
+                 peq_loc(ind_nexist(i),i3,j3,k3)=peq2(i,ind_son)
+              end do
+           end do
+        end if
+
         ! Gather gravitational acceleration
         if(poisson)then
            do idim=1,ndim
@@ -789,14 +810,15 @@ subroutine godfine1(ind_grid,ncache,ilevel)
               end do
            end do
         end if
+
         ! Gather stellar momentum
         if(momentum_feedback>0)then
            do i=1,nexist
-              ploc(ind_exist(i),i3,j3,k3)=pstarold(ind_cell(i))*dx/dtnew(ilevel)/6.0
+              ploc(ind_exist(i),i3,j3,k3)=pstarold(ind_cell(i))
            end do
            ! Use straight injection for buffer cells
            do i=1,nbuffer
-              ploc(ind_nexist(i),i3,j3,k3)=pstarold(ibuffer_father(i,0))*dx/dtnew(ilevel)/6.0
+              ploc(ind_nexist(i),i3,j3,k3)=pstarold(ibuffer_father(i,0))
            end do
         end if
 
@@ -821,7 +843,41 @@ subroutine godfine1(ind_grid,ncache,ilevel)
   !-----------------------------------------------
   ! Compute flux using second-order Godunov method
   !-----------------------------------------------
-  call unsplit(uloc,ploc,gloc,flux,tmp,dx,dx,dx,dtnew(ilevel),ncache)
+  call unsplit(uloc,gloc,ploc,flux,tmp,dx,dx,dx,dtnew(ilevel),ncache)
+  !--------------------------------------
+  ! Store the fluxes for later use
+  !--------------------------------------
+  if (MC_tracer) then
+     do idim=1,ndim
+        i0=0; j0=0; k0=0
+        if(idim==1)i0=1
+        if(idim==2)j0=1
+        if(idim==3)k0=1
+        do k2=k2min,k2max
+           do j2=j2min,j2max
+              do i2=i2min,i2max
+                 ind_son=1+i2+2*j2+4*k2
+                 iskip=ncoarse+(ind_son-1)*ngridmax
+                 do i=1,ncache
+                    ind_cell(i)=iskip+ind_grid(i)
+                 end do
+                 i3=1+i2
+                 j3=1+j2
+                 k3=1+k2
+                 do i=1,ncache
+                    d = max(uold(ind_cell(i),1), smallr)
+                    ! Copy left flux
+                    fluxes(ind_cell(i),(idim-1)*2+1)= flux(i,i3   ,j3   ,k3,   1,idim)&
+                         / d
+                    ! Copy right flux
+                    fluxes(ind_cell(i),(idim-1)*2+2)=-flux(i,i3+i0,j3+j0,k3+k0,1,idim)&
+                         / d
+                 end do
+              end do
+           end do
+        end do
+     end do
+  end if
 
   !------------------------------------------------
   ! Reset flux along direction at refined interface

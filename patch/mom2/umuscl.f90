@@ -19,7 +19,7 @@
 !  ngrid       => (const)  number of sub-grids
 !  ndim        => (const)  number of dimensions
 ! ----------------------------------------------------------------
-subroutine unsplit(uin,pin,gravin,flux,tmp,dx,dy,dz,dt,ngrid)
+subroutine unsplit(uin,gravin,pin,flux,tmp,dx,dy,dz,dt,ngrid)
   use amr_parameters
   use const
   use hydro_parameters
@@ -63,7 +63,7 @@ subroutine unsplit(uin,pin,gravin,flux,tmp,dx,dy,dz,dt,ngrid)
   jlo=MIN(1,ju1+2); jhi=MAX(1,ju2-2)
   klo=MIN(1,ku1+2); khi=MAX(1,ku2-2)
 
-  ! Translate to primative variables, compute sound speeds
+  ! Translate to primitive variables, compute sound speeds
   call ctoprim(uin,qin,cin,gravin,dt,ngrid)
 
   ! Compute TVD slopes
@@ -1113,7 +1113,7 @@ subroutine uslope(q,dq,dx,dt,ngrid)
                     dq(l,i,j,k,n,1) = dsgn*min(dlim,abs(dcen))
                  end do
               else
-                 write(*,*)'Unknown slope type'
+                 write(*,*)'Unknown slope type',dx,dt
                  stop
               end if
            end do
@@ -1254,7 +1254,7 @@ subroutine uslope(q,dq,dx,dt,ngrid)
         end do
      end do
   else
-     write(*,*)'Unknown slope type'
+     write(*,*)'Unknown slope type',dx,dt
      stop
   endif
 #endif
@@ -1494,7 +1494,7 @@ subroutine uslope(q,dq,dx,dt,ngrid)
         end do
      end do
   else
-     write(*,*)'Unknown slope type'
+     write(*,*)'Unknown slope type',dx,dt
      stop
   endif
 #endif
