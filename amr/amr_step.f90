@@ -515,6 +515,9 @@ recursive subroutine amr_step(ilevel,icount)
   !---------------------------------------
   if((hydro).and.(.not.static_gas))then
                                call timer('hydro - ghostzones','start')
+
+     call boundary_frig(ilevel)
+
 #ifdef SOLVERmhd
      do ivar=1,nvar+3
 #else
@@ -541,9 +544,6 @@ recursive subroutine amr_step(ilevel,icount)
      endif
   end if
 #endif
-
-  call boundary_frig(ilevel)
-
 
   !-----------------------
   ! Compute refinement map
