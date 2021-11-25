@@ -78,6 +78,8 @@ SUBROUTINE rt_metal_cool_mashup(T,N,x,mu,cool)
 
   real(dp):: coeff_chi
 
+  coeff_chi=1.
+
   cool = 0d0
   coolph = 0d0
   coolphoto = 0d0

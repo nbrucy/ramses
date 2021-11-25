@@ -756,6 +756,7 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
 #ifdef RT
   use rt_parameters,only: isH2,iIons
 #endif
+
   implicit none
 
   integer,parameter                                                   :: ndir=6  
@@ -781,7 +782,7 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
 
   integer                                               :: ix, iy,iz
 
-
+  real(dp)                                              :: dist_grid , weight
 
   
   !---  m, n loop limits  ------------------------------------------
@@ -927,6 +928,15 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
                     
                     call get_cell_index2(cell_ind2,cell_levl2,xpart2,il)
                     
+
+                    !PH 29/11/2019
+                    !calculate the distance of the cells from the grid
+                    dist_grid = sqrt( (xzero(1)-xpart2(1))**2 + (xzero(2)-xpart2(2))**2 + (xzero(3)-xpart2(3))**2 ) 
+                    !if above a threshold, then we put the weigth of this cells to zero
+                    weight=0.
+                    if(dist_grid .lt. dist_screen)  weight=1. 
+
+
                     if (cell_ind2 .NE. -1) then  
                        m = dirM_ext(ind_oct, ix, iy, iz)
                        n = dirN_ext(ind_oct, ix, iy, iz)
@@ -937,7 +947,7 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
                              nl = 1+ mod(n+ nloop+ NdirExt_n, NdirExt_n)       !cyclic value
                              mn = (mloop -1)*NdirExt_n + nl                                 
                              dx_cross_ext = dx_loc*Mdx_ext(ind_oct, ix, iy, iz, mn)   !!! ajouter true/false
-                             column_dens(i,mloop,nl) = column_dens(i,mloop,nl) + dx_cross_ext*uold(cell_ind2,1)   
+                             column_dens(i,mloop,nl) = column_dens(i,mloop,nl) + dx_cross_ext*uold(cell_ind2,1) * weight   
 !                             column_dens(i,m,n) = column_dens(i,m,n) + dx_cross_ext*uold(cell_ind2,1)   
 #if NSCHEM != 0
                              !if(myid .EQ. 1) write(*,*) "***VAL: Calculating H2column_dens, neulS+1=", neulS+1, "nH2=", uold(cell_ind2,neulS+1)
@@ -946,10 +956,11 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
 
                              !PH adapted for the RT with H2 - H2 abundance is : 0.5 ( 1 - XHI -XHII)
                              !question : check about uold(*,1) density or H total abundance (possible issue with He)
+
 #ifdef RT
                               if(isH2) then 
-                                   H2column_dens(i,mloop,nl) = H2column_dens(i,mloop,nl) + dx_cross_ext*(uold(cell_ind2,1)-uold(cell_ind2,iIons)-uold(cell_ind2,iIons+1)) / 2. 
-                             endif
+                                 H2column_dens(i,mloop,nl) = H2column_dens(i,mloop,nl) + dx_cross_ext*(uold(cell_ind2,1)-uold(cell_ind2,iIons)-uold(cell_ind2,iIons+1)) / 2.  * weight
+                              endif
                              if(isnan(H2column_dens(i,mloop,nl))) write(*,*) "WARNING: CONT",uold(cell_ind2,neulS+1), Mdx_ext(ind_oct, ix, iy, iz, mn), dx_loc, mloop, nloop, nl, mn, m, n, ind_oct
 #endif
 #endif
@@ -1923,7 +1934,7 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
   integer                                              :: deltam
   !-----   simple_chem   --------------------------------------------------------------!
   real(dp)                                             :: xshield, fshield, kph, m_kph, b5   ! cgs                                                 
-  real(dp)                                             :: small_exp=1d-10, e_valexp, small_arg=-50.0_dp
+  real(dp)                                             :: small_exp=1d-10, e_valexp, small_arg=-20.0_dp
   real(dp)                                             :: cst1 = -8.5d-4, one=1.0, cst2, coeff, valexp
   real(dp)                                             :: mH2 = 3.347449d-24           ! g                                                         
   real(dp)                                             :: kbcgs  =  1.380658d-16       ! erg/degre                                                 
@@ -2183,8 +2194,9 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
            end do
            coeff_chi  = extinct/(NdirExt_m*NdirExt_n)
 
-           !store extinction in variable firstindex_extinct+1
-           uold(ind_leaf(i),firstindex_extinct+1) = coeff_chi
+           !it is assumed (see init_hydro and output_hydro that extinction variables are stored between
+           ! nvar-nextinct+1 and nvar 
+           uold(ind_leaf(i),nvar) = coeff_chi
 
 #if NEXTINCT>1
            cst2 = scale_l* boxlen
@@ -2194,7 +2206,7 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
            m_kph = 0.0
            do index_m=1,NdirExt_m
               do index_n=1,NdirExt_n
-                 xshield = H2column_dens_loc(ind_ll,index_m,index_n)*cst2/(5d14)   !Glover & MacLow 2007, Eq (32)                                  
+                 xshield = max(H2column_dens_loc(ind_ll,index_m,index_n)*cst2/(5d14),0.)   !Glover & MacLow 2007, Eq (32)                                  
                  if(isnan(xshield)) write(*,*) "WARNING: xshield is NaN", index_m, index_n, H2column_dens_loc(ind_ll,index_m,index_n)
                  !--------------------------------------------------------                                                                         
                  !!!-----   Now it is not possible to use bthermal   -----                                                                         
@@ -2209,14 +2221,31 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
                  e_valexp = exp(valexp)
                  if(isnan(exp(valexp))) write(*,*) "WARNING: exp(valexp) is nan: valexp=", valexp
                  fshield = 0.035*e_valexp / (one + xshield)**0.5
+
+!                 if(isnan(fshield)) write(*,*) fshield, e_valexp, one, xshield
+
                  fshield = fshield + 0.965/(one + xshield/b5)**2.0
+
+!                 if(isnan(fshield)) write(*,*)  one, xshield/b5
+
                  valexp = max(coeff*column_dens_loc(ind_ll,index_m,index_n), small_arg)
                  kph = exp(valexp) !coeff*column_dens_loc(ind_ll,index_m,index_n))                                                                 
-                 kph = kph*fshield                    !kph = fshield(N_H2)*exp(-tau_{d,1000}) *kph0                                                
+
+
+ !                if(isnan(kph)) then 
+ !                   write(*,*) 'self-shielding is Nan',kph,fshield
+ !                endif
+                                           
+                 kph = kph*fshield                    !kph = fshield(N_H2)*exp(-tau_{d,1000}) *kph0     
+
                  m_kph = m_kph + kph                  !mean kph                                                                                    
               end do
            end do
-           uold(ind_leaf(i),firstindex_extinct+2) = m_kph/(NdirExt_m*NdirExt_n)
+
+           !self-schielding times dust extinction is stored in variable nvar - 1
+           !futur self-schielding (e.g. CO) should be stored in nvar - NN 
+           uold(ind_leaf(i),nvar-nextinct+1) = m_kph/(NdirExt_m*NdirExt_n)
+!           kdest = kph0*uold(ind_leaf(i),neulS+2)
 #endif
 
 

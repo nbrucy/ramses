@@ -38,6 +38,9 @@ ATON_FLAGS = #-DATON
 NIONS = 3
 # Number of photon groups for RT
 NGROUPS = 3
+#Number of groups for extinction
+NEXTINCT = 0
+
 # Number of passive scalars
 NPSCAL = 0
 
@@ -46,10 +49,12 @@ NVAR = 2+$(NDIM)
 ifeq ($(SOLVER),mhd)
    NVAR = 8
 endif
-NVAR := $(NVAR)+$(NENER)+$(NPSCAL)+$(NMETALS)
+NVAR := $(NVAR)+$(NENER)+$(NPSCAL)+$(NMETALS)+$(NEXTINCT)
 ifeq ($(RT),1)
    NVAR := $(NVAR)+$(NIONS)
 endif
+
+
 
 # Set to one to use 'include "mpif.h"' instead of more recent "use mpi"
 OLD_MPI_SUPPORT = 0
@@ -60,7 +65,7 @@ GITREMOTE = $(shell git config --get branch.$(GITBRANCH).remote)
 GITREPO = $(shell git config --get remote.$(GITREMOTE).url)
 BUILDDATE = $(shell date +"%D-%T")
 DEFINES = -DNVECTOR=$(NVECTOR) -DNDIM=$(NDIM) -DNPRE=$(NPRE) -DNENER=$(NENER) \
-          -DNVAR=$(NVAR) -DSOLVER$(SOLVER) $(ATON_FLAGS)
+          -DNVAR=$(NVAR)  -DNEXTINCT=$(NEXTINCT)  -DSOLVER$(SOLVER) $(ATON_FLAGS)
 ifeq ($(GRACKLE),1)
    DEFINES += -Dgrackle
 endif
@@ -97,7 +102,7 @@ endif
 
 # Intel compiler
 ifeq ($(COMPILER),INTEL)
-   FFLAGS = -cpp $(DEFINES)
+   FFLAGS = -cpp  -xCORE-AVX512 $(DEFINES)
    ifeq ($(MPI),1)
       F90 = $(MPIF90)
       FFLAGS += -DNOSYSTEM
@@ -105,12 +110,13 @@ ifeq ($(COMPILER),INTEL)
       F90 = ifort
       FFLAGS += -DWITHOUTMPI
    endif
-   F90 += -fp-model source
+#   F90 += -fp-model source
    ifeq ($(DEBUG),1)
       F90 += -warn all -O0 -g -traceback -check bounds
       FFLAGS += -fpe0 -ftrapuv -init=zero -init=snan -init=arrays
    else
-      F90 += -O3
+##      F90 += -O3
+      F90 += -O1
    endif
 endif
 
@@ -129,10 +135,19 @@ ifeq ($(GRACKLE),1)
    LIBS_GRACKLE = -L$(HOME)/local/lib -lgrackle -lhdf5 -lz -lgfortran -ldl
    LIBS_OBJ     = -I$(HOME)/local/include -DCONFIG_BFLOAT_8 -DH5_USE_16_API -fPIC
 endif
+
+###ifeq ($(USE_TURB),1)
+###   LIBS_TURB = -L$(FFTW3_DIR)/lib -lfftw3
+###   LIBS_OBJ_TURB = -I$(FFTW3_DIR)/include -lfftw3
+###endif
+
+
 ifeq ($(USE_TURB),1)
-   LIBS_TURB = -L$(FFTW3_DIR)/lib -lfftw3
-   LIBS_OBJ_TURB = -I$(FFTW3_DIR)/include -lfftw3
+   LIBS_TURB = -L/ccc/products/fftw3-3.3.8/intel--20.0.0__openmpi--4.0.1/default/lib  -lfftw3
+   LIBS_OBJ_TURB = -I$(FFTW3_INCDIR) -lfftw3
 endif
+
+
 LIBS = $(LIBMPI) $(LIBS_GRACKLE) $(LIBS_TURB)
 #############################################################################
 # Sources directories are searched in this exact order
@@ -166,15 +181,15 @@ MODOBJ += cooling_module_frig.o
 AMROBJ = read_params.o init_amr.o init_time.o init_refine.o tracer_utils.o adaptive_loop.o \
          amr_step.o update_time.o output_amr.o flag_utils.o \
          physical_boundaries.o virtual_boundaries.o refine_utils.o \
-         nbors_utils.o hilbert.o load_balance.o title.o sort.o cooling_fine.o \
-         eos.o units.o light_cone.o movie.o memory.o end.o
+         nbors_utils.o hilbert.o load_balance.o title.o sort.o cooling_fine.o cooling_module_frig.o \
+         units.o light_cone.o movie.o memory.o end.o
 # Particle-Mesh objects
 PMOBJ = init_part.o output_part.o rho_fine.o synchro_fine.o move_fine.o \
         newdt_fine.o particle_tree.o add_list.o remove_list.o star_formation.o \
         sink_particle.o feedback.o clump_finder.o clump_merger.o \
         flag_formation_sites.o init_sink.o output_sink.o \
         unbinding.o merger_tree.o move_tracer.o init_tracer.o \
-	stellar_particle.o init_stellar.o output_stellar.o
+	stellar_particle.o init_stellar.o output_stellar.o 
 # Poisson solver objects
 POISSONOBJ = init_poisson.o phi_fine_cg.o interpol_phi.o force_fine.o \
              multigrid_coarse.o multigrid_fine_commons.o multigrid_fine_fine.o \
@@ -183,7 +198,7 @@ POISSONOBJ = init_poisson.o phi_fine_cg.o interpol_phi.o force_fine.o \
 # Hydro objects
 HYDROOBJ = init_hydro.o init_flow_fine.o write_screen.o output_hydro.o \
            courant_fine.o godunov_fine.o uplmde.o umuscl.o interpol_hydro.o \
-           godunov_utils.o condinit.o condinit_galbox.o condinit_cloud.o \
+           godunov_utils.o condinit.o condinit_group.o condinit_cloud.o condinit_galbox.o \
 					 hydro_flag.o hydro_boundary.o boundana.o \
            read_hydro_params.o synchro_hydro_fine.o
 # RT objects

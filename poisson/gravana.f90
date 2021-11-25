@@ -5,6 +5,9 @@
 subroutine gravana(x,f,dx,ncell)
   use amr_parameters
   use poisson_parameters
+  use poisson_commons, only: multipole
+  use constants, only: mH, twopi, Myr2sec, factG_in_cgs
+
   implicit none
   integer ::ncell                         ! Size of input arrays
   real(dp)::dx                            ! Cell size
@@ -17,18 +20,20 @@ subroutine gravana(x,f,dx,ncell)
   !================================================================
   integer::idim,i
   real(dp)::gmass,emass,xmass,ymass,zmass,rr,rx,ry,rz
+  real(dp):: a1,a2,z0,a1_rho,a2_rho,sigma,f_max
 
-  ! Constant vector
-  if(gravity_type==1)then
+  select case (gravity_type)
+
+  case(1)
+    ! Constant vector
      do idim=1,ndim
         do i=1,ncell
            f(i,idim)=gravity_params(idim)
         end do
      end do
-  end if
 
-  ! Point mass
-  if(gravity_type==2)then
+  case(2)
+    ! Point mass
      gmass=gravity_params(1) ! GM
      emass=dx
      emass=gravity_params(2) ! Softening length
@@ -53,7 +58,29 @@ subroutine gravana(x,f,dx,ncell)
         f(i,3)=-gmass*rz/rr**3
 #endif
      end do
-  end if
+
+  case(3)
+    ! Add the vertical galactic gravitational field
+    ! Kuijken & Gilmore 1989 taken from Joung & MacLow (2006)
+    a1 = gravity_params(1) ! Star potential coefficient in kpc Myr-2
+    a2 = gravity_params(2) ! DM potential coefficient in Myr-2
+    z0 = gravity_params(3) ! Scale height in pc scale height in pc in kpc Myr-2
+    ! If negative value, use default values
+    if(a1 < 0.) a1 = 1.42d-3
+    if(a2 < 0.) a2 = 5.49d-4
+    if(z0 <= 0.) z0 = 0.18d3
+
+    a1=1.d3*a1/(Myr2sec**2)/mH/factG_in_cgs
+    a2=a2/(Myr2sec**2)/mH/factG_in_cgs
+
+    sigma = multipole(1)/(boxlen**2)
+    f_max=(a1*0.5*boxlen)/(((0.5*boxlen)**2+z0**2)**0.5) + a2*(0.5*boxlen)
+    do i=1,ncell
+      x(i,3)=x(i,3)-0.5*boxlen
+      f(i,3)=-(a1*x(i,3))/(((x(i,3))**2+z0**2)**0.5) + a2*(x(i,3))
+      f(i,3) = f(i,3) * sigma / (2.*f_max / 2*twopi)
+    end do
+  end select
 
 end subroutine gravana
 !#########################################################

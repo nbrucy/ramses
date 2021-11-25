@@ -22,10 +22,10 @@ module hydro_parameters
 #endif
   integer,parameter::nvar_trad=nrad+1   ! Total number of radiative variables (= temperature + radiative energies)
 
-#ifndef NEXTINCT
-  integer,parameter::nextinct = 0       ! Add a variable to store extinction coefficient
+#if NEXTINCT > 0
+  integer,parameter::nextinct = NEXTINCT       ! Add a variable to store extinction coefficient
 #else
-  integer,parameter::nextinct = NEXTINCT
+  integer,parameter::nextinct = 0
 #endif
 
   ! Advect internal energy as a passive scalar, in a supplementary index
@@ -193,6 +193,7 @@ module hydro_parameters
   real(dp),allocatable, dimension(:,:,:,:,:) :: Mdx_ext
   logical ,allocatable, dimension(:,:,:,:,:) :: Mdx_ext_logical
 
+
   ! TODO use constants module
   real(dp),parameter::Grav=6.67e-08_dp   !Gravitational constant
   real(dp),parameter::Msun=1.9889e33_dp  !Sun mass in g
@@ -218,5 +219,11 @@ module hydro_parameters
   ! Column density module (Valdivia & Hennebelle 2014)
   integer::NdirExt_m=3       ! Theta directions for screening
   integer::NdirExt_n=4       ! Phi directions for screening
+
+
+  !threshold to take into account the screening 
+  !dist_screen is expressed in fraction in boxlen
+  real(dp)::dist_screen=1.
+
 
 end module hydro_parameters
