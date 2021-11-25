@@ -2627,28 +2627,32 @@ subroutine sfr_update_uv()
   integer :: i_old, i_new ! Index of the position of the past and current total sink mass in the array
   integer, save :: i_last = 1 ! Index of the position in the array the last time sfr_update_uv was called 
   integer :: i, di ! General purpose indexes
-  real(dp) :: sfr_timestep, time_span, ssfr
+  real(dp) :: sfr_timestep, time_span, ssfr, dt_last
   real(dp) :: scale_nH, scale_T2, scale_l, scale_d, scale_t, scale_v, scale_m
   character(len=:), allocatable :: uvsfr_fmt      
 
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
   scale_m = scale_d*scale_l**3d0
 
-  ! timestep for the computation of the sfr
-  sfr_timestep = uvsfr_avg_window * (Myr2sec / scale_t) / uvsfr_nb_points
-
-  ! by how much the index need to be increased
-  di = floor((t - sfr_time_mass_sinks(i_last)) / sfr_timestep)
-
   ! Safety check for high dt
-  if (di > uvsfr_nb_points / 3) then
+  dt_last = t - sfr_time_mass_sinks(modulo_tab(i_last, uvsfr_nb_points))
+  if (dt_last >= uvsfr_avg_window * (Myr2sec / scale_t) ) then
     write(*,*) "[WARNING] dt too high to compute SFR, using p_UV_min"
     p_UV = p_UV_min
     return
   end if
 
-  ! index where the current total mass of sink will be stored
-  i_new = modulo_tab(i_last + di, uvsfr_nb_points)
+  ! timestep for the computation of the sfr
+  sfr_timestep = uvsfr_avg_window * (Myr2sec / scale_t) / uvsfr_nb_points
+
+  ! raw index for current time
+  i_new = ceiling(t / sfr_timestep)
+  ! increase since last time
+  di = i_new - i_last
+  ! Store for next step
+  i_last = i_new 
+  ! now store the corresponding index in the table
+  i_new = modulo_tab(i_new, uvsfr_nb_points)
 
   ! index where to take the old sink mass for the sfr computation
   if (t < uvsfr_avg_window * (Myr2sec / scale_t)) then
@@ -2662,13 +2666,10 @@ subroutine sfr_update_uv()
   sfr_time_mass_sinks(i_new) = t
 
   ! In case di > 1, we have skipped some indexes. Let's fill them now.
-  do i = i_last + 1, i_last + di - 1
-    sfr_total_mass_sinks(modulo_tab(i, uvsfr_nb_points)) = sfr_total_mass_sinks(i_last)
-    sfr_time_mass_sinks(modulo_tab(i, uvsfr_nb_points)) = sfr_time_mass_sinks(i_last)
+  do i = modulo_tab(i_last, uvsfr_nb_points) + 1, modulo_tab(i_last, uvsfr_nb_points) + di - 1
+    sfr_total_mass_sinks(modulo_tab(i, uvsfr_nb_points)) = sfr_total_mass_sinks((modulo_tab(i_last, uvsfr_nb_points)))
+    sfr_time_mass_sinks(modulo_tab(i, uvsfr_nb_points)) = sfr_time_mass_sinks((modulo_tab(i_last, uvsfr_nb_points)))
   end do
-
-  ! Store for next step
-  i_last = i_new 
 
   ! time effectively used for the average of the sfr (in year).
   time_span = (sfr_time_mass_sinks(i_new) - sfr_time_mass_sinks(i_old)) * scale_t / yr2sec
