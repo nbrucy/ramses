@@ -482,8 +482,6 @@ subroutine boundary_frig_galbox(ilevel)
           uold(ind_cell(i), 5) = uold(ind_cell(i), 5) + Emag
         end if
 
-        uold(ind_cell(i), 1) = MAX(uold(ind_cell(i), 1), smallr) ! Wild rho_floor there
-
         ! STG HACK CHECK FOR NANS
         if (uold(ind_cell(i), 5) .lt. 0d0) then
           write (*, *) "TOTAL ENERGY < 0 AFTER BOUNDARY_FRIG, OH NO", ind_cell(i)
