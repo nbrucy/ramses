@@ -237,6 +237,7 @@ subroutine init_sink
       open(10, file=fileloc,form='unformatted')
       read(10) sfr_total_mass_sinks
       read(10) sfr_time_mass_sinks
+      read(10) sfr_ilast
       close(10)
    end if
 
