@@ -330,6 +330,9 @@ module amr_parameters
   integer ,dimension(1:MAXBOUND)    ::kbound_min=0
   integer ,dimension(1:MAXBOUND)    ::kbound_max=0
   logical                           ::no_inflow=.false.
+  logical                           ::use_boundary_frig=.false. ! use the boundary_frig routine
+  ! boundary frig = periodic everywhere but open conditions for the gas only on the vertical direction
+
 
   ! Number of processes sharing one token
   ! Only one process can write at a time in an I/O group

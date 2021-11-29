@@ -1,6 +1,5 @@
 module galbox_module
   use amr_parameters
-!!  use hydro_parameters,only:boundary_frig
   !================================================================
   ! This module contains the variable needed for galbox IC
   !================================================================
@@ -10,7 +9,6 @@ module galbox_module
   real(dp), save::Height0 = 150.      ! Initial scale height in code units
   real(dp), save::Bx = 0., By = 0., Bz = 0. ! Initial magnetic field in WNN units
   real(dp), save::temperature = 8000  ! Initial temperature in Kelvin
-  logical :: boundary_frig = .false. !use the boundary_frig routine
 
 end module galbox_module
 
@@ -23,7 +21,7 @@ subroutine read_galbox_params()
   !--------------------------------------------------
   ! Namelist definitions
   !--------------------------------------------------
-  namelist /galbox_params/ turb, Height0, dens0, Bx, By, Bz, temperature, boundary_frig
+  namelist /galbox_params/ turb, Height0, dens0, Bx, By, Bz, temperature
 
   ! Read namelist file
   call getarg(1, infile) ! get the name of the namelist
@@ -313,7 +311,7 @@ subroutine boundary_frig_galbox(ilevel)
   return
 #endif
 
-  if (.not. boundary_frig) return
+  if (.not. use_boundary_frig) return
 
   if (numbtot(1, ilevel) == 0) return
 

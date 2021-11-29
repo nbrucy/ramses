@@ -112,7 +112,7 @@ height0=150. ! in pc
 bx=0.5 ! in units of WNM B
 by=0. ! in units of WNM B
 bz=0. ! in units of WNM B
-boundary_frig=.true.
+use_boundary_frig=.true.
 /
 
 &COOLING_PARAMS
