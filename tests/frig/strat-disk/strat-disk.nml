@@ -112,7 +112,6 @@ height0=150. ! in pc
 bx=0.5 ! in units of WNM B
 by=0. ! in units of WNM B
 bz=0. ! in units of WNM B
-use_boundary_frig=.true.
 /
 
 &COOLING_PARAMS
@@ -145,7 +144,10 @@ switch_solv=100.
 switch_solv_dens=3.
 /
 
-!&BOUNDARY_PARAMS
+&BOUNDARY_PARAMS
+use_boundary_frig=.true.
+no_inflow=.true.
+/
 !nboundary=6
 !ibound_min= 0, 0, 0, 0,-1, 1
 !ibound_max= 0, 0, 0, 0,-1, 1
@@ -154,7 +156,6 @@ switch_solv_dens=3.
 !kbound_min=-1, 1,-1,-1,-1,-1
 !kbound_max=-1, 1, 1, 1, 1, 1
 !bound_type= 2, 2, 0, 0, 0, 0
-!no_inflow=.true.
 !/
 
 &RT_PARAMS

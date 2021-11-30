@@ -403,11 +403,11 @@ subroutine boundary_frig_galbox(ilevel)
           end if
 
           uold(ind_cell(i), 1:nvar + 3) = uold(ind_cell_vois, 1:nvar + 3)
-          uold(ind_cell(i), 1) = MAX(uold(ind_cell(i), 1), smallr)
+          uold(ind_cell(i), 1) = max(uold(ind_cell(i), 1), smallr)
 
           ! Prevent inflow back into the box
           if (no_inflow) then
-            uold(ind_cell(i), 4) = max(0d0, uold(ind_cell(i), 4)) ! 4 = vertical momentum
+            uold(ind_cell(i), 4) = min(0d0, uold(ind_cell(i), 4)) ! 4 = vertical momentum
           end if
 
           A = 0.5*(uold(ind_cell(i), 6) + uold(ind_cell(i), nvar + 1))
@@ -449,11 +449,11 @@ subroutine boundary_frig_galbox(ilevel)
           end if
 
           uold(ind_cell(i), 1:nvar + 3) = uold(ind_cell_vois, 1:nvar + 3)
-          uold(ind_cell(i), 1) = MAX(uold(ind_cell(i), 1), smallr)
+          uold(ind_cell(i), 1) = max(uold(ind_cell(i), 1), smallr)
 
           ! Prevent inflow back into the box
           if (no_inflow) then
-            uold(ind_cell(i), 4) = min(0d0, uold(ind_cell(i), 4)) ! 4 = vertical momentum
+            uold(ind_cell(i), 4) = max(0d0, uold(ind_cell(i), 4)) ! 4 = vertical momentum
           end if
 
           A = 0.5*(uold(ind_cell(i), 6) + uold(ind_cell(i), nvar + 1))
