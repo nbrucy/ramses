@@ -15,7 +15,7 @@ CONTAINS
 
 !************************************************************************
 ! Calculates metal cooling rates using tables that include photon flux
-SUBROUTINE rt_metal_cool(Tin,Nin,xin,mu,metal_tot,metal_prime)
+SUBROUTINE rt_metal_cool(Tin,Nin,xin,mu,metal_tot,metal_prime,coeff_chi,XH2)
   ! Taken from the equilibrium cooling_module of RAMSES
   ! Compute cooling enhancement due to metals
   ! Tin          => Temperature in Kelvin, divided by mu
@@ -28,8 +28,10 @@ SUBROUTINE rt_metal_cool(Tin,Nin,xin,mu,metal_tot,metal_prime)
   ! metal_tot   <=  Metal cooling contribution to de/dt / (nH*ne) [erg s-1 cm-3]
   ! metal_prime <=  d(metal_tot)/dT2 / (nH*ne) [erg s-1 cm-3 K-1]
   real(dp),intent(in)::Tin,Nin,mu,xin
-  real(dp)::T1,T2,nH,flux,cool1,cool2,eps
+  real(dp)::T1,T2,nH,flux,cool1,cool2,eps,XH2
   real(dp),intent(out)::metal_tot,metal_prime
+
+  real(dp):: coeff_chi
 
   ! Set a reference temperature to calculate gradient wrt T
   eps = 1d-5 ! A small value
@@ -37,8 +39,8 @@ SUBROUTINE rt_metal_cool(Tin,Nin,xin,mu,metal_tot,metal_prime)
   T2 = Tin*(1+eps)*mu
   
   ! Call a function mixing the two cooling functions
-  call rt_metal_cool_mashup(T1,Nin,xin,mu,cool1)
-  call rt_metal_cool_mashup(T2,Nin,xin,mu,cool2)
+  call rt_metal_cool_mashup(T1,Nin,xin,mu,cool1,coeff_chi,XH2)
+  call rt_metal_cool_mashup(T2,Nin,xin,mu,cool2,coeff_chi,XH2)
   
   ! Don't cool below 10K to prevent bound errors, but allow heating
   if ((Tin*mu .gt. 10d0) .or. (cool1 .lt. 0d0)) then
@@ -59,7 +61,7 @@ END SUBROUTINE rt_metal_cool
 !************************************************************************
 ! Mixes Patrick Hennebelle's cooling function with Alex Riching's table
 ! Uses a sigmoid function centred at x=0.1 with a +/-0.05 spread to switch
-SUBROUTINE rt_metal_cool_mashup(T,N,x,mu,cool)
+SUBROUTINE rt_metal_cool_mashup(T,N,x,mu,cool,coeff_chi,XH2)
 
   ! Taken from the equilibrium cooling_module of RAMSES
   ! Compute cooling enhancement due to metals
@@ -70,15 +72,16 @@ SUBROUTINE rt_metal_cool_mashup(T,N,x,mu,cool)
   ! x            => Hydrogen ionisation fraction (0->1)
   ! ne           => Electron number density
   ! cool         <=  Metal cooling [erg s-1 cm-3]
+  ! XH2          => fraction of H2
 
-  real(dp),intent(in)::T,N,x,mu
+  real(dp),intent(in)::T,N,x,mu,XH2
   real(dp)::logT,logN,logF,sig,coolph,coolphoto,dummy,drefdt
   real(dp),intent(out)::cool
   real(dp),parameter::scaleup=1d30
 
   real(dp):: coeff_chi
 
-  coeff_chi=1.
+!!  coeff_chi=1.
 
   cool = 0d0
   coolph = 0d0
@@ -89,7 +92,7 @@ SUBROUTINE rt_metal_cool_mashup(T,N,x,mu,cool)
      ! Patrick's low-temperature cooling function
 !     call cooling_low(T,N,coolph)
      !note dRefDT and coeff_chi not used here
-     call hot_cold_2(T,N,coolph,dRefDT,coeff_chi)    
+     call hot_cold_2(T,N,coolph,dRefDT,coeff_chi,XH2)    
 
      cool = -coolph
   else
