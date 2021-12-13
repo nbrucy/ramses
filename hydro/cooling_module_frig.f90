@@ -1445,9 +1445,14 @@ end subroutine init_extinction
 !subroutine hot_cold_2(T,n,ref,dRefDT,vcolumn_dens,sc_l,coeff_chi)    
 !PH modifies this as coeff_chi is now stored 
 !these routines have been modified by Benjamin Godard
-subroutine hot_cold_2(T,n,ref,dRefDT,coeff_chi)    
+subroutine hot_cold_2(T,n,ref,dRefDT,coeff_chi,XH2)    
   use amr_parameters
   
+
+#ifdef RT
+  use rt_parameters,only: isH2,iIons
+#endif
+
   implicit none
   
   real(dp), intent (in)    :: T
@@ -1488,6 +1493,9 @@ subroutine hot_cold_2(T,n,ref,dRefDT,coeff_chi)
   real(dp)                 :: ref_1
   real(dp)                 :: ref_2
 
+  real(dp)                 :: XH2
+  real(dp)                 :: x_cO=0.,cold_mol_1=0.,cold_mol_2=0.
+
   ! ======================================================================================
   ! 1 - Definition of the local UV field 
   !                       local C+ and O fraction
@@ -1516,6 +1524,16 @@ subroutine hot_cold_2(T,n,ref,dRefDT,coeff_chi)
   ! ---------------------------------------------------
   x_cp = 3.5e-4_dp * 0.40_dp
   x_o  = 8.6e-4_dp * 0.37_dp
+
+
+
+#ifdef RT
+  if(isH2) then
+     !calculate CO abundance using a simple prescription and recalculate the x_cp abundance
+     CALL compute_Cp_CO_NL(n,XH2,G0,x_o,x_cp,x_co)
+  endif
+#endif
+
 
   ! ---------------------------------------------------
   ! ionization and PAH recombination parameter
@@ -1563,13 +1581,26 @@ subroutine hot_cold_2(T,n,ref,dRefDT,coeff_chi)
   endif
 
 
-
   CALL COOL_REC(G0, T_1, phi_pah, x_1, N, cold_rec_1)
   CALL COOL_REC(G0, T_2, phi_pah, x_2, N, cold_rec_2)
 
+
+
+#ifdef RT
+  if(isH2) then
+  !calculate molecular cooling - in principle no need for RT and isH2 but for the sake of coherence
+  !it is required for now - can be changed
+  CALL cool_goldsmith(T_1,N,cold_mol_1)
+  CALL cool_goldsmith(T_2,N,cold_mol_2)
+  endif
+#endif
+
+
+
+
   ! Sum all cooling functions
-  cold_1 = cold_cII_1 + cold_o_1 + cold_h_1 + cold_rec_1
-  cold_2 = cold_cII_2 + cold_o_2 + cold_h_2 + cold_rec_2
+  cold_1 = cold_cII_1  + cold_o_1 + cold_h_1 + cold_rec_1 + cold_mol_1
+  cold_2 = cold_cII_2  + cold_o_2 + cold_h_2 + cold_rec_2 + cold_mol_2
 
   ! ======================================================================================
   ! 3 - set the heating rates
@@ -1580,7 +1611,9 @@ subroutine hot_cold_2(T,n,ref,dRefDT,coeff_chi)
   CALL HEAT_PH (G0, T_1, phi_pah, x_1, N, hot_ph_1)
   CALL HEAT_PH (G0, T_2, phi_pah, x_2, N, hot_ph_2)
 
-  hot_cr = 1.0E-27_dp
+  !corrected CR as value seems to be much higher than orif-ginally estimated (McCall+2003)
+  !note that values almost 
+  hot_cr = 5.0E-27_dp
 
   ! Sum all heating functions
   hot_1 = hot_ph_1 + hot_cr
@@ -2624,31 +2657,36 @@ subroutine sfr_update_uv()
   use constants, only: pc2cm, Myr2sec, yr2sec, M_sun
   implicit none
 
-  integer :: i_old, i_new ! Index of the position of the past and current total sink mass in the array
-  integer, save :: i_last = 1 ! Index of the position in the array the last time sfr_update_uv was called 
+  integer :: i_old, i_new, i_last ! Index of the position of the past and current total sink mass in the array
   integer :: i, di ! General purpose indexes
-  real(dp) :: sfr_timestep, time_span, ssfr
+  real(dp) :: sfr_timestep, time_span, ssfr, dt_last
   real(dp) :: scale_nH, scale_T2, scale_l, scale_d, scale_t, scale_v, scale_m
   character(len=:), allocatable :: uvsfr_fmt      
 
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
   scale_m = scale_d*scale_l**3d0
 
-  ! timestep for the computation of the sfr
-  sfr_timestep = uvsfr_avg_window * (Myr2sec / scale_t) / uvsfr_nb_points
-
-  ! by how much the index need to be increased
-  di = floor((t - sfr_time_mass_sinks(i_last)) / sfr_timestep)
-
   ! Safety check for high dt
-  if (di > uvsfr_nb_points / 3) then
+  dt_last = t - sfr_time_mass_sinks(modulo_tab(sfr_ilast, uvsfr_nb_points))
+  if (dt_last >= uvsfr_avg_window * (Myr2sec / scale_t) ) then
     write(*,*) "[WARNING] dt too high to compute SFR, using p_UV_min"
     p_UV = p_UV_min
     return
   end if
 
-  ! index where the current total mass of sink will be stored
-  i_new = modulo_tab(i_last + di, uvsfr_nb_points)
+  ! timestep for the computation of the sfr
+  sfr_timestep = uvsfr_avg_window * (Myr2sec / scale_t) / uvsfr_nb_points
+
+  ! raw index for current time
+  i_new = max(2, ceiling(t / sfr_timestep))
+  ! increase since last time
+  di = i_new - sfr_ilast
+  ! Store for next step
+  i_last = modulo_tab(sfr_ilast, uvsfr_nb_points)
+  sfr_ilast = i_new    
+  ! now store the corresponding index in the table
+  i_new = modulo_tab(i_new, uvsfr_nb_points)
+  
 
   ! index where to take the old sink mass for the sfr computation
   if (t < uvsfr_avg_window * (Myr2sec / scale_t)) then
@@ -2667,8 +2705,6 @@ subroutine sfr_update_uv()
     sfr_time_mass_sinks(modulo_tab(i, uvsfr_nb_points)) = sfr_time_mass_sinks(i_last)
   end do
 
-  ! Store for next step
-  i_last = i_new 
 
   ! time effectively used for the average of the sfr (in year).
   time_span = (sfr_time_mass_sinks(i_new) - sfr_time_mass_sinks(i_old)) * scale_t / yr2sec
@@ -2701,3 +2737,100 @@ subroutine sfr_update_uv()
    end function modulo_tab
 
 end subroutine sfr_update_uv
+
+
+!###########################################################                                          
+!###########################################################                                          
+!###########################################################                                          
+!########################################################### 
+!molecular cooling from table 2 of Goldsmith 2001
+!Temp: temperature in K
+!ndens: density in cc
+!cool_mol: molecular cooling 
+subroutine cool_goldsmith(Temp,ndens,cool_mol_dust)
+
+  use amr_commons
+  implicit none
+
+  real(dp) :: Temp,ndens,cool_mol,log_n,alpha,beta
+
+  !Table from Goldsmith 2001
+  real(dp),dimension(7),parameter:: logn_v= (/2.,2.5,3.,4.,5.,6.,7./)
+  real(dp),dimension(7),parameter:: alpha_v=(/6.3e-26,3.2e-25,1.1e-24,5.6e-24,2.3e-23,4.9e-23,7.4e-23/)
+  real(dp),dimension(7),parameter:: beta_v=(/1.4,1.8,2.4,2.7,3.,3.4,3.8/)
+
+  integer :: i
+
+  real(dp):: cool_dust,cool_mol_dust
+
+  !dust temperature is assumed to be 10 K 
+  !need to be improved particularly if stellar radiative feedback is accounted for
+  real(dp):: Tdust=10.
+
+
+    !validity range 
+    if(ndens <  100. .or. ndens > 1.e7) then 
+        cool_mol=0.
+        return
+    endif
+
+    log_n = log10(ndens)
+
+
+    do i = 1, 6
+       if (log_n .ge. logn_v(i) .and. log_n .le. logn_v(i+1)) exit
+    enddo
+
+    
+    alpha = alpha_v(i+1) * (log_n - logn_v(i)) + alpha_v(i) * (-log_n + logn_v(i+1))
+    alpha = alpha / (logn_v(i+1)-logn_v(i))
+
+    beta = beta_v(i) * (log_n - logn_v(i)) + beta_v(i) * (-log_n + logn_v(i+1))
+    beta = beta / (logn_v(i+1)-logn_v(i))
+
+    cool_mol = alpha * (Temp/10.)**beta / ndens**2 !division by n^2 because cooling works in cm^3 while Goldsmith expressed                                                            !it in cm^-3                                 
+
+
+    !take into accound the cooling/heating through dust
+    cool_dust = 2.e-33 * (T-Tdust) * sqrt(T/10.)
+
+    cool_mol_dust = cool_mol + cool_dust
+    
+                                                                                                       
+end subroutine cool_goldsmith
+
+!###########################################################                                          
+!###########################################################                                          
+!###########################################################                                          
+!########################################################### 
+!compute the C+/CO transition at equilibrium from Koyama & Inutuska 2000
+! taken from Nelson & Langer 1997
+subroutine compute_Cp_CO_NL(ndens,XH2,G0,xO,xCp,xCO)
+   
+  use amr_commons
+  implicit none
+
+  real(dp):: ndens,k0, gamma_CO ,k1, Gamma_CHx,beta, G0, XH2, xCp, xCO
+
+!  real(dp):: xCp_0=3.e-4,xO=3.e-4
+  real(dp):: xCp_0,xO    
+
+  xCp_0=xCp
+
+  
+  k0=5.d-16 !#cm^3 s^-1
+
+  gamma_CO = 1.d-10 * G0 !#s^-1
+
+  k1 = 5.d-10
+    
+  Gamma_CHx = 5.d-10 * G0 
+    
+  beta = k1*xO / (k1*xO+gamma_CO/(XH2*ndens))
+  
+  xCp = xCp_0 * gamma_CO / (gamma_CO + k0*beta*ndens)
+    
+  xCO = xCp_0 - xCp
+    
+end subroutine compute_Cp_CO_NL
+

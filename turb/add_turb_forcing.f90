@@ -19,6 +19,7 @@ subroutine calc_turb_forcing(ilevel)
   real(dp)::dx,dx_loc,scale
   integer::ix,iy,iz,idim
   integer::nx_loc
+  real(kind=dp)::attenuation(1:nvector)         ! If stratified turbulence, vertical attenuation
 
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
@@ -66,6 +67,9 @@ subroutine calc_turb_forcing(ilevel)
            do idim=1,ndim
               x_cell(idim,i)=xg(ind_grid(i),idim)+xc(idim,ind)
            end do
+           if(turb_strat) then
+              attenuation(i) = exp(-((x_cell(3, i) - 0.5) * boxlen)**2/(2.*turb_height**2))
+           end if
         end do
         ! Rescale position from code units to 0->turb_gs_real units
         do i=1,ngrid
@@ -85,6 +89,9 @@ subroutine calc_turb_forcing(ilevel)
            do idim=1,ndim
               fturb(ind_cell(i), idim) = aturb(idim, i)
            end do
+           if(turb_strat) then
+            fturb(ind_cell(i), :) = attenuation(i) * fturb(ind_cell(i), :)
+           end if
         end do
 
      end do

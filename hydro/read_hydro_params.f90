@@ -86,7 +86,8 @@ subroutine read_hydro_params(nml_ok)
        & ,var_bound &
 #endif
 #endif
-       & ,d_bound,u_bound,v_bound,w_bound,p_bound,no_inflow
+       & ,d_bound,u_bound,v_bound,w_bound,p_bound,no_inflow &
+       & ,use_boundary_frig
 
   ! Feedback parameters
   namelist/feedback_params/eta_sn,eta_ssn,yield,rbubble,f_ek,ndebris &

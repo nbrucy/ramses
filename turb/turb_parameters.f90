@@ -50,7 +50,10 @@ module turb_parameters
 
   real(dp) :: turb_min_rho=1d-50  ! Minimum density for turbulence
 
-  logical  :: turb2D=.false.      !do 2D forcing (in the XY plane)
+  logical  :: turb2D=.false.      ! do 2D forcing (in the XY plane)
+  logical  :: turb_strat=.false.  ! Vertical stratification with exponential attenuation
+                                  ! of the driving strenght
+  real(dp) :: turb_height=150     ! Scale height for the stratification (in code units)
   integer  :: ndimturb=3          ! number of dimension of the turbulent driving
 
 end module turb_parameters

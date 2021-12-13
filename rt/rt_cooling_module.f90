@@ -394,6 +394,8 @@ contains
 
     real(dp)::kph0
 
+    real(dp):: coeff_chi
+
     !---------------------------------------------------------------------
     dt_ok=.false.
     nHe=0.25*nH(icell)*Y/X  !         Helium number density
@@ -649,7 +651,15 @@ contains
                               ,metal_prime,a_exp)
        else
             !this is the frig cooling
-            call rt_metal_cool(T2(icell),nH(icell),dXion(1),mu,metal_tot,metal_prime)
+#if NEXTINCT>1       
+            !ext(2) contains dust attenuation (see extinction_fine1 and cooling_fine)
+            !the UV flux is reduced by dust extinction 
+            coeff_chi = ext(2,icell)
+#else
+            coeff_chi = 1.
+#endif
+
+            call rt_metal_cool(T2(icell),nH(icell),dXion(1),mu,metal_tot,metal_prime,coeff_chi,xH2)
        endif
 
        X_nHkb= X/(1.5 * nH(icell) * kB)            ! Multiplication factor
@@ -673,8 +683,7 @@ contains
     if(rt_isIR) then
        if(kAbs_loc(iIR) .gt. 0d0 .and. .not. rt_T_rad) then
           ! Evolve IR-Dust equilibrium temperature------------------------
-          ! Delta (Cv T)= ( c_red/lambda E - c/lambda a T^4)
-          !           / ( 1/Delta t + 4 c/lambda/C_v a T^3 + c_red/lambda)
+          ! Delta (Cv T)= ( c_red/lambda E - c/lambda a T^4)frig/ ( 1/Delta t + 4 c/lambda/C_v a T^3 + c_red/lambda)
           one_over_C_v = mh*mu*(gamma-1d0) / (rho*kb)
           E_rad = group_egy_erg(iIR) * dNp(iIR)
           dE_T = (rt_c_cgs * E_rad - c_cgs*a_r*TK**4)                    &

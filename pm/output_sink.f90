@@ -49,7 +49,7 @@ subroutine output_sink_mass_arrays(filename)
 
     write(123) sfr_total_mass_sinks
     write(123) sfr_time_mass_sinks
-
+    write(123) sfr_ilast
     close(123)
   end if
 end subroutine output_sink_mass_arrays
