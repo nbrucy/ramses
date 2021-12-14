@@ -232,11 +232,9 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
     integer, dimension(1:nbuf), intent(in):: id_new
     logical, intent(in):: print_table
 
-    integer:: ncreate_loc, iloc
-    real(dp), dimension(1:ncreate):: mnew_loc, tnew_loc, ltnew_loc
+    integer:: ncreate_loc
+    real(dp), dimension(1:ncreate):: mnew_loc, ltnew_loc
     real(dp), dimension(1:ncreate):: mnew, tnew, ltnew
-    real(dp), dimension(1:ncreate, 1:ndim):: xnew_loc, xnew2
-    integer, dimension(1:ncreate):: id_new_loc, id_new2
     integer, dimension(1:ncpu)::displ
 
     real(dp):: scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v
@@ -272,20 +270,13 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
         displ(icpu) = displ(icpu - 1) + narr(icpu - 1)
     end do
     ncreate_loc = narr(myid)
-    xnew_loc(1:ncreate_loc, 1:ndim) = xnew(displ(myid)+1:displ(myid)+ncreate_loc, 1:ndim)
-    id_new_loc(1:ncreate_loc) = id_new(displ(myid)+1:displ(myid)+ncreate_loc)
 #else
     ncreate_loc = ncreate
-    xnew_loc(1:ncreate_loc, 1:ndim) = xnew(1:ncreate_loc, 1:ndim)
-    id_new_loc(1:ncreate_loc) = id_new(1:ncreate_loc)
 #endif
 
 
     ! Draw random masses fro the IMF
     call sample_powerlaw(mnew_loc, imf_low, imf_high, imf_index, ncreate_loc)
-
-    ! Set birth time to current time
-    tnew_loc(1:ncreate_loc) = t
 
     ! Compute lifetime
     ! Use single stellar module?
@@ -309,28 +300,23 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
 
     ! Communicate data
 #ifndef WITHOUTMPI
-    do idim = 1, ndim
-        call MPI_ALLGATHERV(xnew_loc(:, idim), ncreate_loc, MPI_DOUBLE_PRECISION, xnew2(:, idim), narr, displ, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, info)
-    end do
-    call MPI_ALLGATHERV(id_new_loc, ncreate_loc, MPI_INTEGER,          id_new2, narr, displ, MPI_INTEGER, MPI_COMM_WORLD, info)
-
     call MPI_ALLGATHERV(  mnew_loc, ncreate_loc, MPI_DOUBLE_PRECISION, mnew, narr, displ, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, info)
-    call MPI_ALLGATHERV(  tnew_loc, ncreate_loc, MPI_DOUBLE_PRECISION, tnew, narr, displ, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, info)
     call MPI_ALLGATHERV( ltnew_loc, ncreate_loc, MPI_DOUBLE_PRECISION, ltnew, narr, displ, MPI_DOUBLE_PRECISION, MPI_COMM_WORLD, info)
 #else
     mnew = mnew_loc
-    tnew = tnew_loc
     ltnew = ltnew_loc
 #endif
 
     ! Add new objects to the arrays
-    xstellar(nstellar+1:nstellar+ncreate, 1:ndim) = xnew2(1:ncreate, 1:ndim)
-    id_stellar(nstellar+1:nstellar+ncreate) = id_new2(1:ncreate)
+    xstellar(nstellar+1:nstellar+ncreate, 1:ndim) = xnew(1:ncreate, 1:ndim)
+    id_stellar(nstellar+1:nstellar+ncreate) = id_new(1:ncreate)
+    ! Set birth time to current time
+    tstellar(nstellar+1:nstellar+ncreate) = t
 
-    ! Set stellar masses
+    ! Set stellar masses and lifetimes
     ! EITHER: use mnew
     ! OR: use mstellarini if this has non-zero values
-    do istellar = nstellar+1, nstellar+ncreate!
+    do istellar = nstellar+1, nstellar+ncreate
 
        if(istellar .ge. nstellarini) then 
           mstellar(istellar) = mnew(istellar-nstellar)
@@ -360,7 +346,6 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
        endif
     end do
     !mstellar(nstellar+1:nstellar+ncreate) = mnew
-    tstellar(nstellar+1:nstellar+ncreate) = tnew
     ltstellar(nstellar+1:nstellar+ncreate) = ltnew
 
     if(myid == 1) then
