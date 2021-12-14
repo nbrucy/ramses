@@ -272,13 +272,14 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
         displ(icpu) = displ(icpu - 1) + narr(icpu - 1)
     end do
     ncreate_loc = narr(myid)
+    xnew_loc(1:ncreate_loc, 1:ndim) = xnew(displ(myid)+1:displ(myid)+ncreate_loc, 1:ndim)
+    id_new_loc(1:ncreate_loc) = id_new(displ(myid)+1:displ(myid)+ncreate_loc)
 #else
     ncreate_loc = ncreate
+    xnew_loc(1:ncreate_loc, 1:ndim) = xnew(1:ncreate_loc, 1:ndim)
+    id_new_loc(1:ncreate_loc) = id_new(1:ncreate_loc)
 #endif
 
-    xnew_loc(1:ncreate_loc, 1:ndim) = xnew(displ(myid)+1:displ(myid)+ncreate_loc, 1:ndim)
-
-    id_new_loc(1:ncreate_loc) = id_new(displ(myid)+1:displ(myid)+ncreate_loc)
 
     ! Draw random masses fro the IMF
     call sample_powerlaw(mnew_loc, imf_low, imf_high, imf_index, ncreate_loc)

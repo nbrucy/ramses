@@ -187,4 +187,8 @@ module hydro_parameters
   integer::NdirExt_m=3       ! Theta directions for screening
   integer::NdirExt_n=4       ! Phi directions for screening
 
+  !threshold to take into account the screening 
+  !dist_screen is expressed in fraction in boxlen
+  real(dp)::dist_screen=1.
+
 end module hydro_parameters
