@@ -178,7 +178,7 @@ subroutine make_sn_stellar
   real(dp)::scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v,scale_m, pc
 
   logical, dimension(1:nstellarmax):: mark_del
-  integer:: istellar
+  integer:: istellar,isink
 
   real(dp)::T_sn,sn_ed_lim,pnorm_sn,pnorm_sn_all,vol_sn,vol_sn_all,vol_rap, mass_sn, mass_sn_all,dens_moy
 
@@ -243,13 +243,18 @@ subroutine make_sn_stellar
     if(t - tstellar(istellar) < ltstellar(istellar)) cycle
     mark_del(istellar) = .true.
 
+    ! find correct index in sink array which will be equal or lower than id_sink due to sink merging
+    isink = id_stellar(istellar)
+    do while (id_stellar(istellar) .ne. idsink(isink))
+      isink = isink - 1
+    end do
 
     !!!PH 16/09/2016
     ! the mass of the massive stars 
     sn_m = mstellar(istellar) 
 
     !remove the mass that is dumped in the grid
-    msink(id_stellar(istellar)) = msink(id_stellar(istellar)) - sn_m
+    msink(id_stellar(isink)) = msink(isink) - sn_m
     !!!PH 16/09/2016
 
 
@@ -274,7 +279,7 @@ subroutine make_sn_stellar
 
 !    x_sn(:) = xstellar(istellar, :) + xshift(:)
     !place the supernovae around sink particles
-    x_sn(:) = xsink(id_stellar(istellar), :) + xshift(:)
+    x_sn(:) = xsink(isink, :) + xshift(:)
 
     !apply periodic boundary conditions (only along x and y)
     !PH note that this should also be modified for the shearing box 24/01/2017

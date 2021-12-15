@@ -125,7 +125,7 @@ subroutine make_stellar_from_sinks
       end if
 
       buf(nbuf, 1:ndim) = xsink(isink, 1:ndim)
-      buf_id(nbuf) = isink
+      buf_id(nbuf) = idsink(isink)
 
     end do
   end do
@@ -201,7 +201,7 @@ subroutine make_stellar_from_sinks_glob
       end if
 
       buf(nbuf, 1:ndim) = xsink(isink, 1:ndim)
-      buf_id(nbuf) = isink
+      buf_id(nbuf) = idsink(isink)
   end do
   call create_stellar(nbuf, nbufmax, buf, buf_id, .true.)
 
