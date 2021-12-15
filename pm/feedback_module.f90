@@ -254,7 +254,7 @@ subroutine make_sn_stellar
     sn_m = mstellar(istellar) 
 
     !remove the mass that is dumped in the grid
-    msink(id_stellar(isink)) = msink(isink) - sn_m
+    msink(isink) = msink(isink) - sn_m
     !!!PH 16/09/2016
 
 

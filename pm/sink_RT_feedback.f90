@@ -154,10 +154,16 @@ SUBROUTINE gather_ioni_flux(dt,sink_ioni_flux)
   do istellar=1,nstellar 
      !id of the sink to which the stellar object belongs 
      nphotons = 0d0
+     ! find correct index in sink array which will be equal or lower than id_sink due to sink merging
      isink = id_stellar(istellar)
+     do while (id_stellar(istellar) .ne. idsink(isink))
+       isink = isink - 1
+     end do
+
      M_stellar = mstellar(istellar)
      ! Reset the photon counter
      nphotons = 0d0
+     Flux_stellar = 0
      ! Use singlestar_module (reads SB99-derived tables)
 !     if (use_ssm) then
 
