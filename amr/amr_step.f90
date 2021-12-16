@@ -443,7 +443,8 @@ recursive subroutine amr_step(ilevel,icount)
   ! Update background uv emmision according to surfacic SFR
   ! Will change the value of p_uv
   !---------------------
-  if(uv_prop_sfr) then
+  if(ilevel==levelmin .and. uv_prop_sfr) then
+                               call timer('cooling','start')
       call sfr_update_uv
   endif
 
@@ -451,7 +452,9 @@ recursive subroutine amr_step(ilevel,icount)
   ! Do RT/Chemistry step
   !---------------------
 #if NEXTINCT>0
+                               call timer('extinction','start')
   call extinction_fine(ilevel)
+
 #endif
 #ifdef RT
   if(rt .and. rt_advect) then
