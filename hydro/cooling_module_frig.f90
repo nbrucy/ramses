@@ -2792,7 +2792,7 @@ subroutine cool_goldsmith(Temp,ndens,cool_mol_dust)
 
 
     !take into accound the cooling/heating through dust
-    cool_dust = 2.e-33 * (T-Tdust) * sqrt(T/10.)
+    cool_dust = 2.e-33 * (Temp-Tdust) * sqrt(Temp/10.)
 
     cool_mol_dust = cool_mol + cool_dust
     
