@@ -81,12 +81,6 @@ module cooling_module
   logical :: weinbergint=.false.
   logical :: courty=.true.  ! Default model
 
-  !PH 27/08/2021 added cooling_frig and put the default to true
-  !This supersedes ramses classical cooling 
-  logical :: cooling_frig = .true. 
-
-
-
   ! Si teyssier ou theuns :
   real(kind=8) :: J0in=1d-22  ! J0 default
   real(kind=8) :: J0min=1d-29 ! Valeur minimale du J0

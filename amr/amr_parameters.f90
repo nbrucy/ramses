@@ -200,6 +200,8 @@ module amr_parameters
   logical ::sf_log_properties=.false.   ! Log in ascii files birth properties of stars and supernovae
   logical ::sf_imf=.false.              ! Activate IMF sampling for SN feedback when resolution allows it
   logical ::sf_compressive=.false.      ! Advect compressive and solenoidal turbulence terms separately
+  logical ::cooling_frig = .false.      ! Use cooling module from Audit & Hennebelle 2005 (non-RT and RT metals)
+                                        ! instead of ramses classical cooling 
 
  !PH 27/08/2021 parameters for extinction
   logical ::extinction=.false.

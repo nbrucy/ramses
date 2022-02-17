@@ -377,6 +377,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
      !==========================================
 
      if(cooling)then
+        ! TC: should this be done for cooling_frig ?
         ! Compute thermal temperature by subtracting polytrope
         do i=1,nleaf
            T2(i) = min(max(T2(i)-T2min(i),T2_min_fix),T2max)
@@ -517,25 +518,23 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
         ! Compute net cooling at constant nH
         if(cooling.and..not.neq_chem)then
             if(cooling_frig) then
-               !use cooling from module_cooling_frig described in Audit & Hennebelle 2005
+               ! Use cooling from module_cooling_frig described in Audit & Hennebelle 2005
                call solve_cooling_frig(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
             else
-               !use classical ramses cooling
+               ! Use classical ramses cooling
                call solve_cooling(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
-         endif
-     endif
+            endif
+        endif
 #else
      ! Compute net cooling at constant nH
      if(cooling.and..not.neq_chem)then
-
         if(cooling_frig) then
-           !use cooling from module_cooling_frig described in Audit & Hennebelle 2005
+           ! Use cooling from module_cooling_frig described in Audit & Hennebelle 2005
            call solve_cooling_frig(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
         else
-           !use classical ramses cooling
+           ! Use classical ramses cooling
            call solve_cooling(nH,T2,Zsolar,boost,dtcool,delta_T2,nleaf)
         endif
-
      endif
 #endif
 #ifdef RT
@@ -626,7 +625,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
         do i=1,nleaf
            uold(ind_leaf(i),neul) = T2min(i) + ekk(i) + err(i) + emag(i)
         end do
-     else if(cooling .or. neq_chem )then
+     else if(cooling .or. neq_chem)then
         do i=1,nleaf
 !!! FlorentR - PATCH Temperature extrema
            uold(ind_leaf(i),neul) = min(T2(i) + T2min(i), temp_max*nH(i)/scale_T2/(gamma-1.0))

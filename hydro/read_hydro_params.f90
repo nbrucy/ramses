@@ -3,8 +3,7 @@ subroutine read_hydro_params(nml_ok)
   use hydro_commons
   use mpi_mod
   use hydro_parameters
-
-  use cooling_module, only:cooling_frig
+  use amr_parameters, only:cooling_frig
 
   implicit none
   logical::nml_ok

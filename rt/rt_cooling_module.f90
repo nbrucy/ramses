@@ -5,7 +5,8 @@
 ! Joki Rosdahl, Sarah Nickerson, Andreas Bleuler, and Romain Teyssier.
 
 module rt_cooling_module
-  use cooling_module,only:X, Y, cooling_frig
+  use cooling_module,only:X, Y
+  use amr_parameters, only:cooling_frig
   use rt_parameters
   use coolrates_module
   use constants
@@ -683,7 +684,8 @@ contains
     if(rt_isIR) then
        if(kAbs_loc(iIR) .gt. 0d0 .and. .not. rt_T_rad) then
           ! Evolve IR-Dust equilibrium temperature------------------------
-          ! Delta (Cv T)= ( c_red/lambda E - c/lambda a T^4)frig/ ( 1/Delta t + 4 c/lambda/C_v a T^3 + c_red/lambda)
+          ! Delta (Cv T)= ( c_red/lambda E - c/lambda a T^4)
+          !           / ( 1/Delta t + 4 c/lambda/C_v a T^3 + c_red/lambda)
           one_over_C_v = mh*mu*(gamma-1d0) / (rho*kb)
           E_rad = group_egy_erg(iIR) * dNp(iIR)
           dE_T = (rt_c_cgs * E_rad - c_cgs*a_r*TK**4)                    &
