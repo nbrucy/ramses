@@ -729,6 +729,8 @@ contains
        photoRate=0.
        if(rt) photoRate = SUM(signc(:,ixHI)*dNp)
        if(haardt_madau) photoRate = photoRate + UVrates(ixHI,1)*ss_factor
+       ! TC: self-shielding H2 by RT photon
+       ! PH: probably ok to keep with EXTINCT
 
        ! G0 is the UV field (in units of Habing field - 1.274e-4 erg cm-2 s-1 sr-1)
        G0 = 1.0_dp
@@ -741,6 +743,9 @@ contains
 
 #if NEXTINCT>1       
        !ext(1) contains self-shielding times dust attenuation (see extinction_fine1 and cooling_fine)
+       ! alter the UV radiation in H2 dissociating phothons to account for H2 self-shielding
+       ! H2 dissociation by background UV field to circumvent reduced speed of light
+       ! assumes the UV background is uniform over the simulation box
        if(h2_frig)  photoRate = photoRate + kph0 * ext(1,icell)
 #endif
 
