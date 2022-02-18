@@ -139,8 +139,6 @@ module hydro_parameters
   real(dp)::smallr=1.0d-10
   character(LEN=10)::scheme='muscl'
   character(LEN=10)::riemann='llf'
-  real(dp)::switch_solv=1.d20
-  real(dp)::switch_solv_dens=1.d20
 
   ! Interpolation parameters
   integer ::interpol_var=0
