@@ -1813,109 +1813,111 @@ subroutine update_sink(ilevel)
   msum_overlap=msink
 
   ! Check for overlapping sinks
-  do isink=1,nsink-1
-     if (msink(isink)>0.)then
-        do jsink=isink+1,nsink
+  if (allow_merge_sink) then
+    do isink=1,nsink-1
+      if (msink(isink)>0.)then
+          do jsink=isink+1,nsink
 
-           ! Compute relative distance
-           r_rel(1:ndim)=xsink(jsink,1:ndim)-xsink(isink,1:ndim)
-           do idim=1,ndim
-              if (period(idim) .and. r_rel(idim)>boxlen*0.5d0)   r_rel(idim)=r_rel(idim)-boxlen
-              if (period(idim) .and. r_rel(idim)<boxlen*(-0.5d0))r_rel(idim)=r_rel(idim)+boxlen
-           end do
-           rr=sum(r_rel**2)
+            ! Compute relative distance
+            r_rel(1:ndim)=xsink(jsink,1:ndim)-xsink(isink,1:ndim)
+            do idim=1,ndim
+                if (period(idim) .and. r_rel(idim)>boxlen*0.5d0)   r_rel(idim)=r_rel(idim)-boxlen
+                if (period(idim) .and. r_rel(idim)<boxlen*(-0.5d0))r_rel(idim)=r_rel(idim)+boxlen
+            end do
+            rr=sum(r_rel**2)
 
-           ! Check for overlap
-           overlap=rr<4*rmax2 .and. msink(jsink)>0.
+            ! Check for overlap
+            overlap=rr<4*rmax2 .and. msink(jsink)>0.
 
-           if(overlap)then
-              msum_overlap(isink)=msum_overlap(isink)+msink(jsink)
-              msum_overlap(jsink)=msum_overlap(jsink)+msink(isink)
+            if(overlap)then
+                msum_overlap(isink)=msum_overlap(isink)+msink(jsink)
+                msum_overlap(jsink)=msum_overlap(jsink)+msink(isink)
 
-              ! Merging based on relative distance
-              merge_flag=rr<4*dx_min**2 ! Sinks are within two cells from each other
+                ! Merging based on relative distance
+                merge_flag=rr<4*dx_min**2 ! Sinks are within two cells from each other
 
-              ! Merging based on relative velocity
-              if(mass_merger_vel_check>0 .and. (msink(isink)+msink(jsink)).ge.mass_merger_vel_check*M_sun/(scale_d*scale_l**ndim)) then
-                 v1_v2=(vsink(isink,1)-vsink(jsink,1))**2+(vsink(isink,2)-vsink(jsink,2))**2+(vsink(isink,3)-vsink(jsink,3))**2
-                 merge_flag=merge_flag .and. 2*factG*(msink(isink)+msink(jsink))/sqrt(rr)>v1_v2
-              end if
+                ! Merging based on relative velocity
+                if(mass_merger_vel_check>0 .and. (msink(isink)+msink(jsink)).ge.mass_merger_vel_check*M_sun/(scale_d*scale_l**ndim)) then
+                  v1_v2=(vsink(isink,1)-vsink(jsink,1))**2+(vsink(isink,2)-vsink(jsink,2))**2+(vsink(isink,3)-vsink(jsink,3))**2
+                  merge_flag=merge_flag .and. 2*factG*(msink(isink)+msink(jsink))/sqrt(rr)>v1_v2
+                end if
 
-              ! Merging based on sink age
-              if (merging_timescale>0d0)then
-                 iyoung=(t-tsink(isink)<t_larson1)
-                 jyoung=(t-tsink(jsink)<t_larson1)
-                 merge_flag=merge_flag .and. (iyoung .or. jyoung)
-              end if
+                ! Merging based on sink age
+                if (merging_timescale>0d0)then
+                  iyoung=(t-tsink(isink)<t_larson1)
+                  jyoung=(t-tsink(jsink)<t_larson1)
+                  merge_flag=merge_flag .and. (iyoung .or. jyoung)
+                end if
 
-              if (merge_flag.eqv..true.)then
+                if (merge_flag.eqv..true.)then
 
-                 if(myid==1)then
-                    write(*,*)'> Merging sink ',idsink(jsink),' into sink ',idsink(isink)
-                    if(verbose_AGN)then
-                       write(*,*)'>> Sink #1: ',idsink(isink)
-                       write(*,*)msink(isink)/M_sun*(scale_d*scale_l**ndim)
-                       write(*,*)xsink(isink,1:ndim)
-                       write(*,*)'>> Sink #2: ',idsink(jsink)
-                       write(*,*)msink(jsink)/M_sun*(scale_d*scale_l**ndim)
-                       write(*,*)xsink(jsink,1:ndim)
-                    endif
-                 endif
+                  if(myid==1)then
+                      write(*,*)'> Merging sink ',idsink(jsink),' into sink ',idsink(isink)
+                      if(verbose_AGN)then
+                        write(*,*)'>> Sink #1: ',idsink(isink)
+                        write(*,*)msink(isink)/M_sun*(scale_d*scale_l**ndim)
+                        write(*,*)xsink(isink,1:ndim)
+                        write(*,*)'>> Sink #2: ',idsink(jsink)
+                        write(*,*)msink(jsink)/M_sun*(scale_d*scale_l**ndim)
+                        write(*,*)xsink(jsink,1:ndim)
+                      endif
+                  endif
 
-                 ! Set new values of remaining sink (keep one with larger index)
-                 ! Compute centre of mass quantities
-                 mcom     =(msink(isink)+msink(jsink))
-                 xcom(1:ndim)=xsink(isink,1:ndim)+msink(jsink)*r_rel(1:ndim)/mcom
-                 vcom(1:ndim)=(msink(isink)*vsink(isink,1:ndim)+msink(jsink)*vsink(jsink,1:ndim))/mcom
-                 lcom(1:ndim)=msink(isink)*cross((xsink(isink,1:ndim)-xcom(1:ndim)),vsink(isink,1:ndim)-vcom(1:ndim))+ &
-                      &    msink(jsink)*cross((xsink(jsink,1:ndim)-xcom(1:ndim)),vsink(jsink,1:ndim)-vcom(1:ndim))
+                  ! Set new values of remaining sink (keep one with larger index)
+                  ! Compute centre of mass quantities
+                  mcom     =(msink(isink)+msink(jsink))
+                  xcom(1:ndim)=xsink(isink,1:ndim)+msink(jsink)*r_rel(1:ndim)/mcom
+                  vcom(1:ndim)=(msink(isink)*vsink(isink,1:ndim)+msink(jsink)*vsink(jsink,1:ndim))/mcom
+                  lcom(1:ndim)=msink(isink)*cross((xsink(isink,1:ndim)-xcom(1:ndim)),vsink(isink,1:ndim)-vcom(1:ndim))+ &
+                        &    msink(jsink)*cross((xsink(jsink,1:ndim)-xcom(1:ndim)),vsink(jsink,1:ndim)-vcom(1:ndim))
 
-                 ! Reset jump in old sink coordinates
-                 do lev=levelmin,nlevelmax
-                    sink_jump(isink,1:ndim,lev)=sink_jump(isink,1:ndim,lev)-xsink(isink,1:ndim)
-                 end do
+                  ! Reset jump in old sink coordinates
+                  do lev=levelmin,nlevelmax
+                      sink_jump(isink,1:ndim,lev)=sink_jump(isink,1:ndim,lev)-xsink(isink,1:ndim)
+                  end do
 
-                 ! Compute merged quantities
-                 msink(isink)        = mcom
-                 msmbh(isink)        = msmbh(isink)+msmbh(jsink)
-                 delta_mass(isink)   = delta_mass(isink)+delta_mass(jsink)
-                 xsink(isink,1:ndim) = xcom(1:ndim)
-                 vsink(isink,1:ndim) = vcom(1:3)
-                 lsink(isink,1:ndim) = lcom(1:ndim)+lsink(isink,1:ndim)+lsink(jsink,1:ndim)
-                 tsink(isink)        = min(tsink(isink),tsink(jsink))
-                 idsink(isink)       = min(idsink(isink),idsink(jsink))
+                  ! Compute merged quantities
+                  msink(isink)        = mcom
+                  msmbh(isink)        = msmbh(isink)+msmbh(jsink)
+                  delta_mass(isink)   = delta_mass(isink)+delta_mass(jsink)
+                  xsink(isink,1:ndim) = xcom(1:ndim)
+                  vsink(isink,1:ndim) = vcom(1:3)
+                  lsink(isink,1:ndim) = lcom(1:ndim)+lsink(isink,1:ndim)+lsink(jsink,1:ndim)
+                  tsink(isink)        = min(tsink(isink),tsink(jsink))
+                  idsink(isink)       = min(idsink(isink),idsink(jsink))
 
-                 !PH 28/07/2021
-                 dmfsink(isink)      = dmfsink(isink)+dmfsink(jsink) 
+                  !PH 28/07/2021
+                  dmfsink(isink)      = dmfsink(isink)+dmfsink(jsink)
 
-                 ! Store jump in new sink coordinates
-                 do lev=levelmin,nlevelmax
-                    sink_jump(isink,1:ndim,lev)=sink_jump(isink,1:ndim,lev)+xsink(isink,1:ndim)
-                 end do
+                  ! Store jump in new sink coordinates
+                  do lev=levelmin,nlevelmax
+                      sink_jump(isink,1:ndim,lev)=sink_jump(isink,1:ndim,lev)+xsink(isink,1:ndim)
+                  end do
 
-                 ! Zero mass of the sink that was merged in
-                 msink(jsink)=0
-                 msmbh(jsink)=0
-                 msum_overlap(jsink)=0
-                 delta_mass(jsink)=0
+                  ! Zero mass of the sink that was merged in
+                  msink(jsink)=0
+                  msmbh(jsink)=0
+                  msum_overlap(jsink)=0
+                  delta_mass(jsink)=0
 
-                 !PH 28/07/2021
-                 dmfsink(jsink)=0
+                  !PH 28/07/2021
+                  dmfsink(jsink)=0
 
-                 ! check whether there are stellar particles attached to the merged in sink
-                 if(stellar)then
-                     do istellar = 1, nstellar
-                         if(id_stellar(istellar).eq.idsink(jsink))then
-                             id_stellar(istellar) = idsink(isink)
-                         endif
-                     end do
-                 endif
+                  ! check whether there are stellar particles attached to the merged in sink
+                  if(stellar)then
+                      do istellar = 1, nstellar
+                          if(id_stellar(istellar).eq.idsink(jsink))then
+                              id_stellar(istellar) = idsink(isink)
+                          endif
+                      end do
+                  endif
 
-              end if
-           end if
-        end do
-     end if
-  end do
+                end if
+            end if
+          end do
+      end if
+    end do
+  end if
 
   ! Store old xsink and fsink for the gradient descent timestep
   xsinkold=0.0
@@ -2526,7 +2528,7 @@ subroutine read_sink_params()
   integer::nx_loc
   namelist/sink_params/n_sink,rho_sink,d_sink,accretion_scheme,merging_timescale,&
        ir_cloud_massive,sink_soft,mass_sink_direct_force,ir_cloud,nsinkmax,create_sinks,&
-       mass_sink_seed,mass_smbh_seed,c_acc,nlevelmax_sink,&
+       mass_sink_seed,mass_smbh_seed,c_acc,nlevelmax_sink,allow_merge_sink,&
        eddington_limit,acc_sink_boost,mass_merger_vel_check,&
        clump_core,verbose_AGN,T2_AGN,T2_min,cone_opening,mass_halo_AGN,mass_clump_AGN,mass_star_AGN,&
        AGN_fbk_frac_ener,AGN_fbk_frac_mom,T2_max,boost_threshold_density,&
