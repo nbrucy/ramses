@@ -313,9 +313,6 @@ subroutine read_params
 #endif
   if (movie)call set_movie_vars
 
-  ! feedback parameter 
-  call read_feedback_params(nml_ok)
-
   close(1)
 
   ! Send the token

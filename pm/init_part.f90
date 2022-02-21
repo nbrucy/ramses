@@ -3,8 +3,6 @@ subroutine init_part
   use pm_commons
   use clfind_commons
 
-  use sink_feedback_parameters
-
 #ifdef RT
   use rt_parameters,only: convert_birth_times
 #endif

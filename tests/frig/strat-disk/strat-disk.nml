@@ -15,7 +15,7 @@ stellar=.true.
 levelmin=5
 levelmax=7
 ngridmax=50000
-npartmax=10000
+npartmax=50000
 boxlen=1000.0
 /
 
@@ -83,9 +83,6 @@ hii_c=12.5 ! km/s
 hii_t=4.0 ! Myr
 hii_T2=0.0d0 ! K
 stellar_msink_th=120.
-/
-
-&FEED_PARAMS
 !SN_on=.false.
 Vsat=300.
 Tsat=1.e6
@@ -119,16 +116,6 @@ isothermal=.false.
 cooling=.true.
 z_ave=1.0
 /
-
-!&SF_PARAMS
-!jeans_ncells=4 ! 4* 2**(15 - levelmax_active)
-!g_star=1.66667D0
-!n_star=10
-!eps_star=0.10D0
-!nlev_sf=8
-!sf_temp_crit=.true.
-!T2_star=100
-!r/
 
 &HYDRO_PARAMS
 pressure_fix=.true.
@@ -168,15 +155,6 @@ rt_smooth=.true.
 rt_courant_factor=0.8           ! courant number for RT timesteps
 rt_c_fraction=1d-4            ! fraction of actual lightspeed set to RT lightspeed
 rt_otsa=.false.                                                                 ! no OTSA
-!rt_err_grad_xHII=0.1
-!rt_nregion=1   !--------------------------------------------------------------------
-!rt_region_type(1)='square'
-!rt_reg_x_center=0.5
-!rt_reg_y_center=0.5
-!rt_reg_z_center=0.5
-!rt_reg_length_x=1000.0
-!rt_reg_length_y=1000.0
-!rt_reg_length_z=1000.0
 /
 
 &RT_GROUPS

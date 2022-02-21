@@ -108,9 +108,6 @@ lt_a=0.23840797
 lt_b=2.20522946
 lt_m0=148.158972
 lt_t0=3.26515722
-/
-
-&FEED_PARAMS
 ! SN properties
 Vsat=300
 Tsat=1d5
