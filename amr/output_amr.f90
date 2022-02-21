@@ -70,6 +70,10 @@ subroutine dump_all
           call output_sink_mass_arrays(filename)
         end if
      endif
+     if(stellar)then
+        filename=TRIM(filedir)//'stellar_'//TRIM(nchar)//'.csv'
+        call output_stellar_csv(filename)
+     end if
      ! Copy namelist file to output directory
      filename=TRIM(filedir)//'namelist.txt'
      OPEN(10, FILE=namelist_file, ACCESS="STREAM", ACTION="READ")
@@ -137,10 +141,6 @@ subroutine dump_all
         filename=TRIM(filedir)//'sink_'//TRIM(nchar)//'.csv'
         call output_sink_csv(filename)
      end if
-     if(stellar)then
-      filename=TRIM(filedir)//'stellar_'//TRIM(nchar)//'.csv'
-      call output_stellar_csv(filename)
-   end if
 #ifndef WITHOUTMPI
      if(synchro_when_io) call MPI_BARRIER(MPI_COMM_WORLD,info)
 #endif
