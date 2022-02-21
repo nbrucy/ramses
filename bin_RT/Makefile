@@ -152,7 +152,8 @@ ifeq ($(GRACKLE),1)
    MODOBJ += grackle_parameters.o
 endif
 MODOBJ += poisson_commons.o hydro_parameters.o hydro_commons.o \
-          cooling_module.o  bisection.o sparse_mat.o clfind_commons.o feedback_module.o \
+          cooling_module.o  bisection.o sparse_mat.o clfind_commons.o \
+          sink_sn_feedback.o \
           gadgetreadfile.o write_makefile.o write_patch.o write_gitinfo.o
 ifeq ($(RT),1)
    MODOBJ += rt_parameters.o rt_hydro_commons.o coolrates_module.o \
