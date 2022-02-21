@@ -24,7 +24,6 @@ module feedback_module
   real(dp)::fcr=0.1
 
   ! Stellar object related arrays, those parameters are read in  read_stellar_params 
-  logical:: stellar = .false.
   logical:: sn_direct = .false.
   logical:: make_stellar_glob = .false. !if used, the objects are created when the total mass in sinks exceeds stellar_msink_th
   integer:: nstellarmax ! maximum number of stellar objects

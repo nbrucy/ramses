@@ -174,7 +174,6 @@ end subroutine calc_boxlen
 subroutine read_cloud_params(nml_ok)
 
   use amr_parameters
-  use feedback_module
   use clfind_commons
   use cloud_module
 

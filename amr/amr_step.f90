@@ -201,22 +201,19 @@ recursive subroutine amr_step(ilevel,icount)
 
   endif
 
-
-     !----------------------------------------------------
-     ! Feedback on sink particles
-     !----------------------------------------------------
-     if(stellar) then
-        if(make_stellar_glob) then
-           call make_stellar_from_sinks_glob
-        else
-           call make_stellar_from_sinks
-        endif
+  !----------------------------------------------------
+  ! Feedback on sink particles
+  !----------------------------------------------------
+  if(stellar) then
+     if(make_stellar_glob) then
+        call make_stellar_from_sinks_glob
+     else
+        call make_stellar_from_sinks
      endif
-     if (sn_feedback_sink) then
-        call make_sn_stellar
-     endif
-
-
+  endif
+  if (sn_feedback_sink) then
+     call make_sn_stellar
+  endif
 
   !--------------------
   ! Poisson source term
@@ -307,12 +304,12 @@ recursive subroutine amr_step(ilevel,icount)
 
 #ifdef RT
   ! Turn on RT in case of rt_stars and first stars just created:
-  ! Update photon packages according to star particles
+  ! Update photon packages according to star particles and sink particles
                                call timer('radiative transfer','start')
   if(rt .and. rt_star) call update_star_RT_feedback(ilevel)
-
-  ! Now update photon packages on sink particles
-  if(rt .and. rt_sink) call update_sink_RT_feedback(ilevel)
+#if NDIM==3
+  if(rt .and. rt_sink) call update_sink_RT_feedback
+#endif
 #endif
 
 #if USE_TURB==1
@@ -651,7 +648,9 @@ subroutine rt_step(ilevel)
      if (i_substep > 1) call rt_set_unew(ilevel)
 
      if(rt_star) call star_RT_feedback(ilevel,dtnew(ilevel))
+#if NDIM==3
      if(rt_sink) call sink_RT_feedback(ilevel,dtnew(ilevel))
+#endif
 
      ! Hyperbolic solver
      if(rt_advect) call rt_godunov_fine(ilevel,dtnew(ilevel))

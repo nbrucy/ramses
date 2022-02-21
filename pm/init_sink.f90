@@ -5,8 +5,6 @@ subroutine init_sink
   use amr_parameters, only:levelmin
   use constants, only:M_sun
   use mpi_mod
-
-
   implicit none
 #ifndef WITHOUTMPI
   integer,parameter::tag=1112,tag2=1113
@@ -25,27 +23,18 @@ subroutine init_sink
   character::co
   character(LEN=200)::comment_line
 
-
-
-  !introduced by PH 09/2013 to compute feedback around sink
-  !reimported by PH 27/07/2021
-  allocate(dmfsink(1:nsinkmax))
-  dmfsink=0.0
-
   !introduced by PH 07/2016 to record feedback around sink
   !reimported by PH 27/07/2021
   allocate(Eioni(1:nsinkmax))
-
-
-
 
   ! Allocate all sink related quantities...
   allocate(idsink(1:nsinkmax))
   idsink=0 ! Important: need to set idsink to zero
   allocate(msink(1:nsinkmax))
   allocate(msmbh(1:nsinkmax))
+  allocate(dmfsink(1:nsinkmax))
   allocate(xsink(1:nsinkmax,1:ndim))
-  msink=0d0; msmbh=0d0; xsink=boxlen/2
+  msink=0d0; msmbh=0d0; dmfsink=0d0; xsink=boxlen/2
 
   allocate(xsink_graddescent(1:nsinkmax,1:ndim))
   allocate(graddescent_over_dt(1:nsinkmax))
@@ -66,16 +55,6 @@ subroutine init_sink
   allocate(rho_sink_tff(levelmin:nlevelmax))
   msum_overlap=0; rho_sink_tff=0d0
 
-
-  !introduced by PH 09/2013 to compute feedback around sink
-  !reimported by PH 27/07/2021
-  allocate(dmfsink_new(1:nsinkmax))
-
-  !introduced by PH 09/2013 to compute feedback around sink
-  !reimported by PH 27/07/2021
-  allocate(dmfsink_all(1:nsinkmax))
-
-
   ! Temporary sink variables
   allocate(wden(1:nsinkmax))
   allocate(wmom(1:nsinkmax,1:ndim))
@@ -91,8 +70,10 @@ subroutine init_sink
   wden_new=0d0; wmom_new=0d0; weth_new=0d0; wvol_new=0d0; wdiv_new=0d0
   allocate(msink_new(1:nsinkmax))
   allocate(msmbh_new(1:nsinkmax))
+  allocate(dmfsink_new(1:nsinkmax))
   allocate(msmbh_all(1:nsinkmax))
   allocate(msink_all(1:nsinkmax))
+  allocate(dmfsink_all(1:nsinkmax))
   allocate(tsink_new(1:nsinkmax))
   allocate(tsink_all(1:nsinkmax))
   allocate(idsink_new(1:nsinkmax))
@@ -173,8 +154,6 @@ subroutine init_sink
 #endif
 
      nsink=0
-
-     !updated by PH 28/07/2021 to take dmfsink into account
      open(10,file=fileloc,form='formatted')
      eof=.false.
      ! scrolling over the comment lines
@@ -213,7 +192,6 @@ subroutine init_sink
         vel_gas(nsink,3)=svg3
         new_born(nsink)=.false. ! this is a restart
         msmbh(nsink)=sm2
-        !PH 28/07/2021
         dmfsink(nsink)=dmf
         vsold(nsink,1:ndim,slevel)=vsink(nsink,1:ndim)
         vsnew(nsink,1:ndim,slevel)=vsink(nsink,1:ndim)
@@ -323,7 +301,6 @@ subroutine init_sink
      end do
 103  continue
      sinkint_level=levelmin
-
      close(10)
 
      ! Send the token

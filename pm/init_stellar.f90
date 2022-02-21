@@ -1,14 +1,9 @@
 subroutine init_stellar
     use amr_commons
     use pm_commons
-
     use feedback_module
+    use mpi_mod
     implicit none
-
-#ifndef WITHOUTMPI
-    include 'mpif.h'
-#endif
-
     integer:: ilun
     character(len=80):: fileloc
     character(len=5):: nchar, ncharcpu

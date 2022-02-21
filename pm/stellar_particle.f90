@@ -8,6 +8,7 @@ subroutine read_stellar_params()
     use cooling_module, only: mH
     use amr_commons, only: dp, myid
     use pm_commons, only: iseed
+    use amr_parameters, only:stellar
 
     use feedback_module
     implicit none
@@ -92,12 +93,9 @@ end subroutine read_stellar_params
 subroutine make_stellar_from_sinks
   use pm_commons
   use amr_commons
-
   use feedback_module
+  use mpi_mod
   implicit none
-#ifndef WITHOUTMPI
-  include 'mpif.h'
-#endif
 
   integer:: isink
   integer:: idim
@@ -216,13 +214,9 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
 !                         & nstellarmax, nstellar, stellar_msink_th, &
 !                         & xstellar, mstellar, tstellar, ltstellar
     use amr_commons, only: dp, myid, ncpu, ndim, t
-
     use feedback_module
+    use mpi_mod
     implicit none
-#ifndef WITHOUTMPI
-    include 'mpif.h'
-#endif
-
     !------------------------------------------------------------------------
     ! Create new stellar objects
     !------------------------------------------------------------------------
@@ -244,7 +238,6 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
     integer:: info, icpu, idim, isplit, nsplit
     integer, dimension(1:ncpu):: narr
 #endif
-
     integer:: istellar
 
     if(ncreate == 0) return
@@ -259,8 +252,8 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
         call clean_stop
     end if
 
-    ! Split work among processes
 #ifndef WITHOUTMPI
+    ! Split work among processes
     isplit = mod(ncreate, ncpu)
     nsplit = ncreate / ncpu
     narr(       1:isplit) = nsplit + 1
@@ -376,23 +369,19 @@ end subroutine create_stellar
 subroutine delete_stellar(flag_delete)
     use pm_commons
     use amr_commons
-
     use feedback_module
+    use mpi_mod
     implicit none
-#ifndef WITHOUTMPI
-    include 'mpif.h'
-#endif
-
     !------------------------------------------------------------------------
     ! Delete flagged stellar objects
     !------------------------------------------------------------------------
-
-    logical, dimension(1:nstellar), intent(in):: flag_delete
-
-    integer:: i, inew, info
+    logical, dimension(1:nstellar), intent(in):: flag_delete !true if a particle should be deleted
+    integer:: i, inew
     logical, dimension(1:nstellar):: flag_any
 
 #ifndef WITHOUTMPI
+    integer:: info
+
     ! Make sure every process deletes the same objects
     call MPI_ALLREDUCE(flag_delete, flag_any, nstellar, MPI_LOGICAL, MPI_LOR, MPI_COMM_WORLD, info)
 #else
@@ -423,23 +412,16 @@ subroutine sample_powerlaw(x, a, b, alpha, n)
     use amr_commons
     use pm_commons
     use random
-
-
     implicit none
-
-
     real(8), dimension(1:n), intent(out):: x
     real(8), intent(in):: a, b, alpha
     integer, intent(in):: n
-
-    integer ,dimension(1:ncpu,1:IRandNumSize)::allseed
-
+    integer, dimension(1:ncpu,1:IRandNumSize)::allseed
     real(8):: u, p, q
     integer:: i
 
     p = alpha + 1.0_8
     q = 1.0_8 / p
-
 
     ! If necessary, initialize random number generator
     if(localseed(1)==-1)then
@@ -447,18 +429,13 @@ subroutine sample_powerlaw(x, a, b, alpha, n)
       localseed=allseed(myid,1:IRandNumSize)
     end if
 
-
     do i = 1, n
-        call Ranf( localseed, u )
+        call Ranf(localseed, u)
 
         write(*,*) 'random number generated ', u
-        
-!        call random_number(u)
         ! u follows an uniform law between 0 and 1
         ! Scale it to b^p..a^p
         u = b**p + (a**p - b**p) * u
-
-        ! Calculate x(i)
         x(i) = u**q
     end do
 end subroutine sample_powerlaw

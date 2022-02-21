@@ -281,8 +281,6 @@ subroutine init_part
   end if
 
   if(sink)call init_sink
-
-
   if(stellar)call init_stellar
 
 contains
