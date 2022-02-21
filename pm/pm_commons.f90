@@ -6,10 +6,6 @@ module pm_commons
 
   implicit none
 
-  !introduced by PH 07/2016 to record the feedback from the sink
-  !reimported by PH 27/07/2021
-  real(kind=8),allocatable,dimension(:)::Eioni
-
   ! Sink particle related arrays
   real(dp),allocatable,dimension(:)    ::msink,xmsink
   real(dp),allocatable,dimension(:)    ::msink_new,msink_all

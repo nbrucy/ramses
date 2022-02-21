@@ -23,10 +23,6 @@ subroutine init_sink
   character::co
   character(LEN=200)::comment_line
 
-  !introduced by PH 07/2016 to record feedback around sink
-  !reimported by PH 27/07/2021
-  allocate(Eioni(1:nsinkmax))
-
   ! Allocate all sink related quantities...
   allocate(idsink(1:nsinkmax))
   idsink=0 ! Important: need to set idsink to zero
@@ -279,7 +275,7 @@ subroutine init_sink
      open(10,file=filename,form='formatted')
      eof=.false.
      do
-        read(10,*,end=103)sm1,sx1,sx2,sx3,sv1,sv2,sv3,sl1,sl2,sl3,sm2
+        read(10,*,end=103)sm1,sx1,sx2,sx3,sv1,sv2,sv3,sl1,sl2,sl3,sm2,dmf
         nsink=nsink+1
         nindsink=nindsink+1
         idsink(nsink)=nindsink
@@ -296,6 +292,7 @@ subroutine init_sink
         tsink(nsink)=t
         new_born(nsink)=.false.
         msmbh(nsink)=sm2
+        dmfsink(nsink)=dmf
         vsold(nsink,1:ndim,levelmin)=vsink(nsink,1:ndim)
         vsnew(nsink,1:ndim,levelmin)=vsink(nsink,1:ndim)
      end do

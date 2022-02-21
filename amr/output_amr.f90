@@ -11,10 +11,6 @@ subroutine dump_all
   use turb_commons
 #endif
   use mpi_mod
-
-  !PH 28/07/2021
-  use feedback_module
-
   implicit none
 #if ! defined (WITHOUTMPI) || defined (NOSYSTEM)
   integer::info
@@ -141,17 +137,10 @@ subroutine dump_all
         filename=TRIM(filedir)//'sink_'//TRIM(nchar)//'.csv'
         call output_sink_csv(filename)
      end if
-
-     !PH 28/07/2021
-     !may be we should remove backup_stellar as well ? 
-     !some improvement would also be good on the csv (data name and units at for the sink csv)
      if(stellar)then
-        filename=TRIM(filedir)//'stellar_'//TRIM(nchar)//'.out'
-        call backup_stellar(filename)
-        filename=TRIM(filedir)//'stellar_'//TRIM(nchar)//'.csv'
-        call output_stellar_csv(filename)
-     end if
-
+      filename=TRIM(filedir)//'stellar_'//TRIM(nchar)//'.csv'
+      call output_stellar_csv(filename)
+   end if
 #ifndef WITHOUTMPI
      if(synchro_when_io) call MPI_BARRIER(MPI_COMM_WORLD,info)
 #endif
