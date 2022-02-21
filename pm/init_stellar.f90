@@ -1,7 +1,7 @@
 subroutine init_stellar
     use amr_commons
     use pm_commons
-    use feedback_module
+    use sink_feedback_parameters
     use mpi_mod
     implicit none
 #ifndef WITHOUTMPI

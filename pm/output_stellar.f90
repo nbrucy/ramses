@@ -1,7 +1,7 @@
 subroutine output_stellar_csv(filename)
   use amr_commons
   use pm_commons
-  use feedback_module
+  use sink_feedback_parameters
   implicit none
   character(LEN=80)::filename,fileloc
 

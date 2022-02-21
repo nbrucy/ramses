@@ -1742,7 +1742,7 @@ subroutine update_sink(ilevel)
   use amr_commons
   use pm_commons
   use hydro_commons
-  use feedback_module
+  use sink_feedback_parameters
   use constants, only: twopi, M_sun, yr2sec
   use mpi_mod
   implicit none

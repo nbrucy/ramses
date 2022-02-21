@@ -1,136 +1,12 @@
-module feedback_module
-  use amr_parameters,only:dp,ndim
-!  use singlestar_module
-  implicit none
-
-  public
-
-
-  logical::sn_feedback_sink = .false. !SN feedback emanates from the sink
-  logical::sn_feedback_cr=.false.     !Add CR component to the SN feedback
-
-  !mass, energy and momentum of supernova for forcing by sinks
-  ! sn_e in erg, sn_p in g cm/s , sn_mass in g
-  real(dp):: sn_e=1.d51 , sn_p=4.d43 , sn_mass=2.e33
-  real(dp):: sn_e_ref , sn_p_ref , sn_mass_ref
-
-  !limit speed and temperatue in supernova remnants, minimum radius for the SN remnant
-  real(dp):: Tsat=1.d99 , Vsat=1.d99, sn_r_sat=0.
-
-  !dispersion velocity of the stellar objects in km/s
-  real(dp):: Vdisp=1. 
-
-  !fraction of the SN energy put in the CR (WARNING, this is currently not set to sn_e at maxiume, so if fcr=1, then the energy inptu can ne 2*sn_e)
-  real(dp)::fcr=0.1
-
-  ! Stellar object related arrays, those parameters are read in  read_stellar_params 
-  logical:: sn_direct = .false.
-  logical:: make_stellar_glob = .false. !if used, the objects are created when the total mass in sinks exceeds stellar_msink_th
-  integer:: nstellarmax ! maximum number of stellar objects
-  integer:: nstellar = 0 ! current number of stellar objects
-  integer:: nstellar_tot = 0 ! total number of stellar objects
-  real(dp):: imf_index, imf_low, imf_high ! power-law IMF model: PDF index, lower and higher mass bounds (Msun)
-  real(dp):: lt_t0, lt_m0, lt_a, lt_b ! Stellar lifetime model: t(M) = lt_t0 * exp(lt_a * (log(lt_m0 / M))**lt_b)
-
-!  real(dp):: stf_K, stf_m0, stf_a, stf_b, stf_c 
-  ! Stellar ionizing flux model: S(M) = stf_K * (M / stf_m0)**stf_a / (1 + (M / stf_m0)**stf_b)**stf_c
-  ! This is a fit from Vacca et al. 1996
-  ! Corresponding routine : vaccafit
-  real(dp)::stf_K=9.634642584812752d48 ! s**(-1) then normalised in code units in read_stellar
-  real(dp)::stf_m0=2.728098824280431d1 ! Msun then normalised in code units in read_stellar
-  real(dp)::stf_a=6.840015602892084d0
-  real(dp)::stf_b=4.353614230584390d0
-  real(dp)::stf_c=1.142166657042991d0 
-
-  !     hii_w: density profile exponent (n = n_0 * (r / r_0)**(-hii_w))
-  !     hii_alpha: recombination constant in code units
-  !     hii_c: HII region sound speed
-  !     hii_t: fiducial HII region lifetime, it is normalised in code units in read_stellar 
-  !     hii_T2: HII region temperature
-  real(dp):: hii_w, hii_alpha, hii_c, hii_t, hii_T2
-  real(dp):: mH_code ! mH in code units
-  real(dp):: stellar_msink_th ! sink mass threshold for stellar object creation (Msun)
-  real(dp), allocatable, dimension(:, :):: xstellar ! stellar object position
-  real(dp), allocatable, dimension(:):: mstellar, tstellar, ltstellar ! stellar object mass, birth time, life time
-  integer, allocatable, dimension(:):: id_stellar !the id  of the sink to which it belongs
-  ! Allow users to pre-set stellar mass selection for physics comparison runs, etc
-  ! Every time mstellar is added to, instead of a random value, use mstellarini
-  integer,parameter::nstellarini=5000
-  real(dp),dimension(nstellarini)::mstellarini ! List of stellar masses to use
-
-  ! Proto-stellar jet feedback
-!  real(dp),allocatable,dimension(:)::vol_gas_jet,vol_gas_jet_all
-  logical::jet_feedback_sink=.false.         ! Put jet on sink 
-  real(dp)::mass_jet_sink=0.                 ! Mass above which a jets is included
-  real(dp)::frac_acc_ej=0.333333333333d0     ! Fraction of mass ejected into jet
-  real(dp)::cone_jet=90.                     ! Outflow cone opening angle of jet; in degree
-  real(dp)::v_jet = 1.6d6                    ! 16 km/s from Wang et al. 2010
-  real(dp)::expo_jet=5.d-1                   ! Powerlaw exponent of jet velocity on mass
-  logical::verbose_jet=.false.
-
-  ! Use the supernova module?
-  logical::FB_on = .false.
-
-  !series of supernovae specified by "hand"
-  ! Number of supernovae (max limit and number active in namelist)
-  integer,parameter::NSNMAX=1000
-  integer::FB_nsource=0
-
-  ! Location of single star module tables
-  character(LEN=200)::ssm_table_directory
-  ! Use single stellar module?
-  logical::use_ssm=.false.
-
-  ! Type of source ('supernova', 'wind')
-  ! NOTE: 'supernova' is a single dump, 'wind' assumes these values are per year
-  character(LEN=10),dimension(1:NSNMAX)::FB_sourcetype='supernova'
-
-  ! Feedback start and end times (NOTE: supernova ignores FB_end)
-  real(dp),dimension(1:NSNMAX)::FB_start = 1d10
-  real(dp),dimension(1:NSNMAX)::FB_end = 1d10
-  ! Book-keeping for whether the SN has happened
-  logical,dimension(1:NSNMAX)::FB_done = .false.
-  
-  ! Source position in units from 0 to 1
-  real(dp),dimension(1:NSNMAX)::FB_pos_x = 0.5d0
-  real(dp),dimension(1:NSNMAX)::FB_pos_y = 0.5d0
-  real(dp),dimension(1:NSNMAX)::FB_pos_z = 0.5d0
-
-  ! Ejecta mass in solar masses (/year for winds)
-  real(dp),dimension(1:NSNMAX)::FB_mejecta = 1.d0
-
-  ! Energy of source in ergs (/year for winds)
-  real(dp),dimension(1:NSNMAX)::FB_energy = 1.d51
-
-  ! Use a thermal dump? (Otherwise add kinetic energy)
-  ! Note that if FB_radius is 0 it's thermal anyway
-  logical,dimension(1:NSNMAX)::FB_thermal = .false.
-
-  ! Radius to deposit energy inside in number of cells (at highest level)
-  real(dp),dimension(1:NSNMAX)::FB_radius = 12d0
-
-  ! Radius in number of cells at highest level to refine fully around SN
-  integer,dimension(1:NSNMAX)::FB_r_refine = 10
-
-  ! Timestep to ensure winds are deposited properly
-  ! NOT A USER-SETTABLE PARAMETER
-  real(dp),dimension(1:NSNMAX)::FB_dtnew = 0d0
-
-  ! Is the source active this timestep? (Used by other routines)
-  ! NOT A USER-SETTABLE PARAMETER
-  logical,dimension(1:NSNMAX)::FB_sourceactive = .false. 
-
-
-CONTAINS
-
-
 SUBROUTINE vaccafit(M,S)
   ! This routine is called in sink_RT_feedback
   ! perform a fit of the Vacca et al. 96 ionising flux
   ! M - stellar mass / solar masses
   ! S - photon emission rate in / s
 
-!  use amr_parameters
+  use amr_parameters,only:dp
+  use sink_feedback_parameters
+  implicit none
 
   real(dp),intent(in)::M
   real(dp),intent(out)::S
@@ -146,10 +22,10 @@ subroutine make_sn_stellar
   use pm_commons
   use amr_commons
   use hydro_commons
+  use amr_parameters,only:dp,ndim
+  use sink_feedback_parameters
+  use mpi_mod
   implicit none
-#ifndef WITHOUTMPI
-  include 'mpif.h'
-#endif
 
   integer:: ivar
   integer:: ilevel, ind, ix, iy, iz, ngrid, iskip, idim
@@ -162,7 +38,7 @@ subroutine make_sn_stellar
   logical, dimension(1:nvector), save:: ok
 
   real(dp), dimension(1:nvector, 1:ndim), save:: xx
-  real(dp):: sn_r, sn_m, sn_p, sn_e, sn_vol, sn_d, sn_ed, sn_rp
+  real(dp):: sn_r, sn_m, sn_p_local, sn_e_local, sn_vol, sn_d, sn_ed, sn_rp
   real(dp):: rr, pi,dens_max,pgas,dgas,ekin,mass_sn_tot,dens_max_all,mass_sn_tot_all
   integer:: n_sn,n_sn_all,info
   integer ,dimension(1:nvector)::cc
@@ -225,14 +101,14 @@ subroutine make_sn_stellar
   if(sn_r_sat .ne. 0) sn_r = max(sn_r, sn_r_sat * pc) !impose a minimum size of 12 pc for the radius
 !  sn_r = 2.*(0.5**levelmin)*scale
   sn_m = sn_mass_ref !note this is replaced later
-  sn_p = sn_p_ref
-  sn_e = sn_e_ref
+  sn_p_local = sn_p_ref
+  sn_e_local = sn_e_ref
   sn_rp = 0.
 
 !  if(sn_r /= 0.0) then
     sn_vol = 4. / 3. * pi * sn_r**3
 !    sn_d = sn_m / sn_vol
-!    sn_ed = sn_e / sn_vol
+!    sn_ed = sn_e_local / sn_vol
 !  end if
 
   !we loop over stellar objets to determine whether one is turning supernovae
@@ -394,7 +270,7 @@ subroutine make_sn_stellar
 
     !compute energy and mass density
     sn_d = sn_m / vol_sn
-    sn_ed = sn_e / vol_sn
+    sn_ed = sn_e_local / vol_sn
 
     dens_moy = mass_sn / vol_sn
 
@@ -480,7 +356,7 @@ subroutine make_sn_stellar
                   !pgas = sqrt(eff_sn*sn_ed / max(dens_moy,dgas) ) * dgas 
                   !for cells where dgas < dens_moy, take the same velocity as if
                   !the density were equal to dens_moy
-                  pgas = min(sn_p / pnorm_sn * rr /  dgas , Vsat) * dgas
+                  pgas = min(sn_p_local / pnorm_sn * rr /  dgas , Vsat) * dgas
                   pgas_check = pgas_check + pgas * vol_loc
 
                   ekin=0.
@@ -543,8 +419,8 @@ subroutine make_sn_stellar
     pgas_check_all = pgas_check
 #endif
 
-    if(myid == 1) write(*, *) "SN momentum (injected, expected):", pgas_check_all, sn_p
-    if(myid == 1) write(*, *) "Physical units:", pgas_check_all * scale_d * scale_l**3 * scale_v, sn_p * scale_d * scale_l**3 * scale_v
+    if(myid == 1) write(*, *) "SN momentum (injected, expected):", pgas_check_all, sn_p_local
+    if(myid == 1) write(*, *) "Physical units:", pgas_check_all * scale_d * scale_l**3 * scale_v, sn_p_local * scale_d * scale_l**3 * scale_v
 
   !write(*,*) '4 n_sn ', n_sn_all
 
@@ -555,7 +431,7 @@ subroutine make_sn_stellar
 
     if(myid .eq. 1) then 
        open(103,file='supernovae2.txt',form='formatted',status='unknown',access='append')
-         write(103,112) t,x_sn(1),x_sn(2),x_sn(3),dens_max_loc_all,mass_sn_tot_all,vol_rap,pgas_check_all,sn_p
+         write(103,112) t,x_sn(1),x_sn(2),x_sn(3),dens_max_loc_all,mass_sn_tot_all,vol_rap,pgas_check_all,sn_p_local
        close(103)
     endif
 
@@ -584,10 +460,9 @@ subroutine sphere_average(navg, nsph, center, radius, rpow, upow, avg)
     use amr_commons, only: active, ncoarse, son, xg, myid
     use hydro_parameters, only: nvar
     use hydro_commons, only: uold
+    use sink_feedback_parameters
+    use mpi_mod
     implicit none
-#ifndef WITHOUTMPI
-    include 'mpif.h'
-#endif
 
     ! Integrate quantities over spheres
     ! The integrand is (r / radius(isph))**rpow(iavg) * product(u(ivar)**upow(iavg, ivar), ivar=1:nvar)
@@ -740,6 +615,7 @@ end subroutine sphere_average
 subroutine feedback_fixed(ilevel)
   use amr_commons
   use hydro_parameters
+  use sink_feedback_parameters
   implicit none
   integer::ilevel,isn
   !---------------------
@@ -792,6 +668,8 @@ subroutine courant_fb_fixed(dtout)
   ! dtout - output parameter
   use amr_commons
   use hydro_parameters
+  use amr_parameters,only:dp
+  use sink_feedback_parameters
   implicit none
   
   integer::isn
@@ -822,6 +700,8 @@ subroutine make_fb_fixed(currlevel,isn)
   ! Adapted from O. Iffrig's make_sn_blast
   use amr_commons
   use hydro_commons
+  use amr_parameters,only:dp
+  use sink_feedback_parameters
   implicit none
 
   integer, intent(in) :: currlevel,isn
@@ -842,7 +722,7 @@ subroutine make_fb_fixed(currlevel,isn)
 
   real(dp),dimension(1:ndim):: sn_cent
   real(dp), dimension(1:nvector, 1:ndim), save:: xx
-  real(dp):: sn_r, sn_m, sn_e, sn_vol, sn_d, sn_ed, dx_sel, sn_p, sn_v
+  real(dp):: sn_r, sn_m, sn_e_local, sn_vol, sn_d, sn_ed, dx_sel, sn_p_local, sn_v
   real(dp):: rr, pi
   real(dp), dimension(1:ndim)::rvec
   logical:: sel = .false.
@@ -879,8 +759,8 @@ subroutine make_fb_fixed(currlevel,isn)
 
   !Set up injection energy, mass, velocity and position
   sn_m = FB_mejecta(isn) / scale_msun ! Put in 10 solar masses
-  sn_e = FB_energy(isn) / scale_ecgs
-  sn_v = sqrt(2.0*(sn_e*scale_ecgs)/(sn_m*scale_msun*m_sun))
+  sn_e_local = FB_energy(isn) / scale_ecgs
+  sn_v = sqrt(2.0*(sn_e_local*scale_ecgs)/(sn_m*scale_msun*m_sun))
   sn_v = sn_v / scale_v
   sn_cent(1)= FB_pos_x(isn)*boxlen
   sn_cent(2)= FB_pos_y(isn)*boxlen
@@ -895,15 +775,15 @@ subroutine make_fb_fixed(currlevel,isn)
   ! If this is a wind, scale the luminosity by the timestep
   if (FB_sourcetype(isn) .eq. 'wind') then
     sn_m = sn_m * dt*scale_t/year2 ! dt in years
-    sn_e = sn_e * dt*scale_t/year2
+    sn_e_local = sn_e_local * dt*scale_t/year2
   endif
 
   ! HACK !!! - KINETIC BLAST ONLY WORKS FOR sn_r > 0.0 !!!
   if(sn_r /= 0.0) then
      sn_vol = 4. / 3. * pi * sn_r**3
      sn_d = sn_m / sn_vol
-     sn_ed = sn_e / sn_vol
-     sn_p = sn_d*sn_v ! uniform momentum of blast ejecta
+     sn_ed = sn_e_local / sn_vol
+     sn_p_local = sn_d*sn_v ! uniform momentum of blast ejecta
   end if
      
   if(myid .eq. 1 .and. FB_sourcetype(isn) .eq. 'supernova') then
@@ -963,7 +843,7 @@ subroutine make_fb_fixed(currlevel,isn)
           if(ok(i)) then
             if(sn_r == 0.0) then
               sn_d = sn_m / vol_loc ! XXX
-              sn_ed = sn_e / vol_loc ! XXX
+              sn_ed = sn_e_local / vol_loc ! XXX
               rr = 1.0
               do idim = 1, ndim
                 !rr = rr * max(1.0 - abs(xx(i, idim) - sn_center(sn_i, idim)) / dx_sel, 0.0)
@@ -974,7 +854,7 @@ subroutine make_fb_fixed(currlevel,isn)
                   !! We found a leaf cell near the supernova center
                   !sel = .true.
                   !sn_d = sn_m / sn_vol
-                  !sn_ed = sn_e / sn_vol
+                  !sn_ed = sn_e_local / sn_vol
                 !end if
                 uold(ind_cell(i), 1) = uold(ind_cell(i), 1) + sn_d * rr
                 uold(ind_cell(i), 2+ndim) = uold(ind_cell(i), 2+ndim) + sn_ed * rr
@@ -993,7 +873,7 @@ subroutine make_fb_fixed(currlevel,isn)
                   if (.not.FB_thermal(isn)) then
                      do idim=1,ndim 
                         uold(ind_cell(i),1+idim) = uold(ind_cell(i),1+idim) + &
-                          & sn_p * rvec(idim)
+                          & sn_p_local * rvec(idim)
                      enddo
                   end if
                   uold(ind_cell(i), 2+ndim) = uold(ind_cell(i), 2+ndim) + sn_ed
@@ -1034,6 +914,8 @@ SUBROUTINE feedback_refine(xx,ok,ncell,ilevel)
   use pm_commons
   use hydro_commons
   use poisson_commons
+  use amr_parameters, only:dp
+  use sink_feedback_parameters
   implicit none
   integer::ncell,ilevel,i,k,nx_loc,isn
   real(dp),dimension(1:nvector,1:ndim)::xx
@@ -1060,9 +942,4 @@ SUBROUTINE feedback_refine(xx,ok,ncell,ilevel)
   
 END SUBROUTINE feedback_refine
 
-
-
-
-
-END MODULE feedback_module
 

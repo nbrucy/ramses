@@ -29,7 +29,7 @@ SUBROUTINE sink_RT_feedback(ilevel, dt)
   use pm_commons
   use amr_commons
   use rt_parameters
-  use feedback_module
+  use sink_feedback_parameters
 
   implicit none
   integer:: ilevel
@@ -136,7 +136,7 @@ SUBROUTINE gather_ioni_flux(dt,sink_ioni_flux)
   use amr_commons
   use pm_commons
   use rt_parameters
-  use feedback_module
+  use sink_feedback_parameters
 
   implicit none
 
@@ -229,7 +229,7 @@ SUBROUTINE sink_RT_vsweep_stellar(ind_grid,ind_part,ind_grid_part,ng,np,dt,ileve
   use pm_commons
   use rt_hydro_commons
   use rt_parameters
-  use feedback_module
+  use sink_feedback_parameters
   !use rt_cooling_module, only:iIR
   implicit none
   integer::ng,np,ilevel
@@ -421,7 +421,7 @@ SUBROUTINE sink_RT_vsweep(ind_grid,ind_part,ind_grid_part,ng,np,dt,ilevel)
   use pm_commons
   use rt_hydro_commons
   use rt_parameters
-  use feedback_module
+  use sink_feedback_parameters
   !use rt_cooling_module, only:iIR
   implicit none
   integer::ng,np,ilevel

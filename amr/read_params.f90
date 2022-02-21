@@ -3,10 +3,8 @@ subroutine read_params
   use pm_parameters
   use poisson_parameters
   use hydro_parameters
+  use sink_feedback_parameters
   use mpi_mod
-
-  use feedback_module
-
   implicit none
   !--------------------------------------------------
   ! Local variables
@@ -306,6 +304,7 @@ subroutine read_params
 #if NDIM==3
   if (sink)call read_sink_params
   if (clumpfind .or. sink)call read_clumpfind_params
+  if (stellar)call read_stellar_params
   if (unbind)call read_unbinding_params
   if (make_mergertree)call read_mergertree_params
 #if USE_TURB==1
@@ -316,10 +315,6 @@ subroutine read_params
 
   ! feedback parameter 
   call read_feedback_params(nml_ok)
-  
-  ! Stellar objects
-  if (stellar)call read_stellar_params
-
 
   close(1)
 
