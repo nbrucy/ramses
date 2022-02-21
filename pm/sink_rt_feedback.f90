@@ -1,7 +1,6 @@
 #ifdef RT
 !*************************************************************************
 SUBROUTINE update_sink_RT_feedback(ilevel)
-! TC: Filenames should NOT have capital letters in them
 
 ! Turn on RT advection if needed.
 ! Update photon group properties from stellar populations.
@@ -14,16 +13,18 @@ SUBROUTINE update_sink_RT_feedback(ilevel)
   integer::ilevel
   logical,save::groupProps_init=.false.  
 !-------------------------------------------------------------------------
-  rt_advect=.true.     
+  rt_advect=.true.
 END SUBROUTINE update_sink_RT_feedback
-
+!*************************************************************************
+!*************************************************************************
+!*************************************************************************
 !*************************************************************************
 SUBROUTINE sink_RT_feedback(ilevel, dt)
 
 ! This routine adds photons from radiating sinks to appropriate cells in 
-! the  hydro grid.
-! ilegel =>  grid level in which to perform the feedback
-! ti     =>  initial time for the timestep (code units)
+! the  hydro grid. Emission is determined from massive stellar particles
+! attached to the sinks.
+! ilevel =>  grid level in which to perform the feedback
 ! dt     =>  real timestep length in code units
 !-------------------------------------------------------------------------
   use pm_commons
@@ -153,13 +154,11 @@ SUBROUTINE gather_ioni_flux(dt,sink_ioni_flux)
 
   do istellar=1,nstellar 
      !id of the sink to which the stellar object belongs 
-     nphotons = 0d0
      ! find correct index in sink array which will be equal or lower than id_sink due to sink merging
      isink = id_stellar(istellar)
      do while (id_stellar(istellar) .ne. idsink(isink))
        isink = isink - 1
      end do
-
      M_stellar = mstellar(istellar)
      ! Reset the photon counter
      nphotons = 0d0
@@ -230,53 +229,37 @@ SUBROUTINE sink_RT_vsweep_stellar(ind_grid,ind_part,ind_grid_part,ng,np,dt,ileve
   use rt_hydro_commons
   use rt_parameters
   use sink_feedback_parameters
-  !use rt_cooling_module, only:iIR
   implicit none
   integer::ng,np,ilevel
   integer,dimension(1:nvector)::ind_grid
   integer,dimension(1:nvector)::ind_grid_part,ind_part
-  real(dp)::dt, sourcemass
+  real(dp)::dt
   !-----------------------------------------------------------------------
   integer::i,j,idim,nx_loc,ip,isink,ig
   real(dp)::dx,dx_loc,scale,vol_loc,vol_cgs
-  logical::error
   ! Grid based arrays
   real(dp),dimension(1:nvector,1:ndim),save::x0
   integer ,dimension(1:nvector),save::ind_cell
   integer ,dimension(1:nvector,1:threetondim),save::nbors_father_cells
   integer ,dimension(1:nvector,1:twotondim),save::nbors_father_grids
   ! Particle based arrays
-  integer,dimension(1:nvector),save::igrid_son,ind_son
   logical,dimension(1:nvector),save::ok
-  !real(dp),dimension(1:nvector,ngroups),save::part_NpInp
   real(dp),dimension(1:nvector,1:ndim),save::x
   integer ,dimension(1:nvector,3),save::id=0,igd=0,icd=0
   integer ,dimension(1:nvector),save::igrid,icell,indp,kg
   real(dp),dimension(1:3)::skip_loc
-  real(dp)::Ep2Np
   ! units and temporary quantities
-  real(dp)::scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v, scale_Np  & 
-            , scale_Fp, age, z, scale_inp, scale_Nphot, dt_Gyr           &
-            , dt_loc_Gyr, scale_msun
-  real(dp),parameter::vol_factor=2**ndim   ! Vol factor for ilevel-1 cells
+  real(dp)::scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v,scale_Np,scale_Fp
   ! changed:
   real(dp),dimension(1:nvector),save::dn
-  real(dp)::hnu,scale_energy,ener
-  ! Emission law based on Vacca 1996
-!  real(dp),parameter::qh_power=3.184
-!  real(dp),parameter::qh_const=10d0**43.97
-  ! Sink cluster totals
-!  real(dp)::scluster,mcluster,wcluster,ssink
-
   !this arrays gather the ionising flux by looping over stellar object
   real(dp),dimension(1:nsink,1:ngroups):: sink_ioni_flux
 
 !-------------------------------------------------------------------------
-! if(.not. metal) z = log10(max(z_ave*0.02, 10.d-5))![log(m_metals/m_tot)]
   ! Conversion factor from user units to cgs units
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
   call rt_units(scale_Np, scale_Fp)
-  dt_Gyr = dt*scale_t*sec2Gyr
+
   ! Mesh spacing in ilevel
   dx = 0.5D0**ilevel
   nx_loc = (icoarse_max - icoarse_min + 1)
@@ -286,17 +269,8 @@ SUBROUTINE sink_RT_vsweep_stellar(ind_grid,ind_part,ind_grid_part,ng,np,dt,ileve
   if(ndim>2)skip_loc(3) = dble(kcoarse_min)
   scale = boxlen/dble(nx_loc) 
   dx_loc = dx*scale
-  vol_loc = dx_loc**ndim
-  scale_inp = rt_esc_frac * scale_d / scale_np / vol_loc / m_sun    
-  scale_nPhot = vol_loc * scale_np * scale_l**ndim / 1.d50
-
 
   vol_cgs = (dx_loc*scale_l)**ndim
-
-
-
-  ! Ep2Np=(scale_d * scale_v**2)/( scale_Np * group_egy(iIR) * ev_to_erg)
-
 
   ! Lower left corners of 3x3x3 grid-cubes (with given grid in center)
   do idim = 1, ndim
@@ -381,7 +355,6 @@ SUBROUTINE sink_RT_vsweep_stellar(ind_grid,ind_part,ind_grid_part,ng,np,dt,ileve
          !the flux is normalised in read_stellar_object : thus no "scale_t" here see stf_K parameter
          
         ! deposit the photons onto the grid
-
         do ig=1,ngroups
            rtunew(indp(j),iGroups(ig))=rtunew(indp(j),iGroups(ig)) + &
                 sink_ioni_flux(isink,ig) * dt / dble(ncloud_sink) / vol_cgs / scale_Np
@@ -453,7 +426,7 @@ SUBROUTINE sink_RT_vsweep(ind_grid,ind_part,ind_grid_part,ng,np,dt,ilevel)
   real(dp),parameter::vol_factor=2**ndim   ! Vol factor for ilevel-1 cells
   ! changed:
   real(dp),dimension(1:nvector),save::dn
-  real(dp)::hnu,scale_energy,ener
+  real(dp)::ener
   ! Emission law based on Vacca 1996
   real(dp),parameter::qh_power=3.184
   real(dp),parameter::qh_const=10d0**43.97

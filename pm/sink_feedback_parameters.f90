@@ -52,11 +52,6 @@ module sink_feedback_parameters
   real(dp), allocatable, dimension(:, :):: xstellar                   ! stellar object position
   integer, allocatable, dimension(:):: id_stellar                     !the id  of the sink to which it belongs
 
-  logical::sn_feedback_cr=.false.     !Add CR component to the SN feedback
-
-  !fraction of the SN energy put in the CR (WARNING, this is currently not set to sn_e at maxiume, so if fcr=1, then the energy inptu can ne 2*sn_e)
-  real(dp)::fcr=0.1
-
   ! Stellar object related arrays, those parameters are read in  read_stellar_params 
   logical:: make_stellar_glob = .false. !if used, the objects are created when the total mass in sinks exceeds stellar_msink_th
   integer:: nstellar_tot = 0 ! total number of stellar objects
@@ -67,7 +62,6 @@ module sink_feedback_parameters
   !     hii_t: fiducial HII region lifetime, it is normalised in code units in read_stellar 
   !     hii_T2: HII region temperature
   real(dp):: hii_w, hii_alpha, hii_c, hii_T2
-  real(dp):: mH_code ! mH in code units
 
   ! Use the supernova module?
   logical::FB_on = .false.

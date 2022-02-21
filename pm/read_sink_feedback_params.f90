@@ -1,5 +1,4 @@
 subroutine read_stellar_params()
-  use cooling_module, only: mH
   use amr_commons, only: dp, myid
   use pm_commons, only: iseed
   use amr_parameters, only:stellar
@@ -16,7 +15,6 @@ subroutine read_stellar_params()
                          & stf_K, stf_m0, stf_a, stf_b, stf_c, &
                          & hii_w, hii_alpha, hii_c, hii_t, hii_T2 , &
                          & sn_feedback_sink,make_stellar_glob,iseed, &
-                         & sn_feedback_cr,fcr, &
                          & mstellarini, &
                          & Tsat, Vsat, sn_r_sat, sn_p, sn_e, sn_mass, &
                          & FB_nsource, FB_on, FB_start, FB_end, FB_sourcetype, &
@@ -81,7 +79,6 @@ subroutine read_stellar_params()
   !Careful: normalised age of the time during which the star is emitting HII ionising flux
   hii_t = hii_t * Myr 
   hii_T2 = hii_T2 / scale_T2
-  mH_code = mH / (scale_d * scale_l**3) ! make this useful...
 
   ! PREVIOUS FEED PARAMS
 

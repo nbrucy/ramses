@@ -6,13 +6,11 @@ subroutine make_stellar_from_sinks
   implicit none
 
   integer:: isink
-  integer:: idim
 
   integer:: nbuf
   integer, parameter:: nbufmax = 1000
   real(dp), dimension(1:nbufmax, 1:ndim):: buf
   integer, dimension(1:nbufmax):: buf_id
-  logical, dimension(1:nstellarmax):: mark_del
 
   if(.not. hydro) return
   if(ndim /= 3) return
@@ -23,7 +21,6 @@ subroutine make_stellar_from_sinks
   do isink = 1, nsink
     do while(dmfsink(isink) .gt. stellar_msink_th)
       dmfsink(isink) = dmfsink(isink) - stellar_msink_th
-
       nbuf = nbuf + 1
       if(nbuf > nbufmax) then
         call create_stellar(nbufmax, nbufmax, buf, buf_id, .true.)
@@ -32,7 +29,6 @@ subroutine make_stellar_from_sinks
 
       buf(nbuf, 1:ndim) = xsink(isink, 1:ndim)
       buf_id(nbuf) = idsink(isink)
-
     end do
   end do
   call create_stellar(nbuf, nbufmax, buf, buf_id, .true.)
@@ -48,34 +44,27 @@ end subroutine make_stellar_from_sinks
 subroutine make_stellar_from_sinks_glob
   use pm_commons
   use amr_commons
-
   use sink_feedback_parameters
+  use mpi_mod
   implicit none
-#ifndef WITHOUTMPI
-  include 'mpif.h'
-#endif
 
   integer:: isink
-  integer:: idim
 
   integer:: nbuf
   integer, parameter:: nbufmax = 1000
   real(dp), dimension(1:nbufmax, 1:ndim):: buf
   integer, dimension(1:nbufmax):: buf_id
-  logical, dimension(1:nstellarmax):: mark_del
   real(dp):: mass_total
   integer:: iobj,nobj_new
   real(dp), dimension(1:nsink) :: dmfsink_sort
-!  integer, dimension(1:nsink) :: idsink_sort
    
   if(.not. hydro) return
   if(ndim /= 3) return
 
   if(verbose) write(*,*) 'Entering make_stellar_from_sinks'
 
-
   !compare the total number of objects formed and the mass of the sinks
-  mass_total = sum(dmfsink) 
+  mass_total = sum(dmfsink)
 
   !number of objects to be created
   nobj_new = mass_total / stellar_msink_th
@@ -117,32 +106,26 @@ end subroutine make_stellar_from_sinks_glob
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
-!    use pm_commons, only: stellar, imf_index, imf_low, imf_high, &
-!                         & lt_t0, lt_m0, lt_a, lt_b, sn_direct, &
-!                         & nstellarmax, nstellar, stellar_msink_th, &
-!                         & xstellar, mstellar, tstellar, ltstellar
     use amr_commons, only: dp, myid, ncpu, ndim, t
     use sink_feedback_parameters
+    use constants, only:M_sun
     use mpi_mod
     implicit none
     !------------------------------------------------------------------------
     ! Create new stellar objects
     !------------------------------------------------------------------------
-
     integer, intent(in):: ncreate, nbuf
     real(dp), dimension(1:nbuf, 1:ndim), intent(in):: xnew
     integer, dimension(1:nbuf), intent(in):: id_new
     logical, intent(in):: print_table
-
     integer:: ncreate_loc
     real(dp), dimension(1:ncreate):: mnew_loc, ltnew_loc
     real(dp), dimension(1:ncreate):: mnew, tnew, ltnew
-    integer, dimension(1:ncpu)::displ
-
     real(dp):: scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v
     real(dp):: msun
     
 #ifndef WITHOUTMPI
+    integer, dimension(1:ncpu)::displ
     integer:: info, icpu, idim, isplit, nsplit
     integer, dimension(1:ncpu):: narr
 #endif
@@ -151,17 +134,16 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
     if(ncreate == 0) return
 
     call units(scale_l, scale_t, scale_d, scale_v, scale_nH, scale_T2)
-    msun = 2d33 / scale_d / scale_l**3
+    msun = M_sun / scale_d / scale_l**3
     
     ! Check that there is enough space
     if(ncreate + nstellar > nstellarmax) then
-        if(myid == 1) write(*, *) 'Not enough space for new stellar objects'
-        if(myid == 1) write(*, *) 'Increase nstellarmax'
+        if(myid == 1) write(*, *) 'Not enough space for new stellar objects! Increase nstellarmax.'
         call clean_stop
     end if
 
 #ifndef WITHOUTMPI
-    ! Split work among processes
+    ! Split work among processes (determining mass and lifetime)
     isplit = mod(ncreate, ncpu)
     nsplit = ncreate / ncpu
     narr(       1:isplit) = nsplit + 1
@@ -218,7 +200,6 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
     ! EITHER: use mnew
     ! OR: use mstellarini if this has non-zero values
     do istellar = nstellar+1, nstellar+ncreate
-
        if(istellar .ge. nstellarini) then 
           mstellar(istellar) = mnew(istellar-nstellar)
        else
@@ -263,11 +244,11 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
     end if
 
     if(sn_direct) then
-        ltstellar(nstellar+1:nstellar+ncreate) = 0.0d0
+        ! explode immediately instead of after lifetime
+        ltstellar(nstellar+1:nstellar+ncreate) = 0
     end if
 
     nstellar = nstellar + ncreate
-    nstellar_tot = nstellar_tot + ncreate !total number of created stellar objects
 
 end subroutine create_stellar
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -314,11 +295,14 @@ subroutine delete_stellar(flag_delete)
     nstellar = inew - 1
 
 end subroutine delete_stellar
-
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 subroutine sample_powerlaw(x, a, b, alpha, n)
     ! Sample from a power-law between a and b, with an index of alpha (for the PDF)
-    use amr_commons
-    use pm_commons
+    use amr_commons  ,only:ncpu,myid
+    use pm_commons   ,only:localseed,iseed
     use random
     implicit none
     real(8), dimension(1:n), intent(out):: x
@@ -333,17 +317,17 @@ subroutine sample_powerlaw(x, a, b, alpha, n)
 
     ! If necessary, initialize random number generator
     if(localseed(1)==-1)then
-      call rans(ncpu,iseed,allseed)
-      localseed=allseed(myid,1:IRandNumSize)
+        call rans(ncpu,iseed,allseed)
+        localseed=allseed(myid,1:IRandNumSize)
     end if
 
     do i = 1, n
         call Ranf(localseed, u)
-
         write(*,*) 'random number generated ', u
         ! u follows an uniform law between 0 and 1
         ! Scale it to b^p..a^p
         u = b**p + (a**p - b**p) * u
         x(i) = u**q
     end do
+
 end subroutine sample_powerlaw
