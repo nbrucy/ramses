@@ -174,7 +174,7 @@ PMOBJ = init_part.o output_part.o rho_fine.o synchro_fine.o move_fine.o \
         sink_particle.o feedback.o clump_finder.o clump_merger.o \
         flag_formation_sites.o init_sink.o output_sink.o \
         unbinding.o merger_tree.o move_tracer.o init_tracer.o \
-        read_sink_feedback_params.o sink_RT_feedback.o \
+        read_sink_feedback_params.o sink_rt_feedback.o \
         stellar_particle.o init_stellar.o output_stellar.o
 # Poisson solver objects
 POISSONOBJ = init_poisson.o phi_fine_cg.o interpol_phi.o force_fine.o \
