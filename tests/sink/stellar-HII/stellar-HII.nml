@@ -2,6 +2,7 @@
 ! 1 massive sink in the middle (id=6)
 ! 5 additional low mass sinks around to verify SN is done on the correct sink
 ! initially 2 sinks close together which merge before stellar particle is born (sink_id != isink)
+! Initial dmf = initial mass
 
 &RUN_PARAMS
 hydro=.true.
