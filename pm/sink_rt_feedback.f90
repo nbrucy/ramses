@@ -181,13 +181,11 @@ SUBROUTINE gather_ioni_flux(dt,sink_ioni_flux)
         !remember vaccafits is in code units because the corresponding parameters have been normalised in read_stellar_params (stf_K and stf_m0)
         call vaccafit(M_stellar,Flux_stellar)
         ! HII-ionising is group 1 if no IR, else group 3 (IR is group 1, optical is group 2)
-#if RT
         if (ngroups.eq.3) then
            nphotons(1) = Flux_stellar
         else
            nphotons(3) = Flux_stellar
         endif
-#endif
      endif
      !endif
 
