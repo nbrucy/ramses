@@ -16,7 +16,7 @@ subroutine make_sn_stellar
   real(dp), dimension(1:twotondim, 1:3):: xc
   logical, dimension(1:nvector), save:: ok
   real(dp), dimension(1:nvector, 1:ndim), save:: xx
-  real(dp):: sn_r, sn_m, sn_p_local, sn_e_local, sn_vol, sn_d, sn_ed
+  real(dp):: sn_r, sn_m, sn_p, sn_e, sn_vol, sn_d, sn_ed
   real(dp):: rr,pgas,dgas,ekin,mass_sn_tot,mass_sn_tot_all
   integer:: info
   real(dp),dimension(1:nvector,1:ndim)::x
@@ -64,14 +64,14 @@ subroutine make_sn_stellar
   sn_r = 3.0d0*(0.5d0**levelmin)*scale
   if(sn_r_sat .ne. 0) sn_r = max(sn_r, sn_r_sat * pc2cm / scale_l) !impose a minimum size of 12 pc for the radius
   sn_m = sn_mass_ref !note this is replaced later
-  sn_p_local = sn_p_ref
-  sn_e_local = sn_e_ref
+  sn_p = sn_p_ref
+  sn_e = sn_e_ref
 
   !sn_r = 2.*(0.5**levelmin)*scale
   !if(sn_r /= 0.0) then
   sn_vol = 4. / 3. * pi * sn_r**3
   !  sn_d = sn_m / sn_vol
-  !  sn_ed = sn_e_local / sn_vol
+  !  sn_ed = sn_e / sn_vol
   !end if
 
   !we loop over stellar objects to determine whether one is turning supernovae
@@ -228,7 +228,7 @@ subroutine make_sn_stellar
 
     !compute energy and mass density
     sn_d = sn_m / vol_sn
-    sn_ed = sn_e_local / vol_sn
+    sn_ed = sn_e / vol_sn
 
     !dens_moy = mass_sn / vol_sn
 
@@ -311,7 +311,7 @@ subroutine make_sn_stellar
                   !pgas = sqrt(eff_sn*sn_ed / max(dens_moy,dgas) ) * dgas 
                   !for cells where dgas < dens_moy, take the same velocity as if
                   !the density were equal to dens_moy
-                  pgas = min(sn_p_local / pnorm_sn * rr /  dgas , Vsat) * dgas
+                  pgas = min(sn_p / pnorm_sn * rr /  dgas , Vsat) * dgas
                   pgas_check = pgas_check + pgas * vol_loc
 
                   ekin=0.
@@ -359,8 +359,8 @@ subroutine make_sn_stellar
     pgas_check_all = pgas_check
 #endif
 
-    if(myid == 1) write(*, *) "SN event: momentum (injected, expected)=", pgas_check_all, sn_p_local
-    if(myid == 1) write(*, *) "Physical units:", pgas_check_all * scale_d * scale_l**3 * scale_v, sn_p_local * scale_d * scale_l**3 * scale_v
+    if(myid == 1) write(*, *) "SN event: momentum (injected, expected)=", pgas_check_all, sn_p
+    if(myid == 1) write(*, *) "Physical units:", pgas_check_all * scale_d * scale_l**3 * scale_v, sn_p * scale_d * scale_l**3 * scale_v
 
     !calculate grid effect
     vol_rap = vol_sn / sn_vol
@@ -368,7 +368,7 @@ subroutine make_sn_stellar
     !TC: should be outputted to the log
     if(myid .eq. 1) then 
        open(103,file='supernovae2.txt',form='formatted',status='unknown',access='append')
-         write(103,112) t,x_sn(1),x_sn(2),x_sn(3),dens_max_loc_all,mass_sn_tot_all,vol_rap,pgas_check_all,sn_p_local
+         write(103,112) t,x_sn(1),x_sn(2),x_sn(3),dens_max_loc_all,mass_sn_tot_all,vol_rap,pgas_check_all,sn_p
        close(103)
     endif
 
@@ -660,7 +660,7 @@ subroutine make_fb_fixed(currlevel,isn)
 
   real(dp),dimension(1:ndim):: sn_cent
   real(dp), dimension(1:nvector, 1:ndim), save:: xx
-  real(dp):: sn_r, sn_m, sn_e_local, sn_vol, sn_d, sn_ed, dx_sel, sn_p_local, sn_v
+  real(dp):: sn_r, sn_m, sn_e, sn_vol, sn_d, sn_ed, dx_sel, sn_p, sn_v
   real(dp):: rr, pi
   real(dp), dimension(1:ndim)::rvec
   logical:: sel = .false.
@@ -696,8 +696,8 @@ subroutine make_fb_fixed(currlevel,isn)
 
   !Set up injection energy, mass, velocity and position
   sn_m = FB_mejecta(isn) / scale_msun ! Put in 10 solar masses
-  sn_e_local = FB_energy(isn) / scale_ecgs
-  sn_v = sqrt(2.0*(sn_e_local*scale_ecgs)/(sn_m*scale_msun*m_sun))
+  sn_e = FB_energy(isn) / scale_ecgs
+  sn_v = sqrt(2.0*(sn_e*scale_ecgs)/(sn_m*scale_msun*m_sun))
   sn_v = sn_v / scale_v
   sn_cent(1)= FB_pos_x(isn)*boxlen
   sn_cent(2)= FB_pos_y(isn)*boxlen
@@ -712,15 +712,15 @@ subroutine make_fb_fixed(currlevel,isn)
   ! If this is a wind, scale the luminosity by the timestep
   if (FB_sourcetype(isn) .eq. 'wind') then
     sn_m = sn_m * dt*scale_t/year2 ! dt in years
-    sn_e_local = sn_e_local * dt*scale_t/year2
+    sn_e = sn_e * dt*scale_t/year2
   endif
 
   ! HACK !!! - KINETIC BLAST ONLY WORKS FOR sn_r > 0.0 !!!
   if(sn_r /= 0.0) then
      sn_vol = 4. / 3. * pi * sn_r**3
      sn_d = sn_m / sn_vol
-     sn_ed = sn_e_local / sn_vol
-     sn_p_local = sn_d*sn_v ! uniform momentum of blast ejecta
+     sn_ed = sn_e / sn_vol
+     sn_p = sn_d*sn_v ! uniform momentum of blast ejecta
   end if
      
   if(myid .eq. 1 .and. FB_sourcetype(isn) .eq. 'supernova') then
@@ -780,7 +780,7 @@ subroutine make_fb_fixed(currlevel,isn)
           if(ok(i)) then
             if(sn_r == 0.0) then
               sn_d = sn_m / vol_loc ! XXX
-              sn_ed = sn_e_local / vol_loc ! XXX
+              sn_ed = sn_e / vol_loc ! XXX
               rr = 1.0
               do idim = 1, ndim
                 !rr = rr * max(1.0 - abs(xx(i, idim) - sn_center(sn_i, idim)) / dx_sel, 0.0)
@@ -791,7 +791,7 @@ subroutine make_fb_fixed(currlevel,isn)
                   !! We found a leaf cell near the supernova center
                   !sel = .true.
                   !sn_d = sn_m / sn_vol
-                  !sn_ed = sn_e_local / sn_vol
+                  !sn_ed = sn_e / sn_vol
                 !end if
                 uold(ind_cell(i), 1) = uold(ind_cell(i), 1) + sn_d * rr
                 uold(ind_cell(i), 2+ndim) = uold(ind_cell(i), 2+ndim) + sn_ed * rr
@@ -810,7 +810,7 @@ subroutine make_fb_fixed(currlevel,isn)
                   if (.not.FB_thermal(isn)) then
                      do idim=1,ndim 
                         uold(ind_cell(i),1+idim) = uold(ind_cell(i),1+idim) + &
-                          & sn_p_local * rvec(idim)
+                          & sn_p * rvec(idim)
                      enddo
                   end if
                   uold(ind_cell(i), 2+ndim) = uold(ind_cell(i), 2+ndim) + sn_ed

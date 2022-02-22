@@ -17,7 +17,7 @@ subroutine read_stellar_params()
                          & hii_t, &
                          & sn_feedback_sink,make_stellar_glob,iseed, &
                          & mstellarini, &
-                         & Tsat, Vsat, sn_r_sat, sn_p, sn_e, sn_mass, &
+                         & Tsat, Vsat, sn_r_sat, sn_p_ref, sn_e_ref, sn_mass_ref, &
                          !& FB_nsource, FB_on, FB_start, FB_end, FB_sourcetype, &
                          !& FB_pos_x, FB_pos_y, FB_pos_z, &
                          !& FB_mejecta, FB_energy, FB_thermal, &
@@ -82,9 +82,9 @@ subroutine read_stellar_params()
   !hii_c = hii_c * km_s
 
   !normalise the supernova quantities
-  sn_p_ref = sn_p / (scale_d * scale_v * scale_l**3)
-  sn_e_ref = sn_e / (scale_d * scale_v**2 * scale_l**3)
-  sn_mass_ref = sn_mass / (scale_d * scale_l**3) !1 solar mass ejected
+  sn_p_ref = sn_p_ref / (scale_d * scale_v * scale_l**3)
+  sn_e_ref = sn_e_ref / (scale_d * scale_v**2 * scale_l**3)
+  sn_mass_ref = sn_mass_ref / (scale_d * scale_l**3) !1 solar mass ejected
 
   !normalise Vsat which is assumed to be in KM/S
   Vsat = Vsat * 1.e5 / scale_v

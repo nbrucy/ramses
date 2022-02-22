@@ -19,10 +19,9 @@ module sink_feedback_parameters
   logical::sn_feedback_sink = .false. !SN feedback emanates from the sink
   logical::sn_direct = .false.        ! explode immediately instead of after lifetime
 
-  real(dp):: sn_e=1.d51      ! SN energy for forcing by sinks [erg]
-  real(dp):: sn_p=4.d43      ! SN momentum [g cm/s]
-  real(dp):: sn_mass=2.e33   ! SN mass [g]
-  real(dp):: sn_e_ref , sn_p_ref , sn_mass_ref
+  real(dp):: sn_e_ref=1.d51      ! SN energy for forcing by sinks [erg]
+  real(dp):: sn_p_ref=4.d43      ! SN momentum [g cm/s]
+  real(dp):: sn_mass_ref=2.e33   ! SN mass [g]
 
   real(dp):: Tsat=1.d99   ! maximum temperature in SN remnants
   real(dp):: Vsat=1.d99   ! maximum velocity in SN remnants
