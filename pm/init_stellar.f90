@@ -81,14 +81,6 @@ subroutine init_stellar
             end if
         end if
 #endif
-
-    end if
-
-    ! Create file for HII region feedback logging
-    if(myid == 1 .and. nrestart == 0) then
-        open(104, file='hii.txt', form='formatted', status='unknown', position='append')
-        write(104,*) 't ', 'x ', 'y ', 'z ', 'st_mass ', 'p_inj ', 'p_exp ', 'e_exp '
-        close(104)
     end if
 
 end subroutine init_stellar
