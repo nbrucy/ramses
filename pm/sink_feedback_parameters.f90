@@ -30,6 +30,8 @@ module sink_feedback_parameters
   real(dp):: Vdisp=1.     ! dispersion velocity of the stellar objects [km/s] 
                           ! determines how far SN can explode from the sink
 
+  logical::stellar_info=.true.  ! write stellar particles to log file
+
   ! STELLAR_PARAMS namelist: HII feedback parameters
 
   ! Stellar ionizing flux model: S(M) = stf_K * (M / stf_m0)**stf_a / (1 + (M / stf_m0)**stf_b)**stf_c

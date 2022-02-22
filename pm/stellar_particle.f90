@@ -23,7 +23,7 @@ subroutine make_stellar_from_sinks
       dmfsink(isink) = dmfsink(isink) - stellar_msink_th
       nbuf = nbuf + 1
       if(nbuf > nbufmax) then
-        call create_stellar(nbufmax, nbufmax, buf_id, .true.)
+        call create_stellar(nbufmax, nbufmax, buf_id)
         nbuf = 1
       end if
 
@@ -31,7 +31,11 @@ subroutine make_stellar_from_sinks
     end do
   end do
 
-  call create_stellar(nbuf, nbufmax, buf_id, .true.)
+  call create_stellar(nbuf, nbufmax, buf_id)
+
+  if (stellar_info)then
+    call print_stellar_properties
+  end if
 
 end subroutine make_stellar_from_sinks
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -89,21 +93,25 @@ subroutine make_stellar_from_sinks_glob
 
      nbuf = nbuf + 1
      if(nbuf > nbufmax) then
-        call create_stellar(nbufmax, nbufmax, buf_id, .true.)
+        call create_stellar(nbufmax, nbufmax, buf_id)
         nbuf = 1
      end if
 
      buf_id(nbuf) = idsink(isink)
   end do
 
-  call create_stellar(nbuf, nbufmax, buf_id, .true.)
+  call create_stellar(nbuf, nbufmax, buf_id)
+
+  if (stellar_info)then
+    call print_stellar_properties
+  end if
 
 end subroutine make_stellar_from_sinks_glob
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine create_stellar(ncreate, nbuf, id_new, print_table)
+subroutine create_stellar(ncreate, nbuf, id_new)
     use amr_commons, only: dp, myid, ncpu, ndim, t
     use sink_feedback_parameters
     use constants, only:M_sun
@@ -114,7 +122,7 @@ subroutine create_stellar(ncreate, nbuf, id_new, print_table)
     !------------------------------------------------------------------------
     integer, intent(in):: ncreate, nbuf
     integer, dimension(1:nbuf), intent(in):: id_new
-    logical, intent(in):: print_table
+    !logical:: print_table=.true.
     integer:: ncreate_loc
     real(dp), dimension(1:ncreate):: mnew_loc, ltnew_loc
     real(dp), dimension(1:ncreate):: mnew, tnew, ltnew
@@ -154,7 +162,7 @@ subroutine create_stellar(ncreate, nbuf, id_new, print_table)
     ncreate_loc = ncreate
 #endif
 
-    ! Draw random masses fro the IMF
+    ! Draw random masses from the IMF
     call sample_powerlaw(mnew_loc, imf_low, imf_high, imf_index, ncreate_loc)
 
     ! Compute lifetime
@@ -226,15 +234,16 @@ subroutine create_stellar(ncreate, nbuf, id_new, print_table)
     ltstellar(nstellar+1:nstellar+ncreate) = ltnew
 
     if(myid == 1) then
-        write(*, "('Created ', I5, ' stellar objects:')") ncreate
-        if(print_table) then
-            write(*, "('============================================================')")
-            write(*, "('       Mass          Birth          LifeT       id   ')")
-            write(*, "('============================================================')")
-            do istellar = nstellar + 1, nstellar + ncreate
-                write(*, "(3ES15.7,2X,i6)") mstellar(istellar), tstellar(istellar), ltstellar(istellar), id_stellar(istellar)
-            end do
-        end if
+        write(*, "('Created ', I5, ' stellar objects')") ncreate
+        !if(print_table) then
+        !    write(*, "('*****************************************************')")
+        !    write(*, "('       Mass          Birth          LifeT       id   ')")
+        !    write(*, "('*****************************************************')")
+        !    do istellar = nstellar + 1, nstellar + ncreate
+        !        write(*, "(3ES15.7,2X,i6)") mstellar(istellar), &
+        !            & tstellar(istellar), ltstellar(istellar), id_stellar(istellar)
+        !    end do
+        !end if
     end if
 
     if(sn_direct) then
@@ -324,3 +333,32 @@ subroutine sample_powerlaw(x, a, b, alpha, n)
     end do
 
 end subroutine sample_powerlaw
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+subroutine print_stellar_properties
+    use amr_commons
+    use sink_feedback_parameters
+    use constants, only: M_sun, yr2sec
+    implicit none
+    integer::i,istellar
+    real(dp)::scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v,scale_m
+
+    if(myid==1.and.nstellar>0.and.mod(nstep_coarse,ncontrol)==0) then
+        ! Scaling factors
+        call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
+        scale_m=scale_d*scale_l**ndim
+
+        write(*,*)'Number of stellar objects = ',nstellar
+        write(*, "('***********************************************')")
+        write(*, "('   id    mass[Msol]     age[yr]    lifetime[yr]')")
+        write(*, "('***********************************************')")
+        do i=1,nstellar
+            write(*, "(I5,3(2X,1PE12.5))") id_stellar(i), &
+                & mstellar(i)*scale_m/M_sun, (t-tstellar(i))*scale_t/yr2sec, ltstellar(i)*scale_t/yr2sec
+        end do
+        write(*,"('***********************************************')")
+    end if
+
+  end subroutine print_stellar_properties

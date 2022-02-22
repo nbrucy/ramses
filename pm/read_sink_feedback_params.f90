@@ -1,7 +1,7 @@
 subroutine read_stellar_params()
-  use amr_commons, only: dp, myid
+  use amr_commons, only: myid
   use pm_commons, only: iseed
-  use amr_parameters, only:stellar
+  use amr_parameters, only: dp,stellar
   use sink_feedback_parameters
   use constants, only:M_sun
   implicit none
@@ -23,7 +23,7 @@ subroutine read_stellar_params()
                          !& FB_mejecta, FB_energy, FB_thermal, &
                          !& FB_radius, FB_r_refine, &
                          !& ssm_table_directory, use_ssm, &
-                         & Vdisp
+                         & Vdisp, stellar_info
 
   real(dp):: scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v
   real(dp):: msun, Myr, km_s

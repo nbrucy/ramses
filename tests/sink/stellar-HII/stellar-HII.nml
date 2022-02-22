@@ -100,7 +100,7 @@ sn_feedback_sink=.false.
 nstellarmax=10
 stellar_msink_th=300. ! threshold for stellar obj creation
 sn_direct=.false.
-mstellarini=100,100
+mstellarini=100,100,100,100,100,100
 ! IMF
 imf_index=-2.35
 imf_low=8
