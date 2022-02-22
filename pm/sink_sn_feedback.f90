@@ -31,7 +31,7 @@ subroutine make_sn_stellar
   integer:: ilevel, ind, ix, iy, iz, ngrid, iskip, idim
   integer:: i, nx_loc, igrid, ncache
   integer, dimension(1:nvector), save:: ind_grid, ind_cell
-  real(dp):: dx, scale, dx_min, dx_loc, vol_loc
+  real(dp):: dx, scale, dx_loc, vol_loc
   real(dp), dimension(1:3):: skip_loc
   real(dp), dimension(1:twotondim, 1:3):: xc
   logical, dimension(1:nvector), save:: ok
@@ -47,7 +47,8 @@ subroutine make_sn_stellar
   real(dp)::scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v
   logical, dimension(1:nstellarmax):: mark_del
   integer:: istellar,isink
-  real(dp)::T_sn,sn_ed_lim,pnorm_sn,pnorm_sn_all,vol_sn,vol_sn_all,vol_rap, mass_sn, mass_sn_all,dens_moy
+  real(dp)::T_sn,sn_ed_lim,pnorm_sn,vol_sn,vol_rap
+  !real(dp)::vol_sn_all,pnorm_sn_all,mass_sn, mass_sn_all,dens_moy
   real(dp)::pgas_check,pgas_check_all
   integer, parameter:: navg = 3
   integer, parameter:: nsph = 1
@@ -76,23 +77,22 @@ subroutine make_sn_stellar
   if(ndim>1)skip_loc(2)=dble(jcoarse_min)
   if(ndim>2)skip_loc(3)=dble(kcoarse_min)
   scale = boxlen / dble(nx_loc)
-  dx_min = scale * 0.5d0**nlevelmax
 
   ! Conversion factor from user units to cgs units
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
 
   sn_r = 3.0d0*(0.5d0**levelmin)*scale
   if(sn_r_sat .ne. 0) sn_r = max(sn_r, sn_r_sat * pc2cm / scale_l) !impose a minimum size of 12 pc for the radius
-!  sn_r = 2.*(0.5**levelmin)*scale
   sn_m = sn_mass_ref !note this is replaced later
   sn_p_local = sn_p_ref
   sn_e_local = sn_e_ref
 
-!  if(sn_r /= 0.0) then
-    sn_vol = 4. / 3. * pi * sn_r**3
-!    sn_d = sn_m / sn_vol
-!    sn_ed = sn_e_local / sn_vol
-!  end if
+  !sn_r = 2.*(0.5**levelmin)*scale
+  !if(sn_r /= 0.0) then
+  sn_vol = 4. / 3. * pi * sn_r**3
+  !  sn_d = sn_m / sn_vol
+  !  sn_ed = sn_e_local / sn_vol
+  !end if
 
   !we loop over stellar objects to determine whether one is turning supernovae
   !after it happens, the object is removed from the list
@@ -144,113 +144,113 @@ subroutine make_sn_stellar
     if( x_sn(1) .gt. boxlen) x_sn(1) = - boxlen + x_sn(1) 
     if( x_sn(2) .gt. boxlen) x_sn(2) = - boxlen + x_sn(2) 
 
-    if(.true.) then
-      avg_center(1, :) = x_sn(:)
-      avg_radius = sn_r
-      avg_rpow = 0.0d0
-      avg_upow = 0.0d0
-      ! avg_rpow(1) = 0 ; avg_upow(1, :) = 0 -> integrand(1) = 1
-      ! avg_rpow(2) = 0 ; avg_upow(2, 1) = 1 -> integrand(2) = density
-      avg_upow(2, 1) = 1.0d0
-      ! avg_rpow(3) = 1 ; avg_upow(3, :) = 0 -> integrand(3) = radius
-      avg_rpow(3) = 1.0d0
-      call sphere_average(navg, nsph, avg_center, avg_radius, avg_rpow, avg_upow, avg)
-      vol_sn = avg(1, 1)
-      mass_sn = avg(2, 1) + vol_sn * sn_d ! region average + ejecta
-      pnorm_sn = avg(3, 1)
-    else
-      !do a first path to compute the volume of the cells that are enclosed in the supernovae radius
-      !this is to correct for the grid effects
-      vol_sn = 0. ; vol_sn_all=0.
-      mass_sn = 0. ; mass_sn_all=0.
-      pnorm_sn = 0. ; pnorm_sn_all=0.
-
-      do ilevel = levelmin, nlevelmax
-        ! Computing local volume (important for averaging hydro quantities)
-        dx = 0.5d0**ilevel
-        dx_loc = dx * scale
-        vol_loc = dx_loc**ndim
-
-        ! Cell center position relative to grid center position
-        do ind=1,twotondim
-          iz = (ind - 1) / 4
-          iy = (ind - 1 - 4 * iz) / 2
-          ix = (ind - 1 - 2 * iy - 4 * iz)
-          if(ndim>0) xc(ind,1) = (dble(ix) - 0.5d0) * dx
-          if(ndim>1) xc(ind,2) = (dble(iy) - 0.5d0) * dx
-          if(ndim>2) xc(ind,3) = (dble(iz) - 0.5d0) * dx
-        end do
-
-        ! Loop over grids
-        ncache=active(ilevel)%ngrid
-        do igrid = 1, ncache, nvector
-          ngrid = min(nvector, ncache - igrid + 1)
-          do i = 1, ngrid
-            ind_grid(i) = active(ilevel)%igrid(igrid + i - 1)
-          end do
-
-          ! Loop over cells
-          do ind = 1, twotondim
-            ! Gather cell indices
-            iskip = ncoarse + (ind - 1) * ngridmax
-            do i = 1, ngrid
-              ind_cell(i) = iskip + ind_grid(i)
-            end do
-
-            ! Gather cell center positions
-            do i = 1, ngrid
-              xx(i, :) = xg(ind_grid(i), :) + xc(ind, :)
-            end do
-            ! Rescale position from coarse grid units to code units
-            do idim=1,ndim
-               do i=1,ngrid
-                  xx(i,idim)=(xx(i,idim)-skip_loc(idim))*scale
-               end do
-            end do
-
-            ! Flag leaf cells
-            do i = 1, ngrid
-              ok(i) = (son(ind_cell(i)) == 0)
-            end do
-
-            do i = 1, ngrid
-              if(ok(i)) then
-                rr = 0.
-                do idim=1,ndim
-                   rr = rr + ( (xx(i,idim) - x_sn(idim)) / sn_r)**2
-                enddo
-
-                if(rr < 1.) then
-                  vol_sn = vol_sn + vol_loc
-                  mass_sn = mass_sn + vol_loc * (uold(ind_cell(i), 1) + sn_d)
-                  pnorm_sn = pnorm_sn + vol_loc * sqrt(rr)
-                endif
-              endif
-            end do
-            !  End loop over sublist of cells
-          end do
-          ! End loop over cells
-        end do
-        ! End loop over grids
-      end do
-      ! End loop over levels
-
-#ifndef WITHOUTMPI
-      call MPI_ALLREDUCE(vol_sn,vol_sn_all,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
-      call MPI_ALLREDUCE(mass_sn,mass_sn_all,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
-      call MPI_ALLREDUCE(pnorm_sn,pnorm_sn_all,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
-
-      vol_sn  = vol_sn_all
-      mass_sn = mass_sn_all
-      pnorm_sn = pnorm_sn_all
-#endif
-    end if
+    !if(.true.) then
+    avg_center(1, :) = x_sn(:)
+    avg_radius = sn_r
+    avg_rpow = 0.0d0
+    avg_upow = 0.0d0
+    ! avg_rpow(1) = 0 ; avg_upow(1, :) = 0 -> integrand(1) = 1
+    ! avg_rpow(2) = 0 ; avg_upow(2, 1) = 1 -> integrand(2) = density
+    avg_upow(2, 1) = 1.0d0
+    ! avg_rpow(3) = 1 ; avg_upow(3, :) = 0 -> integrand(3) = radius
+    avg_rpow(3) = 1.0d0
+    call sphere_average(navg, nsph, avg_center, avg_radius, avg_rpow, avg_upow, avg)
+    vol_sn = avg(1, 1)
+    !mass_sn = avg(2, 1) + vol_sn * sn_d ! region average + ejecta
+    pnorm_sn = avg(3, 1)
+    !else
+    !  !do a first path to compute the volume of the cells that are enclosed in the supernovae radius
+    !  !this is to correct for the grid effects
+    !  vol_sn = 0. ; vol_sn_all=0.
+    !  mass_sn = 0. ; mass_sn_all=0.
+    !  pnorm_sn = 0. ; pnorm_sn_all=0.
+    !
+    !  do ilevel = levelmin, nlevelmax
+    !    ! Computing local volume (important for averaging hydro quantities)
+    !    dx = 0.5d0**ilevel
+    !    dx_loc = dx * scale
+    !    vol_loc = dx_loc**ndim
+    !
+    !    ! Cell center position relative to grid center position
+    !    do ind=1,twotondim
+    !      iz = (ind - 1) / 4
+    !      iy = (ind - 1 - 4 * iz) / 2
+    !      ix = (ind - 1 - 2 * iy - 4 * iz)
+    !      if(ndim>0) xc(ind,1) = (dble(ix) - 0.5d0) * dx
+    !      if(ndim>1) xc(ind,2) = (dble(iy) - 0.5d0) * dx
+    !      if(ndim>2) xc(ind,3) = (dble(iz) - 0.5d0) * dx
+    !    end do
+    !
+    !    ! Loop over grids
+    !    ncache=active(ilevel)%ngrid
+    !    do igrid = 1, ncache, nvector
+    !      ngrid = min(nvector, ncache - igrid + 1)
+    !      do i = 1, ngrid
+    !        ind_grid(i) = active(ilevel)%igrid(igrid + i - 1)
+    !      end do
+    !
+    !     ! Loop over cells
+    !      do ind = 1, twotondim
+    !        ! Gather cell indices
+    !        iskip = ncoarse + (ind - 1) * ngridmax
+    !        do i = 1, ngrid
+    !          ind_cell(i) = iskip + ind_grid(i)
+    !        end do
+    !
+    !        ! Gather cell center positions
+    !        do i = 1, ngrid
+    !          xx(i, :) = xg(ind_grid(i), :) + xc(ind, :)
+    !        end do
+    !        ! Rescale position from coarse grid units to code units
+    !        do idim=1,ndim
+    !           do i=1,ngrid
+    !              xx(i,idim)=(xx(i,idim)-skip_loc(idim))*scale
+    !           end do
+    !        end do
+    !
+    !        ! Flag leaf cells
+    !        do i = 1, ngrid
+    !          ok(i) = (son(ind_cell(i)) == 0)
+    !        end do
+    !
+    !        do i = 1, ngrid
+    !          if(ok(i)) then
+    !            rr = 0.
+    !            do idim=1,ndim
+    !               rr = rr + ( (xx(i,idim) - x_sn(idim)) / sn_r)**2
+    !            enddo
+    !
+    !            if(rr < 1.) then
+    !              vol_sn = vol_sn + vol_loc
+    !              mass_sn = mass_sn + vol_loc * (uold(ind_cell(i), 1) + sn_d)
+    !              pnorm_sn = pnorm_sn + vol_loc * sqrt(rr)
+    !            endif
+    !          endif
+    !        end do
+    !        !  End loop over sublist of cells
+    !      end do
+    !      ! End loop over cells
+    !    end do
+    !    ! End loop over grids
+    !  end do
+    !  ! End loop over levels
+    !
+!#ifndef WITHOUTMPI
+    !  call MPI_ALLREDUCE(vol_sn,vol_sn_all,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
+    !  call MPI_ALLREDUCE(mass_sn,mass_sn_all,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
+    !  call MPI_ALLREDUCE(pnorm_sn,pnorm_sn_all,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
+    !
+    !  vol_sn  = vol_sn_all
+    !  mass_sn = mass_sn_all
+    !  pnorm_sn = pnorm_sn_all
+!#endif
+    !end if
 
     !compute energy and mass density
     sn_d = sn_m / vol_sn
     sn_ed = sn_e_local / vol_sn
 
-    dens_moy = mass_sn / vol_sn
+    !dens_moy = mass_sn / vol_sn
 
     dens_max_loc = 0.
     mass_sn_tot = 0.
@@ -379,7 +379,7 @@ subroutine make_sn_stellar
     pgas_check_all = pgas_check
 #endif
 
-    if(myid == 1) write(*, *) "SN momentum (injected, expected):", pgas_check_all, sn_p_local
+    if(myid == 1) write(*, *) "SN event: momentum (injected, expected)=", pgas_check_all, sn_p_local
     if(myid == 1) write(*, *) "Physical units:", pgas_check_all * scale_d * scale_l**3 * scale_v, sn_p_local * scale_d * scale_l**3 * scale_v
 
     !calculate grid effect

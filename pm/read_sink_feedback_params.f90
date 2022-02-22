@@ -2,8 +2,8 @@ subroutine read_stellar_params()
   use amr_commons, only: dp, myid
   use pm_commons, only: iseed
   use amr_parameters, only:stellar
-
   use sink_feedback_parameters
+  use constants, only:M_sun
   implicit none
 
   !------------------------------------------------------------------------
@@ -13,15 +13,17 @@ subroutine read_stellar_params()
                          & imf_index, imf_low, imf_high, &
                          & lt_t0, lt_m0, lt_a, lt_b, &
                          & stf_K, stf_m0, stf_a, stf_b, stf_c, &
-                         & hii_w, hii_alpha, hii_c, hii_t, hii_T2 , &
+                         !& hii_w, hii_alpha, hii_c, hii_T2, &
+                         & hii_t, &
                          & sn_feedback_sink,make_stellar_glob,iseed, &
                          & mstellarini, &
                          & Tsat, Vsat, sn_r_sat, sn_p, sn_e, sn_mass, &
-                         & FB_nsource, FB_on, FB_start, FB_end, FB_sourcetype, &
-                         & FB_pos_x, FB_pos_y, FB_pos_z, &
-                         & FB_mejecta, FB_energy, FB_thermal, &
-                         & FB_radius, FB_r_refine, Vdisp, &
-                         & ssm_table_directory, use_ssm
+                         !& FB_nsource, FB_on, FB_start, FB_end, FB_sourcetype, &
+                         !& FB_pos_x, FB_pos_y, FB_pos_z, &
+                         !& FB_mejecta, FB_energy, FB_thermal, &
+                         !& FB_radius, FB_r_refine, &
+                         !& ssm_table_directory, use_ssm, &
+                         & Vdisp
 
   real(dp):: scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v
   real(dp):: msun, Myr, km_s
@@ -58,7 +60,7 @@ subroutine read_stellar_params()
   call units(scale_l, scale_t, scale_d, scale_v, scale_nH, scale_T2)
 
   ! Convert parameters to code units
-  msun = 2d33 / scale_d / scale_l**3
+  msun = M_sun / scale_d / scale_l**3
   Myr = 1d6 * 365.25d0 * 86400d0 / scale_t
   km_s = 1d5 / scale_v
 
@@ -73,14 +75,11 @@ subroutine read_stellar_params()
   stf_K = stf_K * scale_t ! K is in s**(-1)
   stf_m0 = stf_m0 * msun 
 
-  hii_alpha = hii_alpha / (scale_l**3 / scale_t) ! alpha is in cm**3 / s
-  hii_c = hii_c * km_s
-
   !Careful: normalised age of the time during which the star is emitting HII ionising flux
   hii_t = hii_t * Myr 
-  hii_T2 = hii_T2 / scale_T2
-
-  ! PREVIOUS FEED PARAMS
+  !hii_T2 = hii_T2 / scale_T2
+  !hii_alpha = hii_alpha / (scale_l**3 / scale_t) ! alpha is in cm**3 / s
+  !hii_c = hii_c * km_s
 
   !normalise the supernova quantities
   sn_p_ref = sn_p / (scale_d * scale_v * scale_l**3)

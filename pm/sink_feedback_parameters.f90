@@ -54,7 +54,10 @@ module sink_feedback_parameters
 
   ! Stellar object related arrays, those parameters are read in  read_stellar_params 
   logical:: make_stellar_glob = .false. !if used, the objects are created when the total mass in sinks exceeds stellar_msink_th
-  integer:: nstellar_tot = 0 ! total number of stellar objects
+
+  !---------------------------------------------------------------------
+  ! TC: Everything below here is currently not used. Leave in for future
+  !     reference. Deals with fixed feedback sources.
 
   !     hii_w: density profile exponent (n = n_0 * (r / r_0)**(-hii_w))
   !     hii_alpha: recombination constant in code units
@@ -62,13 +65,14 @@ module sink_feedback_parameters
   !     hii_t: fiducial HII region lifetime, it is normalised in code units in read_stellar 
   !     hii_T2: HII region temperature
   real(dp):: hii_w, hii_alpha, hii_c, hii_T2
+  ! TC: these are nowhere in the code.
 
   ! Use the supernova module?
   logical::FB_on = .false.
 
   !series of supernovae specified by "hand"
   ! Number of supernovae (max limit and number active in namelist)
-  integer,parameter::NSNMAX=1000
+  integer,parameter::NSNMAX=5 !TC: limit amount of memory overhead by keeping these in the code
   integer::FB_nsource=0
 
   ! Location of single star module tables

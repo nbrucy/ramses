@@ -1,18 +1,16 @@
 #ifdef RT
 !*************************************************************************
-SUBROUTINE update_sink_RT_feedback(ilevel)
+!*************************************************************************
+!*************************************************************************
+!*************************************************************************
+SUBROUTINE update_sink_RT_feedback
 
 ! Turn on RT advection if needed.
 ! Update photon group properties from stellar populations.
 !-------------------------------------------------------------------------
-  use amr_parameters
-  use amr_commons
   use rt_parameters
-  use pm_commons
   implicit none
-  integer::ilevel
-  logical,save::groupProps_init=.false.  
-!-------------------------------------------------------------------------
+
   rt_advect=.true.
 END SUBROUTINE update_sink_RT_feedback
 !*************************************************************************
@@ -36,7 +34,7 @@ SUBROUTINE sink_RT_feedback(ilevel, dt)
   integer:: ilevel
   real(dp):: dt
   integer:: igrid, jgrid, ipart, jpart, next_part
-  integer:: i, ig, ip, npart1, npart2, icpu
+  integer:: ig, ip, npart1, npart2, icpu
   integer,dimension(1:nvector),save:: ind_grid, ind_part, ind_grid_part
   !this array gathers the ionising flux by looping over stellar object
   !note that this array is local and therefore is not declared in pm_common
@@ -49,9 +47,9 @@ SUBROUTINE sink_RT_feedback(ilevel, dt)
 
 
   !if stellar objects are used, start by looping over the stellar objects and gather their fluxes
-  if (stellar) then
-     call gather_ioni_flux(dt,sink_ioni_flux)
-  endif
+  !if (stellar) then
+  call gather_ioni_flux(dt,sink_ioni_flux)
+  !endif
 
   ! Loop over cpus
   do icpu=1,ncpu
@@ -93,13 +91,13 @@ SUBROUTINE sink_RT_feedback(ilevel, dt)
                  ind_grid_part(ip) = ig
               endif
               if(ip == nvector)then
-                 if(stellar) then 
-                    call sink_RT_vsweep_stellar( &
+                 !if(stellar) then 
+                 call sink_RT_vsweep_stellar( &
                               ind_grid,ind_part,ind_grid_part,ig,ip,dt,ilevel,sink_ioni_flux)
-                 else
-                    call sink_RT_vsweep( &
-                              ind_grid,ind_part,ind_grid_part,ig,ip,dt,ilevel)
-                 endif
+                 !else
+                 !   call sink_RT_vsweep( &
+                 !             ind_grid,ind_part,ind_grid_part,ig,ip,dt,ilevel)
+                 !endif
                  ip = 0
                  ig = 0
               end if
@@ -111,18 +109,18 @@ SUBROUTINE sink_RT_feedback(ilevel, dt)
      end do
      ! End loop over grids
      if(ip > 0) then
-                 if(stellar) then 
-                    call sink_RT_vsweep_stellar( &
-                              ind_grid,ind_part,ind_grid_part,ig,ip,dt,ilevel,sink_ioni_flux)
-                 else
-                    call sink_RT_vsweep( &
-                              ind_grid,ind_part,ind_grid_part,ig,ip,dt,ilevel)
-                 endif
+         !if(stellar) then 
+         call sink_RT_vsweep_stellar( &
+                     ind_grid,ind_part,ind_grid_part,ig,ip,dt,ilevel,sink_ioni_flux)
+         !else
+         !call sink_RT_vsweep( &
+         !            ind_grid,ind_part,ind_grid_part,ig,ip,dt,ilevel)
+         !endif
      endif
   end do 
   ! End loop over cpus
 
-111 format('   Entering sink_rt_feedback DEBUG for level ',I2)
+111 format('   Entering sink_rt_feedback for level ',I2)
 
 END SUBROUTINE sink_RT_feedback
 !*************************************************************************
@@ -144,17 +142,18 @@ SUBROUTINE gather_ioni_flux(dt,sink_ioni_flux)
   real(dp),intent(in)::dt
   real(dp),dimension(1:nsink,1:ngroups),intent(out):: sink_ioni_flux !this arrays gathers the ionising flux by looping over stellar object
   integer:: istellar,isink,ig
-  real(dp)::M_stellar,Flux_stellar,ts,dts,M_stellar_Msun
-  real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2,scale_m
+  real(dp)::M_stellar,Flux_stellar
+  !real(dp)::ts,dts,M_stellar_Msun
+  !real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2,scale_m
   real(dp),dimension(1:ngroups)::nphotons
 
   sink_ioni_flux = 0d0
-  call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
-  scale_m=scale_d*scale_l**3d0
+  !call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
+  !scale_m=scale_d*scale_l**3d0
 
-  do istellar=1,nstellar 
-     !id of the sink to which the stellar object belongs 
-     ! find correct index in sink array which will be equal or lower than id_sink due to sink merging
+  do istellar=1,nstellar
+     ! Find index in sink array of sink to which the stellar object belongs
+     ! Remark: will be equal or lower than id_sink due to sink merging
      isink = id_stellar(istellar)
      do while (id_stellar(istellar) .ne. idsink(isink))
        isink = isink - 1
@@ -163,33 +162,34 @@ SUBROUTINE gather_ioni_flux(dt,sink_ioni_flux)
      ! Reset the photon counter
      nphotons = 0d0
      Flux_stellar = 0
-     ! Use singlestar_module (reads SB99-derived tables)
-!     if (use_ssm) then
 
-!        ts = (t-tstellar(istellar))*scale_t
-!        dts = dt*scale_t
-!        M_stellar_Msun = M_stellar*(scale_m/Msun)
-!        call ssm_radiation(M_stellar_Msun,ts,dts,nphotons)
-!        write(*,*) "SSM_RADIATION", M_stellar_Msun,ts,dts,nphotons
-        ! Divide by dt so we can scale up later
-!        nphotons = nphotons/dt
-        nphotons = max(nphotons,0d0)
-!     ! Use fit to Vacca+ 1996
-!     else
-        !check whether the object is emitting
-        if (t - tstellar(istellar) < hii_t) then
-           !remember vaccafits is in code units because the corresponding parameters have been normalised in read_stellar_params (stf_K and stf_m0) 
-           call vaccafit(M_stellar,Flux_stellar)
-           ! HII-ionising is group 1 if no IR, else group 3 (IR is group 1, optical is group 2)
+     !! Use singlestar_module (reads SB99-derived tables)
+     !if (use_ssm) then
+     !   ts = (t-tstellar(istellar))*scale_t
+     !   dts = dt*scale_t
+     !   M_stellar_Msun = M_stellar*(scale_m/Msun)
+     !   call ssm_radiation(M_stellar_Msun,ts,dts,nphotons)
+     !   write(*,*) "SSM_RADIATION", M_stellar_Msun,ts,dts,nphotons
+     !   ! Divide by dt so we can scale up later
+     !   nphotons = nphotons/dt
+     !   nphotons = max(nphotons,0d0)
+     !! Use fit to Vacca+ 1996
+     !else
+
+     !check whether the object is emitting
+     if (t - tstellar(istellar) < hii_t) then
+        !remember vaccafits is in code units because the corresponding parameters have been normalised in read_stellar_params (stf_K and stf_m0)
+        call vaccafit(M_stellar,Flux_stellar)
+        ! HII-ionising is group 1 if no IR, else group 3 (IR is group 1, optical is group 2)
 #if RT
-           if (ngroups.eq.3) then
-              nphotons(1) = Flux_stellar
-           else
-              nphotons(3) = Flux_stellar
-           endif
-#endif
+        if (ngroups.eq.3) then
+           nphotons(1) = Flux_stellar
+        else
+           nphotons(3) = Flux_stellar
         endif
-!     endif
+#endif
+     endif
+     !endif
 
      do ig=1,ngroups
         ! Remove negative photon counts
@@ -235,8 +235,8 @@ SUBROUTINE sink_RT_vsweep_stellar(ind_grid,ind_part,ind_grid_part,ng,np,dt,ileve
   integer,dimension(1:nvector)::ind_grid_part,ind_part
   real(dp)::dt
   !-----------------------------------------------------------------------
-  integer::i,j,idim,nx_loc,ip,isink,ig
-  real(dp)::dx,dx_loc,scale,vol_loc,vol_cgs
+  integer::i,j,idim,nx_loc,isink,ig
+  real(dp)::dx,dx_loc,scale,vol_cgs
   ! Grid based arrays
   real(dp),dimension(1:nvector,1:ndim),save::x0
   integer ,dimension(1:nvector),save::ind_cell
@@ -250,8 +250,6 @@ SUBROUTINE sink_RT_vsweep_stellar(ind_grid,ind_part,ind_grid_part,ng,np,dt,ileve
   real(dp),dimension(1:3)::skip_loc
   ! units and temporary quantities
   real(dp)::scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v,scale_Np,scale_Fp
-  ! changed:
-  real(dp),dimension(1:nvector),save::dn
   !this arrays gather the ionising flux by looping over stellar object
   real(dp),dimension(1:nsink,1:ngroups):: sink_ioni_flux
 
@@ -350,11 +348,8 @@ SUBROUTINE sink_RT_vsweep_stellar(ind_grid,ind_part,ind_grid_part,ng,np,dt,ileve
      if( ok(j) ) then                                      !   ilevel cell
         ! Get sink index
         isink=-idp(ind_part(j))
-        ! Scale photon emission to the correct internal units
-!        dn(j) = sink_ioni_flux(isink) * dt*scale_t / dble(ncloud_sink) / vol_cgs / scale_N
-         !the flux is normalised in read_stellar_object : thus no "scale_t" here see stf_K parameter
-         
         ! deposit the photons onto the grid
+        ! remark: the flux is normalised in read_stellar_object : thus no "scale_t" here see stf_K parameter
         do ig=1,ngroups
            rtunew(indp(j),iGroups(ig))=rtunew(indp(j),iGroups(ig)) + &
                 sink_ioni_flux(isink,ig) * dt / dble(ncloud_sink) / vol_cgs / scale_Np
@@ -368,6 +363,7 @@ END SUBROUTINE sink_RT_vsweep_stellar
 !*************************************************************************
 !*************************************************************************
 !*************************************************************************
+!TC: currently not used since we now use the stellar particle method. Leave in as a reference.
 SUBROUTINE sink_RT_vsweep(ind_grid,ind_part,ind_grid_part,ng,np,dt,ilevel)
 
 ! This routine is called by subroutine sink_rt_feedback.
@@ -402,7 +398,7 @@ SUBROUTINE sink_RT_vsweep(ind_grid,ind_part,ind_grid_part,ng,np,dt,ilevel)
   integer,dimension(1:nvector)::ind_grid_part,ind_part
   real(dp)::dt, sourcemass
   !-----------------------------------------------------------------------
-  integer::i,j,idim,nx_loc,ip,isink
+  integer::i,j,idim,nx_loc,isink
   real(dp)::dx,dx_loc,scale,vol_loc,vol_cgs
   logical::error
   ! Grid based arrays
@@ -454,10 +450,7 @@ SUBROUTINE sink_RT_vsweep(ind_grid,ind_part,ind_grid_part,ng,np,dt,ilevel)
   scale_msun = scale_d * scale_l**ndim / m_sun    
   vol_cgs = (dx_loc*scale_l)**ndim
 
-
-
   ! Ep2Np=(scale_d * scale_v**2)/( scale_Np * group_egy(iIR) * ev_to_erg)
-
 
   ! Lower left corners of 3x3x3 grid-cubes (with given grid in center)
   do idim = 1, ndim

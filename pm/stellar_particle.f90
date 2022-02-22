@@ -18,6 +18,7 @@ subroutine make_stellar_from_sinks
   if(verbose) write(*,*) 'Entering make_stellar_from_sinks'
 
   nbuf = 0
+
   do isink = 1, nsink
     do while(dmfsink(isink) .gt. stellar_msink_th)
       dmfsink(isink) = dmfsink(isink) - stellar_msink_th
@@ -31,6 +32,7 @@ subroutine make_stellar_from_sinks
       buf_id(nbuf) = idsink(isink)
     end do
   end do
+
   call create_stellar(nbuf, nbufmax, buf, buf_id, .true.)
 
 end subroutine make_stellar_from_sinks
@@ -49,7 +51,6 @@ subroutine make_stellar_from_sinks_glob
   implicit none
 
   integer:: isink
-
   integer:: nbuf
   integer, parameter:: nbufmax = 1000
   real(dp), dimension(1:nbufmax, 1:ndim):: buf
@@ -85,19 +86,20 @@ subroutine make_stellar_from_sinks_glob
   endif
 
   do iobj = nsink - nobj_new + 1, nsink
-      isink = idsink_sort(iobj)
-      !note with this formulation dmfsink can be negative 
-      dmfsink(isink) = dmfsink(isink) - stellar_msink_th
+     isink = idsink_sort(iobj)
+     !note with this formulation dmfsink can be negative
+     dmfsink(isink) = dmfsink(isink) - stellar_msink_th
 
-      nbuf = nbuf + 1
-      if(nbuf > nbufmax) then
+     nbuf = nbuf + 1
+     if(nbuf > nbufmax) then
         call create_stellar(nbufmax, nbufmax, buf, buf_id, .true.)
         nbuf = 1
-      end if
+     end if
 
-      buf(nbuf, 1:ndim) = xsink(isink, 1:ndim)
-      buf_id(nbuf) = idsink(isink)
+     buf(nbuf, 1:ndim) = xsink(isink, 1:ndim)
+     buf_id(nbuf) = idsink(isink)
   end do
+
   call create_stellar(nbuf, nbufmax, buf, buf_id, .true.)
 
 end subroutine make_stellar_from_sinks_glob
@@ -121,8 +123,8 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
     integer:: ncreate_loc
     real(dp), dimension(1:ncreate):: mnew_loc, ltnew_loc
     real(dp), dimension(1:ncreate):: mnew, tnew, ltnew
-    real(dp):: scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v
-    real(dp):: msun
+    !real(dp):: scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v
+    !real(dp):: msun
     
 #ifndef WITHOUTMPI
     integer, dimension(1:ncpu)::displ
@@ -133,8 +135,8 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
 
     if(ncreate == 0) return
 
-    call units(scale_l, scale_t, scale_d, scale_v, scale_nH, scale_T2)
-    msun = M_sun / scale_d / scale_l**3
+    !call units(scale_l, scale_t, scale_d, scale_v, scale_nH, scale_T2)
+    !msun = M_sun / scale_d / scale_l**3
     
     ! Check that there is enough space
     if(ncreate + nstellar > nstellarmax) then
@@ -157,7 +159,6 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
     ncreate_loc = ncreate
 #endif
 
-
     ! Draw random masses fro the IMF
     call sample_powerlaw(mnew_loc, imf_low, imf_high, imf_index, ncreate_loc)
 
@@ -165,20 +166,20 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
     ! Use single stellar module?
 
 !added by PH to make it use-able without RT
-#ifdef RT
+!#ifdef RT
 !    if (use_ssm) then
 !       do iloc=1,ncreate_loc
 !          call ssm_lifetime(mnew_loc(iloc)/msun,ltnew_loc(iloc))
 !          ltnew_loc(iloc) = ltnew_loc(iloc) / scale_t
 !       end do
 !    else    
-       ltnew_loc(1:ncreate_loc) = lt_t0 * &
-            & exp(lt_a * (log(lt_m0 / mnew_loc))**lt_b)
+!       ltnew_loc(1:ncreate_loc) = lt_t0 * &
+!            & exp(lt_a * (log(lt_m0 / mnew_loc))**lt_b)
 !    endif
-#else
+!#else
        ltnew_loc(1:ncreate_loc) = lt_t0 * &
             & exp(lt_a * (log(lt_m0 / mnew_loc))**lt_b)
-#endif
+!#endif
 
 
     ! Communicate data
@@ -211,18 +212,18 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
              mstellar(istellar) = mstellarini(istellar)
 
 !added by PH to make it use-able without RT
-#ifdef RT
+!#ifdef RT
 !            if (use_ssm) then
 !               call ssm_lifetime(mstellar(istellar)/msun,ltnew(istellar-nstellar))
 !               ltnew(istellar-nstellar) = ltnew(istellar-nstellar) / scale_t
 !            else
-               ltnew(istellar-nstellar) = lt_t0 * &
-                    & exp(lt_a * (log(lt_m0 / mstellar(istellar)))**lt_b)
+!               ltnew(istellar-nstellar) = lt_t0 * &
+!                    & exp(lt_a * (log(lt_m0 / mstellar(istellar)))**lt_b)
 !            endif
-#else
+!#else
                ltnew(istellar-nstellar) = lt_t0 * &
                     & exp(lt_a * (log(lt_m0 / mstellar(istellar)))**lt_b)
-#endif
+!#endif
 
          endif
        endif
