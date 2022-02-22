@@ -10,6 +10,9 @@ subroutine make_stellar_from_sinks
   integer:: nbuf
   integer, parameter:: nbufmax = 1000
   integer, dimension(1:nbufmax):: buf_id
+  real(dp):: mass_total
+  integer:: iobj,nobj_new
+  real(dp), dimension(1:nsink) :: dmfsink_sort
 
   if(.not. hydro) return
   if(ndim /= 3) return
@@ -18,18 +21,59 @@ subroutine make_stellar_from_sinks
 
   nbuf = 0
 
-  do isink = 1, nsink
-    do while(dmfsink(isink) .gt. stellar_msink_th)
-      dmfsink(isink) = dmfsink(isink) - stellar_msink_th
-      nbuf = nbuf + 1
-      if(nbuf > nbufmax) then
-        call create_stellar(nbufmax, nbufmax, buf_id)
-        nbuf = 1
-      end if
+  if(.not.make_stellar_glob)then
+     ! Check for each sink whether a stellar particle (or multiple) should be created
+     do isink = 1, nsink
+        do while(dmfsink(isink) .gt. stellar_msink_th)
+           dmfsink(isink) = dmfsink(isink) - stellar_msink_th
+           nbuf = nbuf + 1
+           if(nbuf > nbufmax) then
+              call create_stellar(nbufmax, nbufmax, buf_id)
+              nbuf = 1
+           end if
+           ! save ID of sink
+           buf_id(nbuf) = idsink(isink)
+        end do
+     end do
+  else !global
+     ! Determine how many new stellar objects must be created by summing all the mass
+     ! within sinks and looking at how many objects have been created already.
+     ! It then places them on the sinks which have the largest dmfsink, i.e. recently accreted gas 
 
-      buf_id(nbuf) = idsink(isink)
-    end do
-  end do
+     !compare the total number of objects formed and the mass of the sinks
+     mass_total = sum(dmfsink)
+
+     !number of objects to be created
+     nobj_new = mass_total / stellar_msink_th
+
+     !order the sinks by recently accreted mass
+     dmfsink_sort = dmfsink
+     call quick_sort_dp(dmfsink_sort,idsink_sort,nsink)
+
+     !loop over the sinks ranked by recently accreted mass
+     !one object per sink is assumed
+     !this assumes that the number of sinks is larger than the number of objects
+     if(nobj_new .gt. nsink) then
+        write(*,*) 'number of new objects is larger than the number of sinks ',nobj_new, nsink
+        write(*,*) 'use make_stellar_glob=.false.' 
+        stop
+     endif
+
+     do iobj = nsink - nobj_new + 1, nsink
+        isink = idsink_sort(iobj)
+        !note with this formulation dmfsink can be negative
+        dmfsink(isink) = dmfsink(isink) - stellar_msink_th
+
+        nbuf = nbuf + 1
+        if(nbuf > nbufmax) then
+           call create_stellar(nbufmax, nbufmax, buf_id)
+           nbuf = 1
+        end if
+
+        buf_id(nbuf) = idsink(isink)
+     end do
+
+  endif
 
   call create_stellar(nbuf, nbufmax, buf_id)
 
@@ -38,75 +82,6 @@ subroutine make_stellar_from_sinks
   end if
 
 end subroutine make_stellar_from_sinks
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!! This routine determines how many new stellar objects must be created by summing all the mass
-!! within sinks and looking at how many objects have been created already
-!! It then places them on the sinks which have the largest dmfsink, i.e. recently accreted gas  
-subroutine make_stellar_from_sinks_glob
-  use pm_commons
-  use amr_commons
-  use sink_feedback_parameters
-  use mpi_mod
-  implicit none
-
-  integer:: isink
-  integer:: nbuf
-  integer, parameter:: nbufmax = 1000
-  integer, dimension(1:nbufmax):: buf_id
-  real(dp):: mass_total
-  integer:: iobj,nobj_new
-  real(dp), dimension(1:nsink) :: dmfsink_sort
-   
-  if(.not. hydro) return
-  if(ndim /= 3) return
-
-  if(verbose) write(*,*) 'Entering make_stellar_from_sinks'
-
-  !compare the total number of objects formed and the mass of the sinks
-  mass_total = sum(dmfsink)
-
-  !number of objects to be created
-  nobj_new = mass_total / stellar_msink_th
-
-  !order the sinks by recently accreted mass
-  dmfsink_sort = dmfsink
-  call quick_sort_dp(dmfsink_sort,idsink_sort,nsink)
-
-  !loop over the sinks ranked by recently accreted mass
-  !one object per sink is assumed
-  nbuf = 0
-
-  !this assumes that the number of sinks is larger than the number of objects
-  if(nobj_new .gt. nsink) then
-     write(*,*) 'number of new objects is larger than the number of sinks ',nobj_new, nsink
-     write(*,*) 'use make_stellar_from_sinks instead of make_stellar_from_sinks_glob or modify the code' 
-     stop
-  endif
-
-  do iobj = nsink - nobj_new + 1, nsink
-     isink = idsink_sort(iobj)
-     !note with this formulation dmfsink can be negative
-     dmfsink(isink) = dmfsink(isink) - stellar_msink_th
-
-     nbuf = nbuf + 1
-     if(nbuf > nbufmax) then
-        call create_stellar(nbufmax, nbufmax, buf_id)
-        nbuf = 1
-     end if
-
-     buf_id(nbuf) = idsink(isink)
-  end do
-
-  call create_stellar(nbuf, nbufmax, buf_id)
-
-  if (stellar_info)then
-    call print_stellar_properties
-  end if
-
-end subroutine make_stellar_from_sinks_glob
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

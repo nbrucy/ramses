@@ -11,7 +11,7 @@ recursive subroutine amr_step(ilevel,icount)
   use coolrates_module, only: update_coolrates_tables
   use rt_cooling_module, only: update_UVrates
 #endif
-  use sink_feedback_parameters, only: sn_feedback_sink,make_stellar_glob
+  use sink_feedback_parameters, only: sn_feedback_sink
 #if USE_TURB==1
   use turb_commons
 #endif
@@ -205,11 +205,7 @@ recursive subroutine amr_step(ilevel,icount)
   ! Feedback on sink particles
   !----------------------------------------------------
   if((ilevel==levelmin) .and. stellar) then
-     if(make_stellar_glob) then
-        call make_stellar_from_sinks_glob
-     else
-        call make_stellar_from_sinks
-     endif
+     call make_stellar_from_sinks
   endif
   if (sn_feedback_sink) then
      call make_sn_stellar

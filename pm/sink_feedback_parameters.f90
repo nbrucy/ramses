@@ -7,6 +7,8 @@ module sink_feedback_parameters
   real(dp):: imf_index, imf_low, imf_high ! power-law IMF model: PDF index (dN/dM), lower and higher mass bounds (Msun)
   real(dp):: lt_t0, lt_m0, lt_a, lt_b     ! Stellar lifetime model: t(M) = lt_t0 * exp(lt_a * (log(lt_m0 / M))**lt_b)
 
+  logical:: make_stellar_glob = .false.   !if used, the objects are created when the total mass in sinks exceeds stellar_msink_th
+
   real(dp):: stellar_msink_th                  ! sink mass threshold for stellar object creation (Msun)
 
   ! Allow users to pre-set stellar mass selection for physics comparison runs, etc
@@ -51,9 +53,6 @@ module sink_feedback_parameters
   integer:: nstellar = 0 ! current number of stellar objects
   real(dp), allocatable, dimension(:):: mstellar, tstellar, ltstellar ! mass, birth time, life time
   integer, allocatable, dimension(:):: id_stellar                     !the id  of the sink to which it belongs
-
-  ! Stellar object related arrays, those parameters are read in  read_stellar_params 
-  logical:: make_stellar_glob = .false. !if used, the objects are created when the total mass in sinks exceeds stellar_msink_th
 
   !---------------------------------------------------------------------
   ! TC: Everything below here is currently not used. Leave in for future
