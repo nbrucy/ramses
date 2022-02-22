@@ -1,23 +1,3 @@
-SUBROUTINE vaccafit(M,S)
-  ! This routine is called in sink_RT_feedback
-  ! perform a fit of the Vacca et al. 96 ionising flux
-  ! M - stellar mass / solar masses
-  ! S - photon emission rate in / s
-
-  use amr_parameters,only:dp
-  use sink_feedback_parameters
-  implicit none
-
-  real(dp),intent(in)::M
-  real(dp),intent(out)::S
-  
-  S = stf_K * (M / stf_m0)**stf_a / (1. + (M / stf_m0)**stf_b)**stf_c
-
-END SUBROUTINE
-!################################################################
-!################################################################
-!################################################################
-!################################################################
 subroutine make_sn_stellar
   use pm_commons
   use amr_commons
