@@ -48,7 +48,6 @@ module sink_feedback_parameters
   ! stellar object arrays
   integer:: nstellar = 0 ! current number of stellar objects
   real(dp), allocatable, dimension(:):: mstellar, tstellar, ltstellar ! mass, birth time, life time
-  real(dp), allocatable, dimension(:, :):: xstellar                   ! stellar object position
   integer, allocatable, dimension(:):: id_stellar                     !the id  of the sink to which it belongs
 
   ! Stellar object related arrays, those parameters are read in  read_stellar_params 

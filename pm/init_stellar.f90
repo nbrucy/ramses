@@ -14,14 +14,13 @@ subroutine init_stellar
     character(len=5):: nchar, ncharcpu
     integer:: idim
     integer::sid
-    real(dp)::sm,stform,stlife,x1,x2,x3
+    real(dp)::sm,stform,stlife
     character::co
     character(LEN=200)::comment_line
 
     if(.not. stellar) return
 
     ! Allocate all stellar object related quantities
-    allocate(xstellar(1:nstellarmax, 1:ndim))
     allocate(mstellar(1:nstellarmax))
     allocate(tstellar(1:nstellarmax))
     allocate(ltstellar(1:nstellarmax))
@@ -56,15 +55,11 @@ subroutine init_stellar
         read(ilun,'(A200)')comment_line
         read(ilun,'(A200)')comment_line
         do
-            read(ilun,'(I10,6(A1,ES20.10))',end=104)sid,co,sm,co,&
-                                x1,co,x2,co,x3,co,&
+            read(ilun,'(I10,3(A1,ES20.10))',end=104)sid,co,sm,co,&
                                 stform,co,stlife
             nstellar=nstellar+1
             id_stellar(nstellar)=sid
             mstellar(nstellar)=sm
-            xstellar(nstellar,1)=x1
-            xstellar(nstellar,2)=x2
-            xstellar(nstellar,3)=x3
             tstellar(nstellar)=stform
             ltstellar(nstellar)=stlife
         end do

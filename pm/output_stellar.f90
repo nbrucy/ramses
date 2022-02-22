@@ -16,11 +16,10 @@ subroutine output_stellar_csv(filename)
   !======================
   ! Write stellar properties
   !======================
-  write(ilun,'(" # id,mstellar,x1,x2,x3,tform,tlife ")')
+  write(ilun,'(" # id,mstellar,tform,tlife ")')
   write(ilun,'(" # 1,m,t,t")')
   do istellar=1,nstellar
-     write(ilun,'(I10,6(A1,ES20.10))')id_stellar(istellar),',',mstellar(istellar),&
-          ',',xstellar(istellar,1),',',xstellar(istellar,2),',',xstellar(istellar,3),&
+     write(ilun,'(I10,3(A1,ES20.10))')id_stellar(istellar),',',mstellar(istellar),&
           ',',tstellar(istellar),',',ltstellar(istellar)
   end do
 

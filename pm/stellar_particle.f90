@@ -9,7 +9,6 @@ subroutine make_stellar_from_sinks
 
   integer:: nbuf
   integer, parameter:: nbufmax = 1000
-  real(dp), dimension(1:nbufmax, 1:ndim):: buf
   integer, dimension(1:nbufmax):: buf_id
 
   if(.not. hydro) return
@@ -24,16 +23,15 @@ subroutine make_stellar_from_sinks
       dmfsink(isink) = dmfsink(isink) - stellar_msink_th
       nbuf = nbuf + 1
       if(nbuf > nbufmax) then
-        call create_stellar(nbufmax, nbufmax, buf, buf_id, .true.)
+        call create_stellar(nbufmax, nbufmax, buf_id, .true.)
         nbuf = 1
       end if
 
-      buf(nbuf, 1:ndim) = xsink(isink, 1:ndim)
       buf_id(nbuf) = idsink(isink)
     end do
   end do
 
-  call create_stellar(nbuf, nbufmax, buf, buf_id, .true.)
+  call create_stellar(nbuf, nbufmax, buf_id, .true.)
 
 end subroutine make_stellar_from_sinks
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -53,7 +51,6 @@ subroutine make_stellar_from_sinks_glob
   integer:: isink
   integer:: nbuf
   integer, parameter:: nbufmax = 1000
-  real(dp), dimension(1:nbufmax, 1:ndim):: buf
   integer, dimension(1:nbufmax):: buf_id
   real(dp):: mass_total
   integer:: iobj,nobj_new
@@ -92,22 +89,21 @@ subroutine make_stellar_from_sinks_glob
 
      nbuf = nbuf + 1
      if(nbuf > nbufmax) then
-        call create_stellar(nbufmax, nbufmax, buf, buf_id, .true.)
+        call create_stellar(nbufmax, nbufmax, buf_id, .true.)
         nbuf = 1
      end if
 
-     buf(nbuf, 1:ndim) = xsink(isink, 1:ndim)
      buf_id(nbuf) = idsink(isink)
   end do
 
-  call create_stellar(nbuf, nbufmax, buf, buf_id, .true.)
+  call create_stellar(nbuf, nbufmax, buf_id, .true.)
 
 end subroutine make_stellar_from_sinks_glob
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
+subroutine create_stellar(ncreate, nbuf, id_new, print_table)
     use amr_commons, only: dp, myid, ncpu, ndim, t
     use sink_feedback_parameters
     use constants, only:M_sun
@@ -117,7 +113,6 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
     ! Create new stellar objects
     !------------------------------------------------------------------------
     integer, intent(in):: ncreate, nbuf
-    real(dp), dimension(1:nbuf, 1:ndim), intent(in):: xnew
     integer, dimension(1:nbuf), intent(in):: id_new
     logical, intent(in):: print_table
     integer:: ncreate_loc
@@ -192,7 +187,6 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
 #endif
 
     ! Add new objects to the arrays
-    xstellar(nstellar+1:nstellar+ncreate, 1:ndim) = xnew(1:ncreate, 1:ndim)
     id_stellar(nstellar+1:nstellar+ncreate) = id_new(1:ncreate)
     ! Set birth time to current time
     tstellar(nstellar+1:nstellar+ncreate) = t
@@ -234,12 +228,11 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
     if(myid == 1) then
         write(*, "('Created ', I5, ' stellar objects:')") ncreate
         if(print_table) then
-            write(*, "('===================================================================================================')")
-            write(*, "('       x              y              z               Mass          Birth          LifeT       id   ')")
-            write(*, "('===================================================================================================')")
+            write(*, "('============================================================')")
+            write(*, "('       Mass          Birth          LifeT       id   ')")
+            write(*, "('============================================================')")
             do istellar = nstellar + 1, nstellar + ncreate
-                write(*, "(3F15.10, 2X, 3ES15.7,2X,i6)") xstellar(istellar, 1), xstellar(istellar, 2), xstellar(istellar, 3), &
-                    & mstellar(istellar), tstellar(istellar), ltstellar(istellar), id_stellar(istellar)
+                write(*, "(3ES15.7,2X,i6)") mstellar(istellar), tstellar(istellar), ltstellar(istellar), id_stellar(istellar)
             end do
         end if
     end if
@@ -282,7 +275,6 @@ subroutine delete_stellar(flag_delete)
     do i = 1, nstellar
         if(.not. flag_any(i)) then
             if(i > inew) then
-                xstellar(inew, 1:ndim) = xstellar(i, 1:ndim)
                 id_stellar(inew) = id_stellar(i)
                 mstellar(inew) = mstellar(i)
                 tstellar(inew) = tstellar(i)
