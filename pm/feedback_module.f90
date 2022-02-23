@@ -147,6 +147,7 @@ subroutine make_sn_stellar
   use pm_commons
   use amr_commons
   use hydro_commons
+  use constants, only:pi,pc2cm
   implicit none
 #ifndef WITHOUTMPI
   include 'mpif.h'
@@ -164,7 +165,7 @@ subroutine make_sn_stellar
 
   real(dp), dimension(1:nvector, 1:ndim), save:: xx
   real(dp):: sn_r, sn_m, sn_p, sn_e, sn_vol, sn_d, sn_ed, sn_rp
-  real(dp):: rr, pi,dens_max,pgas,dgas,ekin,mass_sn_tot,dens_max_all,mass_sn_tot_all
+  real(dp):: rr, dens_max,pgas,dgas,ekin,mass_sn_tot,dens_max_all,mass_sn_tot_all
   integer:: n_sn,n_sn_all,info
   integer ,dimension(1:nvector)::cc
   real(dp),dimension(1:nvector,1:ndim)::x
@@ -199,7 +200,7 @@ subroutine make_sn_stellar
 
   if(verbose)write(*,*)'Entering make_sn_stellar'
 
-  pi = acos(-1.0)
+  !pi = acos(-1.0)
 
   if (first) then
      xseed = 0.5
@@ -220,7 +221,7 @@ subroutine make_sn_stellar
   ! Conversion factor from user units to cgs units
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
   scale_m=scale_d*(scale_l**3)
-  pc = 3.08d18 / scale_l
+  pc = pc2cm / scale_l
 
   sn_r = 3.0d0*(0.5d0**levelmin)*scale
   if(sn_r_sat .ne. 0) sn_r = max(sn_r, sn_r_sat * pc) !impose a minimum size of 12 pc for the radius

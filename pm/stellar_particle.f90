@@ -8,7 +8,7 @@ subroutine read_stellar_params()
     use cooling_module, only: mH
     use amr_commons, only: dp, myid
     use pm_commons, only: iseed
-
+    use constants, only: M_sun
     use feedback_module
     implicit none
 
@@ -59,7 +59,7 @@ subroutine read_stellar_params()
     call units(scale_l, scale_t, scale_d, scale_v, scale_nH, scale_T2)
 
     ! Convert parameters to code units
-    msun = 2d33 / scale_d / scale_l**3
+    msun = M_sun / scale_d / scale_l**3
     Myr = 1d6 * 365.25d0 * 86400d0 / scale_t
     km_s = 1d5 / scale_v
 
@@ -216,6 +216,7 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
 !                         & nstellarmax, nstellar, stellar_msink_th, &
 !                         & xstellar, mstellar, tstellar, ltstellar
     use amr_commons, only: dp, myid, ncpu, ndim, t
+    use constants, only:M_sun
 
     use feedback_module
     implicit none
@@ -250,7 +251,7 @@ subroutine create_stellar(ncreate, nbuf, xnew, id_new, print_table)
     if(ncreate == 0) return
 
     call units(scale_l, scale_t, scale_d, scale_v, scale_nH, scale_T2)
-    msun = 2d33 / scale_d / scale_l**3
+    msun = M_sun / scale_d / scale_l**3
     
     ! Check that there is enough space
     if(ncreate + nstellar > nstellarmax) then
