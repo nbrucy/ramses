@@ -994,7 +994,7 @@ subroutine  calc_temp_extinc(NN,TT,dt_tot_unicode,coeff_chi)
      
      !PH modifies this as coeff_chi is now stored
      !The '0' represents XH2 which is 0 because H2 is not treated when called from this routine
-     call hot_cold_2(TT,NN,ref,dRefDT,coeff_chi,0)    
+     call hot_cold_2(TT,NN,ref,dRefDT,coeff_chi,0.d0)    
      !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
      
      if (iter == 0) then
