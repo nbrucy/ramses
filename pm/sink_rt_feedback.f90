@@ -155,13 +155,18 @@ SUBROUTINE gather_ioni_flux(dt,sink_ioni_flux)
      !write(*,*)"cpu",myid,"DEBUG istellar",istellar,", id_stellar",id_stellar(istellar)
      ! Find index in sink array of sink to which the stellar object belongs
      ! Remark: will be equal or lower than id_sink due to sink merging
-     isink = 1!id_stellar(istellar)
+     ! BUGGY, old arrays not properly cleaned up
+     !isink = id_stellar(istellar)
+     !do while (id_stellar(istellar) .ne. idsink(isink))
+     !  isink = isink - 1
+     !end do
+     isink = 1
      do while ((isink.le.nsink) .and. (id_stellar(istellar) .ne. idsink(isink)))
-       isink = isink + 1
+        isink = isink + 1
      end do
      if (isink.gt.nsink) then
-       write(*,*)"BUG: COULD NOT FIND SINK"
-       call clean_stop 
+        write(*,*)"BUG: COULD NOT FIND SINK"
+        call clean_stop
      endif
      M_stellar = mstellar(istellar)
      ! Reset the photon counter
