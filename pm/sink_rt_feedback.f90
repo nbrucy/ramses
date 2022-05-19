@@ -152,12 +152,17 @@ SUBROUTINE gather_ioni_flux(dt,sink_ioni_flux)
   !scale_m=scale_d*scale_l**3d0
 
   do istellar=1,nstellar
+     !write(*,*)"cpu",myid,"DEBUG istellar",istellar,", id_stellar",id_stellar(istellar)
      ! Find index in sink array of sink to which the stellar object belongs
      ! Remark: will be equal or lower than id_sink due to sink merging
-     isink = id_stellar(istellar)
-     do while (id_stellar(istellar) .ne. idsink(isink))
-       isink = isink - 1
+     isink = 1!id_stellar(istellar)
+     do while ((isink.le.nsink) .and. (id_stellar(istellar) .ne. idsink(isink)))
+       isink = isink + 1
      end do
+     if (isink.gt.nsink) then
+       write(*,*)"BUG: COULD NOT FIND SINK"
+       call clean_stop 
+     endif
      M_stellar = mstellar(istellar)
      ! Reset the photon counter
      nphotons = 0d0
@@ -189,6 +194,7 @@ SUBROUTINE gather_ioni_flux(dt,sink_ioni_flux)
      endif
      !endif
 
+     !write(*,*) "cpu",myid,"DEBUG isink",isink
      do ig=1,ngroups
         ! Remove negative photon counts
         nphotons(ig) = max(nphotons(ig),0d0)
