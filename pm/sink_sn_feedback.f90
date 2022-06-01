@@ -82,10 +82,14 @@ subroutine make_sn_stellar
     mark_del(istellar) = .true.
 
     ! find correct index in sink array which will be equal or lower than id_sink due to sink merging
-    isink = id_stellar(istellar)
-    do while (id_stellar(istellar) .ne. idsink(isink))
-      isink = isink - 1
+    isink = 1
+    do while ((isink.le.nsink) .and. (id_stellar(istellar) .ne. idsink(isink)))
+      isink = isink + 1
     end do
+    if (isink.gt.nsink) then
+      write(*,*)"BUG: COULD NOT FIND SINK"
+      call clean_stop
+    endif
 
     ! the mass of the massive stars 
     sn_m = mstellar(istellar) 
