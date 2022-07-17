@@ -6,7 +6,7 @@
 # Do we want a debug build? 1=Yes, 0=No
 DEBUG = 0
 # Compiler flavor: GNU or INTEL
-COMPILER = INTEL
+COMPILER = GNU
 # Size of vector cache
 NVECTOR = 32
 # Number of dimensions
@@ -197,7 +197,7 @@ HYDROOBJ = init_hydro.o init_flow_fine.o write_screen.o output_hydro.o \
            courant_fine.o godunov_fine.o uplmde.o umuscl.o interpol_hydro.o \
            godunov_utils.o condinit.o  condinit_cloud.o condinit_galbox.o \
 			  hydro_flag.o hydro_boundary.o boundana.o \
-           read_hydro_params.o synchro_hydro_fine.o cooling_module_frig.o
+           read_hydro_params.o synchro_hydro_fine.o cooling_module_ism.o cooling_module_frig.o
 # RT objects
 RTOBJ = rt_init_hydro.o rt_init_xion.o rt_init.o rt_init_flow_fine.o \
         rt_output_hydro.o rt_godunov_fine.o rt_interpol_hydro.o \
