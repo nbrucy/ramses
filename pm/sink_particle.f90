@@ -1791,6 +1791,7 @@ subroutine update_sink(ilevel)
   msum_overlap=msink
 
   ! Check for overlapping sinks
+  if (allow_merge_sink) then
   do isink=1,nsink-1
      if (msink(isink)>0.)then
         do jsink=isink+1,nsink
@@ -1890,6 +1891,7 @@ subroutine update_sink(ilevel)
         end do
      end if
   end do
+  endif
 
   ! Store old xsink and fsink for the gradient descent timestep
   xsinkold=0.0
@@ -2496,7 +2498,7 @@ subroutine read_sink_params()
   integer::nx_loc
   namelist/sink_params/n_sink,rho_sink,d_sink,accretion_scheme,merging_timescale,&
        ir_cloud_massive,sink_soft,mass_sink_direct_force,ir_cloud,nsinkmax,create_sinks,&
-       mass_sink_seed,mass_smbh_seed,c_acc,nlevelmax_sink,&
+       mass_sink_seed,mass_smbh_seed,c_acc,nlevelmax_sink,allow_merge_sink,&
        eddington_limit,acc_sink_boost,mass_merger_vel_check,&
        clump_core,verbose_AGN,T2_AGN,T2_min,cone_opening,mass_halo_AGN,mass_clump_AGN,mass_star_AGN,&
        AGN_fbk_frac_ener,AGN_fbk_frac_mom,T2_max,boost_threshold_density,&

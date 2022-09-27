@@ -10,22 +10,22 @@ COMPILER = GNU
 # Size of vector cache
 NVECTOR = 32
 # Number of dimensions
-NDIM = 3
+NDIM = 2
 # Float precision size
 NPRE = 8
-# hydro/mhd solver
+# hydro/mhd/rhd solver
 SOLVER = mhd
 # Patch
-PATCH = ../patch/back-reaction
+PATCH = '../patch/mhdconv'
 # Use RT? 1=Yes, 0=No
 RT = 0
 # Use turbulence? 1=Yes, 0=No (requires fftw3)
 USE_TURB=0
 # Use MPI? 1=Yes, 0=No
-MPI = 0
+MPI = 1
 MPIF90 = mpif90
 # Root name of executable
-EXEC = ramses
+EXEC = ramsesMHD_testentropy
 # Number of additional energies
 NENER = 0
 # Use Grackle cooling? 1=Yes, 0=No
@@ -35,11 +35,12 @@ NMETALS = 0
 # ATON flages: Uncomment to enable ATON
 ATON_FLAGS = #-DATON
 # Number of ions for RT
+# use 1 for HI+HII, +1 for added H2, +2 for added HeI, HeII, HeIII
 NIONS = 0
 # Number of photon groups for RT
 NGROUPS = 0
 # Number of passive scalars
-NPSCAL = 4
+NPSCAL = 1
 
 # Compute NVAR
 NVAR = 2+$(NDIM)
@@ -52,7 +53,7 @@ ifeq ($(RT),1)
 endif
 
 # Set to one to use 'include "mpif.h"' instead of more recent "use mpi"
-OLD_MPI_SUPPORT = 1
+OLD_MPI_SUPPORT = 0
 #############################################################################
 GITBRANCH = $(shell git rev-parse --abbrev-ref HEAD)
 GITHASH = $(shell git log --pretty=format:'%H' -n 1)
@@ -147,7 +148,7 @@ VPATH += ../hydro:../pm:../poisson:../amr:../io
 #############################################################################
 # All objects
 MODOBJ = mpi_mod.o amr_parameters.o amr_commons.o random.o pm_parameters.o \
-         pm_commons.o poisson_parameters.o dump_utils.o constants.o
+         pm_commons.o poisson_parameters.o dump_utils.o constants.o file_module.o
 ifeq ($(GRACKLE),1)
    MODOBJ += grackle_parameters.o
 endif
@@ -166,7 +167,7 @@ AMROBJ = read_params.o init_amr.o init_time.o init_refine.o tracer_utils.o adapt
          amr_step.o update_time.o output_amr.o flag_utils.o \
          physical_boundaries.o virtual_boundaries.o refine_utils.o \
          nbors_utils.o hilbert.o load_balance.o title.o sort.o cooling_fine.o \
-         units.o light_cone.o movie.o memory.o end.o
+         eos.o units.o light_cone.o movie.o memory.o end.o
 # Particle-Mesh objects
 PMOBJ = init_part.o output_part.o rho_fine.o synchro_fine.o move_fine.o \
         newdt_fine.o particle_tree.o add_list.o remove_list.o star_formation.o \
@@ -182,7 +183,7 @@ POISSONOBJ = init_poisson.o phi_fine_cg.o interpol_phi.o force_fine.o \
 HYDROOBJ = init_hydro.o init_flow_fine.o write_screen.o output_hydro.o \
            courant_fine.o godunov_fine.o uplmde.o umuscl.o interpol_hydro.o \
            godunov_utils.o condinit.o hydro_flag.o hydro_boundary.o boundana.o \
-           read_hydro_params.o synchro_hydro_fine.o
+           read_hydro_params.o synchro_hydro_fine.o cooling_module_ism.o
 # RT objects
 RTOBJ = rt_init_hydro.o rt_init_xion.o rt_init.o rt_init_flow_fine.o \
         rt_output_hydro.o rt_godunov_fine.o rt_interpol_hydro.o \

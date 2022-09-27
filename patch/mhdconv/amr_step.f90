@@ -222,7 +222,7 @@ recursive subroutine amr_step(ilevel,icount)
 
      ! Remove gravity source term with half time step and old force
      if(hydro)then
-        call synchro_hydro_fine(ilevel,-0.5*dtnew(ilevel),1)
+        call synchro_hydro_fine(ilevel,-0.5*dtnew(ilevel))
      endif
 
      ! Compute gravitational potential
@@ -241,11 +241,21 @@ recursive subroutine amr_step(ilevel,icount)
      ! Compute gravitational acceleration
      call force_fine(ilevel,icount)
 
+     ! Synchronize remaining particles for gravity
+     if(pic)then
+                               call timer('particles','start')
+        if(static_dm.or.static_stars)then
+           call synchro_fine_static(ilevel)
+        else
+           call synchro_fine(ilevel)
+        end if
+     end if
+
      if(hydro)then
                                call timer('poisson','start')
 
         ! Add gravity source term with half time step and new force
-        call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel),1)
+        call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel))
 
         ! Update boundaries
 #ifdef SOLVERmhd
@@ -269,16 +279,6 @@ recursive subroutine amr_step(ilevel,icount)
      end if
   end if
 
-  ! Synchronize remaining particles for gravity
-  if(pic)then
-                               call timer('particles','start')
-     if(static_dm.or.static_stars)then
-        call synchro_fine_static(ilevel)
-     else
-        call synchro_fine(ilevel)
-     end if
-  end if
-  
 #ifdef RT
   ! Turn on RT in case of rt_stars and first stars just created:
   ! Update photon packages according to star particles
@@ -382,7 +382,7 @@ recursive subroutine amr_step(ilevel,icount)
      ! Add gravity source term with half time step and old force
      ! in order to complete the time step
                                call timer('poisson','start')
-     if(poisson)call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel),1)
+     if(poisson)call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel))
 
      ! Restriction operator
                                call timer('hydro upload fine','start')
@@ -419,6 +419,12 @@ recursive subroutine amr_step(ilevel,icount)
   if((hydro).and.(.not.static_gas)) then
     if(neq_chem.or.cooling.or.T2_star>0.0)call cooling_fine(ilevel)
   endif
+  !--------------------
+  ! call energy_fine
+  !--------------------
+  call energy_fine(ilevel)
+
+
 #endif
 
   !---------------

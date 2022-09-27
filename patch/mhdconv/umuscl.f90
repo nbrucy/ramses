@@ -8,6 +8,7 @@
 !
 !  inputs/outputs
 !  uin         => (const)  input state
+!  req,peq     => (const)  input equilibrium profiles
 !  gravin      => (const)  input gravitational acceleration
 !  iu1,iu2     => (const)  first and last index of input array,
 !  ju1,ju2     => (const)  cell centered,
@@ -28,7 +29,7 @@
 !
 !  This routine was written by Sebastien Fromang and Patrick Hennebelle
 ! ----------------------------------------------------------------
-subroutine mag_unsplit(uin,pin,gravin,flux,emfx,emfy,emfz,tmp,dx,dy,dz,dt,ngrid)
+subroutine mag_unsplit(uin,req,peq,gravin,flux,emfx,emfy,emfz,tmp,dx,dy,dz,dt,ngrid)
   use amr_parameters
   use const
   use hydro_parameters
@@ -38,10 +39,11 @@ subroutine mag_unsplit(uin,pin,gravin,flux,emfx,emfy,emfz,tmp,dx,dy,dz,dt,ngrid)
   real(dp)::dx,dy,dz,dt
 
   ! Input states
-  real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2)::pin
   real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar+3)::uin
   real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:ndim)::gravin
-  real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2)::alphaT
+
+  ! Input equilibrium profiles
+  real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2)::req,peq
 
   ! Output fluxes
   real(dp),dimension(1:nvector,if1:if2,jf1:jf2,kf1:kf2,1:nvar,1:ndim)::flux
@@ -66,11 +68,14 @@ subroutine mag_unsplit(uin,pin,gravin,flux,emfx,emfy,emfz,tmp,dx,dy,dz,dt,ngrid)
   real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:ndim),save::qm
   real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:ndim),save::qp
 
-  ! Edge-averaged left-right and top-bottom state arrays (+1 supernovae pressure)
-  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar+1,1:3),save::qRT
-  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar+1,1:3),save::qRB
-  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar+1,1:3),save::qLT
-  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar+1,1:3),save::qLB
+  ! Edge-averaged left-right and top-bottom state arrays
+  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:3),save::qRT
+  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:3),save::qRB
+  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:3),save::qLT
+  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:3),save::qLB
+
+  ! Face averaged pressure equilibrium profiles
+  real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:ndim),save::qpeq
 
   ! Intermediate fluxes
   real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar),save::fx
@@ -86,29 +91,26 @@ subroutine mag_unsplit(uin,pin,gravin,flux,emfx,emfy,emfz,tmp,dx,dy,dz,dt,ngrid)
   klo=MIN(1,ku1+2); khi=MAX(1,ku2-2)
 
   ! Translate to primative variables, compute sound speeds
-  call ctoprim(uin,qin,bf,gravin,dt,ngrid)
-
-  ! Turbulent dynamo
-  call turb_dynamo(uin,qin,alphaT,ngrid)
+  call ctoprim(uin,qin,bf,req,peq,gravin,dt,ngrid)
 
   ! Compute TVD slopes
   call uslope(bf,qin,dq,dbf,dx,dt,ngrid)
 
   ! Compute 3D traced-states in all three directions
 #if NDIM==1
-     call trace1d(qin   ,dq    ,qm,qp                ,dx      ,dt,ngrid)
+     call trace1d(qin   ,dq    ,qm,qp                ,req,peq,qpeq,dx      ,dt,ngrid)
 #endif
 #if NDIM==2
-     call trace2d(qin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy   ,dt,ngrid)
+     call trace2d(qin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,req,peq,qpeq,dx,dy   ,dt,ngrid)
 #endif
 #if NDIM==3
-     call trace3d(qin,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
+     call trace3d(qin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,req,peq,qpeq,dx,dy,dz,dt,ngrid)
 #endif
 
   ! Solve for 1D flux in X direction
   call cmpflxm(qm,iu1+1,iu2+1,ju1  ,ju2  ,ku1  ,ku2  , &
-       &       qp,iu1  ,iu2  ,ju1  ,ju2  ,ku1  ,ku2  , pin, &
-       &          if1  ,if2  ,jlo  ,jhi  ,klo  ,khi  , 2,3,4,6,7,8,fx,tx,ngrid)
+       &       qp,iu1  ,iu2  ,ju1  ,ju2  ,ku1  ,ku2  , &
+       &       qpeq, if1  ,if2  ,jlo  ,jhi  ,klo  ,khi  , 2,3,4,6,7,8,fx,tx,ngrid)
   ! Save flux in output array
   do k=klo,khi
   do j=jlo,jhi
@@ -130,8 +132,8 @@ subroutine mag_unsplit(uin,pin,gravin,flux,emfx,emfy,emfz,tmp,dx,dy,dz,dt,ngrid)
   ! Solve for 1D flux in Y direction
 #if NDIM>1
   call cmpflxm(qm,iu1  ,iu2  ,ju1+1,ju2+1,ku1  ,ku2  , &
-       &       qp,iu1  ,iu2  ,ju1  ,ju2  ,ku1  ,ku2  , pin, &
-       &          ilo  ,ihi  ,jf1  ,jf2  ,klo  ,khi  , 3,2,4,7,6,8,fx,tx,ngrid)
+       &       qp,iu1  ,iu2  ,ju1  ,ju2  ,ku1  ,ku2  , &
+       &       qpeq,  ilo  ,ihi  ,jf1  ,jf2  ,klo  ,khi  , 3,2,4,7,6,8,fx,tx,ngrid)
   ! Save flux in output array
   do k=klo,khi
   do j=jf1,jf2
@@ -154,8 +156,8 @@ subroutine mag_unsplit(uin,pin,gravin,flux,emfx,emfy,emfz,tmp,dx,dy,dz,dt,ngrid)
   ! Solve for 1D flux in Z direction
 #if NDIM==3
   call cmpflxm(qm,iu1  ,iu2  ,ju1  ,ju2  ,ku1+1,ku2+1, &
-       &       qp,iu1  ,iu2  ,ju1  ,ju2  ,ku1  ,ku2  , pin, &
-       &          ilo  ,ihi  ,jlo  ,jhi  ,kf1  ,kf2  , 4,2,3,8,6,7,fx,tx,ngrid)
+       &       qp,iu1  ,iu2  ,ju1  ,ju2  ,ku1  ,ku2  , &
+       &       qpeq, ilo  ,ihi  ,jlo  ,jhi  ,kf1  ,kf2  , 4,2,3,8,6,7,fx,tx,ngrid)
   ! Save flux in output array
   do k=kf1,kf2
   do j=jlo,jhi
@@ -177,12 +179,11 @@ subroutine mag_unsplit(uin,pin,gravin,flux,emfx,emfy,emfz,tmp,dx,dy,dz,dt,ngrid)
 
 #if NDIM>1
   ! Solve for EMF in Z direction
-  CALL cmp_mag_flx(qRT,iu1+1,iu2+1,ju1+1,ju2+1,ku1,ku2, &
-       &           qRB,iu1+1,iu2+1,ju1  ,ju2  ,ku1,ku2, &
-       &           qLT,iu1  ,iu2  ,ju1+1,ju2+1,ku1,ku2, &
-       &           qLB,iu1  ,iu2  ,ju1  ,ju2  ,ku1,ku2, &
-       &               if1  ,if2  ,jf1  ,jf2  ,klo,khi, 2,3,4,6,7,8,emf,ngrid)
-
+  CALL cmp_mag_flx(qRT,iu1+1,iu2+1,ju1+1,ju2+1,ku1  ,ku2  , &
+       &           qRB,iu1+1,iu2+1,ju1  ,ju2  ,ku1  ,ku2  , &
+       &           qLT,iu1  ,iu2  ,ju1+1,ju2+1,ku1  ,ku2  , &
+       &           qLB,iu1  ,iu2  ,ju1  ,ju2  ,ku1  ,ku2  , &
+       &               if1  ,if2  ,jf1  ,jf2  ,klo  ,khi  , 2,3,4,6,7,8,emf,ngrid)
  ! Save vector in output array
   do k=klo,khi
   do j=jf1,jf2
@@ -213,7 +214,6 @@ subroutine mag_unsplit(uin,pin,gravin,flux,emfx,emfy,emfz,tmp,dx,dy,dz,dt,ngrid)
        &           qRB,iu1+1,iu2+1,ju1,ju2,ku1  ,ku2  , &
        &           qLB,iu1  ,iu2  ,ju1,ju2,ku1  ,ku2  , &
        &               if1  ,if2  ,jlo,jhi,kf1  ,kf2  , 4,2,3,8,6,7,emf,ngrid)
-
   ! Save vector in output array
   do k=kf1,kf2
   do j=jlo,jhi
@@ -224,14 +224,12 @@ subroutine mag_unsplit(uin,pin,gravin,flux,emfx,emfy,emfz,tmp,dx,dy,dz,dt,ngrid)
   end do
   end do
   end do
-
   ! Solve for EMF in X direction
   CALL cmp_mag_flx(qRT,iu1,iu2,ju1+1,ju2+1,ku1+1,ku2+1, &
        &           qRB,iu1,iu2,ju1+1,ju2+1,ku1  ,ku2  , &
        &           qLT,iu1,iu2,ju1  ,ju2  ,ku1+1,ku2+1, &
        &           qLB,iu1,iu2,ju1  ,ju2  ,ku1  ,ku2  , &
        &               ilo,ihi,jf1  ,jf2  ,kf1  ,kf2  , 3,4,2,7,8,6,emf,ngrid)
-
   ! Save vector in output array
   do k=kf1,kf2
   do j=jf1,jf2
@@ -242,9 +240,6 @@ subroutine mag_unsplit(uin,pin,gravin,flux,emfx,emfy,emfz,tmp,dx,dy,dz,dt,ngrid)
   end do
   end do
   end do
-
-  call turb_emf(alphaT,bf,dt,dx,emfx,emfy,emfz,ngrid)
-
 #endif
 
 end subroutine mag_unsplit
@@ -253,7 +248,7 @@ end subroutine mag_unsplit
 !###########################################################
 !###########################################################
 #if NDIM==1
-SUBROUTINE  trace1d(q,dq,qm,qp,dx,dt,ngrid)
+SUBROUTINE  trace1d(q,dq,qm,qp,req,peq,qpeq,dx,dt,ngrid)
   USE amr_parameters
   USE hydro_parameters
   USE const
@@ -266,11 +261,15 @@ SUBROUTINE  trace1d(q,dq,qm,qp,dx,dt,ngrid)
   REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:ndim)::dq
   REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:ndim)::qm
   REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:ndim)::qp
+  real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2)::req,peq
+  real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:ndim)::qpeq
 
   ! declare local variables
   INTEGER ::i, j, k, l, n, irad
   INTEGER ::ilo,ihi,jlo,jhi,klo,khi
   INTEGER ::ir, iu, iv, iw, ip, iA, iB, iC
+  real(dp)::qreq, seq, qseq, seq_l, seq_r
+  real(dp)::dreqx, dpeqx, dseqx = 0.d0
   REAL(dp)::dtdx
   REAL(dp)::r, u, v, w, p, A, B, C
   REAL(dp)::drx, dux, dvx, dwx, dpx, dAx, dBx, dCx
@@ -292,11 +291,11 @@ SUBROUTINE  trace1d(q,dq,qm,qp,dx,dt,ngrid)
            DO l = 1, ngrid
 
               ! Cell centered values
-              r = q(l,i,j,k,ir)
+              r = q(l,i,j,k,ir) + req(l,i,j,k) ! density
               u = q(l,i,j,k,iu)
               v = q(l,i,j,k,iv)
               w = q(l,i,j,k,iw)
-              p = q(l,i,j,k,ip)
+              p = q(l,i,j,k,ip) + peq(l,i,j,k) ! pressure
               A = q(l,i,j,k,iA)
               B = q(l,i,j,k,iB)
               C = q(l,i,j,k,iC)
@@ -319,15 +318,22 @@ SUBROUTINE  trace1d(q,dq,qm,qp,dx,dt,ngrid)
                  dex(irad) = half*dq(l,i,j,k,iC+irad,1)
               end do
 #endif
-
-              ! Source terms (including transverse derivatives)
-              sr0 = -u*drx-r*dux
+      
+              ! Slopes for equilibrium profiles
+              ! Warning: include half of dt multiplication
+              if(strict_equilibrium>0) then
+                dreqx = half*(half*(req(l,i+1,j,k) - req(l,i-1,j,k)))
+                dpeqx = half*(half*(peq(l,i+1,j,k) - peq(l,i-1,j,k))) 
+              end if
+      
+              ! Source terms (including transverse derivatives and equilibrium profiles)
+              sr0 = -u*(drx+dreqx)-r*dux
               if(ischeme.ne.1)then
               su0 = -u*dux-(dpx+B*dBx+C*dCx)/r
               sv0 = -u*dvx+(A*dBx)/r
               sw0 = -u*dwx+(A*dCx)/r
               endif
-              sp0 = -u*dpx-gamma*p*dux
+              sp0 = -u*(dpx+dpeqx)-gamma*p*dux
               sB0 = -u*dBx+A*dvx-B*dux
               sC0 = -u*dCx+A*dwx-C*dux
 #if NENER>0
@@ -353,11 +359,14 @@ SUBROUTINE  trace1d(q,dq,qm,qp,dx,dt,ngrid)
 #endif
 
               ! Right state at left interface
-              qp(l,i,j,k,ir,1) = r - drx
+              qreq            = half*(req(l,i,j,k)+req(l,i-1,j,k))
+              qpeq(l,i,j,k,1) = half*(peq(l,i,j,k)+peq(l,i-1,j,k))
+
+              qp(l,i,j,k,ir,1) = r - drx - req(l,i,j,k) + qreq
               qp(l,i,j,k,iu,1) = u - dux
               qp(l,i,j,k,iv,1) = v - dvx
               qp(l,i,j,k,iw,1) = w - dwx
-              qp(l,i,j,k,ip,1) = p - dpx
+              qp(l,i,j,k,ip,1) = p - dpx - peq(l,i,j,k) + qpeq(l,i,j,k,1)
               qp(l,i,j,k,iA,1) = A
               qp(l,i,j,k,iB,1) = B - dBx
               qp(l,i,j,k,iC,1) = C - dCx
@@ -369,11 +378,14 @@ SUBROUTINE  trace1d(q,dq,qm,qp,dx,dt,ngrid)
 #endif
 
               ! Left state at right interface
-              qm(l,i,j,k,ir,1) = r + drx
+              qreq              = half*(req(l,i+1,j,k)+req(l,i,j,k))
+              qpeq(l,i+1,j,k,1) = half*(peq(l,i+1,j,k)+peq(l,i,j,k))
+
+              qm(l,i,j,k,ir,1) = r + drx - req(l,i,j,k) + qreq
               qm(l,i,j,k,iu,1) = u + dux
               qm(l,i,j,k,iv,1) = v + dvx
               qm(l,i,j,k,iw,1) = w + dwx
-              qm(l,i,j,k,ip,1) = p + dpx
+              qm(l,i,j,k,ip,1) = p + dpx - peq(l,i,j,k) + qpeq(l,i+1,j,k,1)
               qm(l,i,j,k,iA,1) = A
               qm(l,i,j,k,iB,1) = B + dBx
               qm(l,i,j,k,iC,1) = C + dCx
@@ -395,13 +407,24 @@ SUBROUTINE  trace1d(q,dq,qm,qp,dx,dt,ngrid)
         DO j = jlo, jhi
            DO i = ilo, ihi
               DO l = 1, ngrid
-                 a   = q(l,i,j,k,n )           ! Cell centered values
+                 seq = peq(l,i,j,k)/(req(l,i,j,k)**gamma) ! entropy equilibrium profile
+                 a   = q(l,i,j,k,n ) + seq     ! Cell centered values
                  u   = q(l,i,j,k,iu)
+                 ! slope for equilibrium profile 
+                 ! 1/2*(seq(i+1)-seq(i-1))
+                 ! the extra 1/2 comes from the dt, and is the same as in dax calculation
+                 seq_l = peq(l,i-1,j,k)/(req(l,i-1,j,k)**gamma)
+                 seq_r = peq(l,i+1,j,k)/(req(l,i+1,j,k)**gamma)
+                 dseqx = half*(half*(seq_r - seq_l))
                  dax = half * dq(l,i,j,k,n,1)  ! TVD slope
-                 sa0 = -u*dax                  ! Source terms
+                 sa0 = -u*(dax+dseqx)          ! Source terms (with equilibrium)
                  a   = a + sa0*dtdx            ! Predicted state
-                 qp(l,i,j,k,n,1) = a - dax     ! Right state
-                 qm(l,i,j,k,n,1) = a + dax     ! Left state
+                 ! To compute the right and left states, remove seq in the cell center and add extrapolated 
+                 ! seq to the interface to have same eq. value on the left and right of interface
+                 qseq = half*(seq+seq_l)
+                 qp(l,i,j,k,n,1) = a - dax - seq + qseq    ! Right state
+                 qseq = half*(seq+seq_r)
+                 qm(l,i,j,k,n,1) = a + dax - seq + qseq    ! Left state
               END DO
            END DO
         END DO
@@ -416,7 +439,7 @@ END SUBROUTINE trace1d
 !###########################################################
 !###########################################################
 #if NDIM==2
-SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dt,ngrid)
+SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,req,peq,qpeq,dx,dy,dt,ngrid)
   USE amr_parameters
   USE hydro_parameters
   USE const
@@ -438,6 +461,9 @@ SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dt,ngrid)
   REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:3)::qLT
   REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:3)::qLB
 
+  real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2)::peq,req
+  real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:ndim)::qpeq
+
   ! Declare local variables
   REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2),save::Ez
   INTEGER ::i, j, k, l
@@ -452,6 +478,10 @@ SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dt,ngrid)
   REAL(dp)::AL, AR, BL, BR
   REAL(dp)::dALy, dARy, dBLx, dBRx
   REAL(DP)::sAL0, sAR0, sBL0, sBR0
+  real(dp)::qreq, qreq4, qpeq4, seq, qseq, seq_l, seq_r, seq_t, seq_b
+  real(dp)::dreqx, dreqy = 0.d0
+  real(dp)::dpeqx, dpeqy = 0.d0
+  real(dp)::dseqx, dseqy = 0.d0
 #if NENER>0
   INTEGER::irad
   REAL(dp),dimension(1:nener)::e, dex, dey, se0
@@ -489,11 +519,11 @@ SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dt,ngrid)
            DO l = 1, ngrid
 
               ! Cell centered values
-              r =    q(l,i,j,k,ir)
+              r =    q(l,i,j,k,ir) + req(l,i,j,k) ! density
               u =    q(l,i,j,k,iu)
               v =    q(l,i,j,k,iv)
               w =    q(l,i,j,k,iw)
-              p =    q(l,i,j,k,ip)
+              p =    q(l,i,j,k,ip) + peq(l,i,j,k) ! pressure
               A =    q(l,i,j,k,iA)
               B =    q(l,i,j,k,iB)
               C =    q(l,i,j,k,iC)
@@ -560,14 +590,23 @@ SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dt,ngrid)
               BL = BL + sBL0
               BR = BR + sBR0
 
+              ! Slopes for equilibrium profiles
+              if(strict_equilibrium>0) then
+                dreqx = half*(half*(req(l,i+1,j,k) - req(l,i-1,j,k)))
+                dpeqx = half*(half*(peq(l,i+1,j,k) - peq(l,i-1,j,k)))
+
+                dreqy = half*(half*(req(l,i,j+1,k) - req(l,i,j-1,k)))
+                dpeqy = half*(half*(peq(l,i,j+1,k) - peq(l,i,j-1,k)))
+              end if 
+
               ! Source terms (including transverse derivatives)
-              sr0 = (-u*drx-dux*r)*dtdx + (-v*dry-dvy*r)*dtdy
+              sr0 = (-u*(drx+dreqx)-dux*r)*dtdx + (-v*(dry+dreqy)-dvy*r)*dtdy
               if(ischeme.ne.1)then
               su0 = (-u*dux-(dpx+B*dBx+C*dCx)/r)*dtdx + (-v*duy+B*dAy/r)*dtdy
               sv0 = (-u*dvx+A*dBx/r)*dtdx + (-v*dvy-(dpy+A*dAy+C*dCy)/r)*dtdy
               sw0 = (-u*dwx+A*dCx/r)*dtdx + (-v*dwy+B*dCy/r)*dtdy
               endif
-              sp0 = (-u*dpx-dux*gamma*p)*dtdx + (-v*dpy-dvy*gamma*p)*dtdy
+              sp0 = (-u*(dpx+dpeqx)-dux*gamma*p)*dtdx + (-v*(dpy+dpeqy)-dvy*gamma*p)*dtdy
               sC0 = (-u*dCx-C*dux+A*dwx)*dtdx + (-v*dCy-C*dvy+B*dwy)*dtdy
 #if NENER>0
               do irad=1,nener
@@ -594,11 +633,14 @@ SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dt,ngrid)
 #endif
 
               ! Face averaged right state at left interface
-              qp(l,i,j,k,ir,1) = r - drx
+              qreq              = half*(req(l,i,j,k)+req(l,i-1,j,k))
+              qpeq(l,i-1,j,k,1) = half*(peq(l,i,j,k)+peq(l,i-1,j,k))
+              
+              qp(l,i,j,k,ir,1) = r - drx - req(l,i,j,k) + qreq
               qp(l,i,j,k,iu,1) = u - dux
               qp(l,i,j,k,iv,1) = v - dvx
               qp(l,i,j,k,iw,1) = w - dwx
-              qp(l,i,j,k,ip,1) = p - dpx
+              qp(l,i,j,k,ip,1) = p - dpx - peq(l,i,j,k) + qpeq(l,i-1,j,k,1)
               qp(l,i,j,k,iA,1) = AL
               qp(l,i,j,k,iB,1) = B - dBx
               qp(l,i,j,k,iC,1) = C - dCx
@@ -611,11 +653,14 @@ SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dt,ngrid)
 #endif
 
               ! Face averaged left state at right interface
-              qm(l,i,j,k,ir,1) = r + drx
+              qreq              = half*(req(l,i+1,j,k)+req(l,i,j,k))
+              qpeq(l,i,j,k,1)   = half*(peq(l,i+1,j,k)+peq(l,i,j,k))
+
+              qm(l,i,j,k,ir,1) = r + drx - req(l,i,j,k) + qreq
               qm(l,i,j,k,iu,1) = u + dux
               qm(l,i,j,k,iv,1) = v + dvx
               qm(l,i,j,k,iw,1) = w + dwx
-              qm(l,i,j,k,ip,1) = p + dpx
+              qm(l,i,j,k,ip,1) = p + dpx - peq(l,i,j,k) + qpeq(l,i,j,k,1)
               qm(l,i,j,k,iA,1) = AR
               qm(l,i,j,k,iB,1) = B + dBx
               qm(l,i,j,k,iC,1) = C + dCx
@@ -628,11 +673,14 @@ SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dt,ngrid)
 #endif
 
               ! Face averaged top state at bottom interface
-              qp(l,i,j,k,ir,2) = r - dry
+              qreq              = half*(req(l,i,j,k)+req(l,i,j-1,k))
+              qpeq(l,i,j-1,k,2) = half*(peq(l,i,j,k)+peq(l,i,j-1,k))
+
+              qp(l,i,j,k,ir,2) = r - dry - req(l,i,j,k) + qreq
               qp(l,i,j,k,iu,2) = u - duy
               qp(l,i,j,k,iv,2) = v - dvy
               qp(l,i,j,k,iw,2) = w - dwy
-              qp(l,i,j,k,ip,2) = p - dpy
+              qp(l,i,j,k,ip,2) = p - dpy - peq(l,i,j,k) + qpeq(l,i,j-1,k,2)
               qp(l,i,j,k,iA,2) = A - dAy
               qp(l,i,j,k,iB,2) = BL
               qp(l,i,j,k,iC,2) = C - dCy
@@ -645,11 +693,14 @@ SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dt,ngrid)
 #endif
 
               ! Face averaged bottom state at top interface
-              qm(l,i,j,k,ir,2) = r + dry
+              qreq              = half*(req(l,i,j+1,k)+req(l,i,j,k))
+              qpeq(l,i,j,k,2)   = half*(peq(l,i,j+1,k)+peq(l,i,j,k)) 
+
+              qm(l,i,j,k,ir,2) = r + dry - req(l,i,j,k) + qreq
               qm(l,i,j,k,iu,2) = u + duy
               qm(l,i,j,k,iv,2) = v + dvy
               qm(l,i,j,k,iw,2) = w + dwy
-              qm(l,i,j,k,ip,2) = p + dpy
+              qm(l,i,j,k,ip,2) = p + dpy - peq(l,i,j,k) + qpeq(l,i,j,k,2)
               qm(l,i,j,k,iA,2) = A + dAy
               qm(l,i,j,k,iB,2) = BR
               qm(l,i,j,k,iC,2) = C + dCy
@@ -662,11 +713,14 @@ SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dt,ngrid)
 #endif
 
               ! Edge averaged right-top corner state (RT->LL)
-              qRT(l,i,j,k,ir,3) = r + (+drx+dry)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i+1,j,k) + req(l,i,j+1,k) + req(l,i+1,j+1,k))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i+1,j,k) + peq(l,i,j+1,k) + peq(l,i+1,j+1,k))
+
+              qRT(l,i,j,k,ir,3) = r + (+drx+dry) - req(l,i,j,k) + qreq4
               qRT(l,i,j,k,iu,3) = u + (+dux+duy)
               qRT(l,i,j,k,iv,3) = v + (+dvx+dvy)
               qRT(l,i,j,k,iw,3) = w + (+dwx+dwy)
-              qRT(l,i,j,k,ip,3) = p + (+dpx+dpy)
+              qRT(l,i,j,k,ip,3) = p + (+dpx+dpy) - req(l,i,j,k) + qpeq4
               qRT(l,i,j,k,iC,3) = C + (+dCx+dCy)
               qRT(l,i,j,k,iA,3) = AR+ (   +dARy)
               qRT(l,i,j,k,iB,3) = BR+ (+dBRx   )
@@ -679,11 +733,14 @@ SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dt,ngrid)
 #endif
 
               ! Edge averaged right-bottom corner state (RB->LR)
-              qRB(l,i,j,k,ir,3) = r + (+drx-dry)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i+1,j,k) + req(l,i,j-1,k) + req(l,i+1,j-1,k))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i+1,j,k) + peq(l,i,j-1,k) + peq(l,i+1,j-1,k))
+              
+              qRB(l,i,j,k,ir,3) = r + (+drx-dry) - req(l,i,j,k) + qreq4
               qRB(l,i,j,k,iu,3) = u + (+dux-duy)
               qRB(l,i,j,k,iv,3) = v + (+dvx-dvy)
               qRB(l,i,j,k,iw,3) = w + (+dwx-dwy)
-              qRB(l,i,j,k,ip,3) = p + (+dpx-dpy)
+              qRB(l,i,j,k,ip,3) = p + (+dpx-dpy) - req(l,i,j,k) + qpeq4
               qRB(l,i,j,k,iC,3) = C + (+dCx-dCy)
               qRB(l,i,j,k,iA,3) = AR+ (   -dARy)
               qRB(l,i,j,k,iB,3) = BL+ (+dBLx   )
@@ -696,11 +753,14 @@ SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dt,ngrid)
 #endif
 
               ! Edge averaged left-top corner state (LT->RL)
-              qLT(l,i,j,k,ir,3) = r + (-drx+dry)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i-1,j,k) + req(l,i,j+1,k) + req(l,i-1,j+1,k))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i-1,j,k) + peq(l,i,j+1,k) + peq(l,i-1,j+1,k))
+
+              qLT(l,i,j,k,ir,3) = r + (-drx+dry) - req(l,i,j,k) + qreq4
               qLT(l,i,j,k,iu,3) = u + (-dux+duy)
               qLT(l,i,j,k,iv,3) = v + (-dvx+dvy)
               qLT(l,i,j,k,iw,3) = w + (-dwx+dwy)
-              qLT(l,i,j,k,ip,3) = p + (-dpx+dpy)
+              qLT(l,i,j,k,ip,3) = p + (-dpx+dpy) - req(l,i,j,k) + qpeq4
               qLT(l,i,j,k,iC,3) = C + (-dCx+dCy)
               qLT(l,i,j,k,iA,3) = AL+ (   +dALy)
               qLT(l,i,j,k,iB,3) = BR+ (-dBRx   )
@@ -713,11 +773,14 @@ SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dt,ngrid)
 #endif
 
               ! Edge averaged left-bottom corner state (LB->RR)
-              qLB(l,i,j,k,ir,3) = r + (-drx-dry)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i-1,j,k) + req(l,i,j-1,k) + req(l,i-1,j-1,k))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i-1,j,k) + peq(l,i,j-1,k) + peq(l,i-1,j-1,k))
+
+              qLB(l,i,j,k,ir,3) = r + (-drx-dry) - req(l,i,j,k) + qreq4
               qLB(l,i,j,k,iu,3) = u + (-dux-duy)
               qLB(l,i,j,k,iv,3) = v + (-dvx-dvy)
               qLB(l,i,j,k,iw,3) = w + (-dwx-dwy)
-              qLB(l,i,j,k,ip,3) = p + (-dpx-dpy)
+              qLB(l,i,j,k,ip,3) = p + (-dpx-dpy) - req(l,i,j,k) + qpeq4
               qLB(l,i,j,k,iC,3) = C + (-dCx-dCy)
               qLB(l,i,j,k,iA,3) = AL+ (   -dALy)
               qLB(l,i,j,k,iB,3) = BL+ (-dBLx   )
@@ -741,17 +804,34 @@ SUBROUTINE trace2d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dt,ngrid)
         DO j = jlo, jhi
            DO i = ilo, ihi
               DO l = 1, ngrid
-                 r   = q(l,i,j,k,n )              ! Cell centered values
+                 seq = peq(l,i,j,k)/(req(l,i,j,k)**gamma) ! entropy equilibrium profile
+                 r   = q(l,i,j,k,n ) + seq        ! Cell centered values
                  u   = q(l,i,j,k,iu)
                  v   = q(l,i,j,k,iv)
+                 ! slope for equilibrium profile 
+                 ! 1/2*(seq(i+1)-seq(i-1))
+                 ! the extra 1/2 comes from the dt, and is the same as in dax calculation
+                 seq_l = peq(l,i-1,j,k)/(req(l,i-1,j,k)**gamma)
+                 seq_r = peq(l,i+1,j,k)/(req(l,i+1,j,k)**gamma)
+                 dseqx = half*(half*(seq_r - seq_l))
+                 seq_b = peq(l,i,j-1,k)/(req(l,i,j-1,k)**gamma)
+                 seq_t = peq(l,i,j+1,k)/(req(l,i,j+1,k)**gamma)
+                 dseqy = half*(half*(seq_t - seq_b))
+                 
                  drx = half * dq(l,i,j,k,n,1)     ! TVD slopes
                  dry = half * dq(l,i,j,k,n,2)
-                 sr0 = -u*drx*dtdx -v*dry*dtdy    ! Source terms
+                 sr0 = -u*(drx+dseqx)*dtdx -v*(dry+dseqx)*dtdy    ! Source terms
                  r   = r + sr0                    ! Predicted state
-                 qp(l,i,j,k,n,1) = r - drx        ! Right state
-                 qm(l,i,j,k,n,1) = r + drx        ! Left state
-                 qp(l,i,j,k,n,2) = r - dry        ! Top state
-                 qm(l,i,j,k,n,2) = r + dry        ! Bottom state
+                 ! To compute the right,left,top,bottom states, remove seq in the cell center and add extrapolated 
+                 ! seq to the interface to have same eq. value on the left and right of interface
+                 qseq = half*(seq+seq_l)
+                 qp(l,i,j,k,n,1) = r - drx - seq + qseq       ! Right state
+                 qseq = half*(seq+seq_r)
+                 qm(l,i,j,k,n,1) = r + drx - seq + qseq       ! Left state
+                 qseq = half*(seq+seq_b)
+                 qp(l,i,j,k,n,2) = r - dry - seq + qseq       ! Top state
+                 qseq = half*(seq+seq_t)
+                 qm(l,i,j,k,n,2) = r + dry - seq + qseq       ! Bottom state
               END DO
            END DO
         END DO
@@ -766,7 +846,7 @@ END SUBROUTINE trace2d
 !###########################################################
 !###########################################################
 #if NDIM==3
-SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
+SUBROUTINE trace3d(q,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,req,peq,qpeq,dx,dy,dz,dt,ngrid)
   USE amr_parameters
   USE hydro_parameters
   USE const
@@ -774,7 +854,7 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
 
   INTEGER ::ngrid
   REAL(dp)::dx, dy, dz, dt
-  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2)::pin
+
   REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar)::q
   REAL(dp),DIMENSION(1:nvector,iu1:iu2+1,ju1:ju2+1,ku1:ku2+1,1:3)::bf
   REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:ndim)::dq
@@ -782,10 +862,13 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
   REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:ndim)::qp
 
   REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:3,1:ndim)::dbf
-  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar+1,1:3)::qRT
-  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar+1,1:3)::qRB
-  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar+1,1:3)::qLT
-  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar+1,1:3)::qLB
+  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:3)::qRT
+  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:3)::qRB
+  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:3)::qLT
+  REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar,1:3)::qLB
+
+  real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2)::peq,req
+  real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:ndim)::qpeq
 
   ! Declare local variables
   REAL(dp),DIMENSION(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2),save::Ex
@@ -794,10 +877,9 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
 
   INTEGER ::i, j, k, l
   INTEGER ::ilo,ihi,jlo,jhi,klo,khi
-  INTEGER ::ir, iu, iv, iw, ip, iA, iB, iC, is
+  INTEGER ::ir, iu, iv, iw, ip, iA, iB, iC
   REAL(dp)::dtdx, dtdy, dtdz, smallp
   REAL(dp)::r, u, v, w, p, A, B, C
-  REAL(dp)::rini, uini, vini, wini, pini, Aini, Bini, Cini
   REAL(dp)::ELL, ELR, ERL, ERR
   REAL(dp)::FLL, FLR, FRL, FRR
   REAL(dp)::GLL, GLR, GRL, GRR
@@ -810,7 +892,11 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
   REAL(dp)::dBLx, dBRx, dBLz, dBRz
   REAL(dp)::dCLx, dCRx, dCLy, dCRy
   REAL(DP)::sAL0, sAR0, sBL0, sBR0, sCL0, sCR0
-  REAL(dp)::smallrr
+  real(dp)::qreq, qreq4, qpeq4, seq, qseq
+  real(dp)::seq_l, seq_r, seq_t, seq_b, seq_f, seq_p
+  real(dp)::dreqx, dreqy, dreqz = 0.d0
+  real(dp)::dpeqx, dpeqy, dpeqz = 0.d0
+  real(dp)::dseqx, dseqy, dseqz = 0.d0
 #if NENER>0
   real(dp),dimension(1:nener)::e, dex, dey, dez, se0
   integer ::irad
@@ -823,12 +909,11 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
   dtdy = dt/dy
   dtdz = dt/dz
   smallp = smallr*smallc**2/gamma
-  smallrr =0.001
 
   ilo=MIN(1,iu1+1); ihi=MAX(1,iu2-1)
   jlo=MIN(1,ju1+1); jhi=MAX(1,ju2-1)
   klo=MIN(1,ku1+1); khi=MAX(1,ku2-1)
-  ir=1; iu=2; iv=3; iw=4; ip=5; ia=6; ib=7; ic=8; is=nvar+1
+  ir=1; iu=2; iv=3; iw=4; ip=5; ia=6; ib=7; ic=8
 
   DO k = klo, ku2
      DO j = jlo, ju2
@@ -862,12 +947,11 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
            DO l = 1, ngrid
 
               ! Cell centered values
-              r =    q(l,i,j,k,ir)
-              rini = q(l,i,j,k,ir)
+              r =    q(l,i,j,k,ir) + req(l,i,j,k) ! density
               u =    q(l,i,j,k,iu)
               v =    q(l,i,j,k,iv)
               w =    q(l,i,j,k,iw)
-              p =    q(l,i,j,k,ip)
+              p =    q(l,i,j,k,ip) + peq(l,i,j,k) ! pressure
               A =    q(l,i,j,k,iA)
               B =    q(l,i,j,k,iB)
               C =    q(l,i,j,k,iC)
@@ -972,14 +1056,26 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
               CL = CL + sCL0
               CR = CR + sCR0
 
+              ! Slopes for equilibrium profiles
+              if(strict_equilibrium>0) then
+                dreqx = half*(half*(req(l,i+1,j,k) - req(l,i-1,j,k)))
+                dpeqx = half*(half*(peq(l,i+1,j,k) - peq(l,i-1,j,k)))
+
+                dreqy = half*(half*(req(l,i,j+1,k) - req(l,i,j-1,k)))
+                dpeqy = half*(half*(peq(l,i,j+1,k) - peq(l,i,j-1,k)))
+
+                dreqz = half*(half*(req(l,i,j,k+1) - req(l,i,j,k-1)))
+                dpeqz = half*(half*(peq(l,i,j,k+1) - peq(l,i,j,k-1)))
+              end if 
+
               ! Source terms (including transverse derivatives)
-              sr0 = (-u*drx-dux*r)*dtdx + (-v*dry-dvy*r)*dtdy + (-w*drz-dwz*r)*dtdz
+              sr0 = (-u*(drx+dreqx)-dux*r)*dtdx + (-v*(dry+dreqy)-dvy*r)*dtdy + (-w*(drz+dreqz)-dwz*r)*dtdz
               if(ischeme.ne.1)then
               su0 = (-u*dux-(dpx+B*dBx+C*dCx)/r)*dtdx + (-v*duy+B*dAy/r)*dtdy + (-w*duz+C*dAz/r)*dtdz
               sv0 = (-u*dvx+A*dBx/r)*dtdx + (-v*dvy-(dpy+A*dAy+C*dCy)/r)*dtdy + (-w*dvz+C*dBz/r)*dtdz
               sw0 = (-u*dwx+A*dCx/r)*dtdx + (-v*dwy+B*dCy/r)*dtdy + (-w*dwz-(dpz+A*dAz+B*dBz)/r)*dtdz
               endif
-              sp0 = (-u*dpx-dux*gamma*p)*dtdx + (-v*dpy-dvy*gamma*p)*dtdy + (-w*dpz-dwz*gamma*p)*dtdz
+              sp0 = (-u*(dpx+dpeqx)-dux*gamma*p)*dtdx + (-v*(dpy+dpeqy)-dvy*gamma*p)*dtdy + (-w*(dpz+dpeqz)-dwz*gamma*p)*dtdz
 #if NENER>0
               do irad=1,nener
                  su0 = su0 - ((dex(irad))/r)*dtdx
@@ -1006,18 +1102,18 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
 #endif
 
               ! Face averaged right state at left interface
-              qp(l,i,j,k,ir,1) = r - drx
+              qreq              = half*(req(l,i,j,k)+req(l,i-1,j,k))
+              qpeq(l,i-1,j,k,1) = half*(peq(l,i,j,k)+peq(l,i-1,j,k))
+
+              qp(l,i,j,k,ir,1) = r - drx - req(l,i,j,k) + qreq
               qp(l,i,j,k,iu,1) = u - dux
               qp(l,i,j,k,iv,1) = v - dvx
               qp(l,i,j,k,iw,1) = w - dwx
-              qp(l,i,j,k,ip,1) = p - dpx
+              qp(l,i,j,k,ip,1) = p - dpx - peq(l,i,j,k) + qpeq(l,i-1,j,k,1)
               qp(l,i,j,k,iA,1) = AL
               qp(l,i,j,k,iB,1) = B - dBx
               qp(l,i,j,k,iC,1) = C - dCx
-              if (qp(l,i,j,k,ir,1) < smallrr) then
-                  qp(l,i,j,k,ir,1) = rini
-              endif
-
+              if (qp(l,i,j,k,ir,1)<smallr) qp(l,i,j,k,ir,1)=r
               qp(l,i,j,k,ip,1) = MAX(smallp, qp(l,i,j,k,ip,1))
 #if NENER>0
               do irad=1,nener
@@ -1026,18 +1122,18 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
 #endif
 
               ! Face averaged left state at right interface
-              qm(l,i,j,k,ir,1) = r + drx
+              qreq              = half*(req(l,i+1,j,k)+req(l,i,j,k))
+              qpeq(l,i,j,k,1)   = half*(peq(l,i+1,j,k)+peq(l,i,j,k))
+
+              qm(l,i,j,k,ir,1) = r + drx - req(l,i,j,k) + qreq
               qm(l,i,j,k,iu,1) = u + dux
               qm(l,i,j,k,iv,1) = v + dvx
               qm(l,i,j,k,iw,1) = w + dwx
-              qm(l,i,j,k,ip,1) = p + dpx
+              qm(l,i,j,k,ip,1) = p + dpx - peq(l,i,j,k) + qpeq(l,i,j,k,1)
               qm(l,i,j,k,iA,1) = AR
               qm(l,i,j,k,iB,1) = B + dBx
               qm(l,i,j,k,iC,1) = C + dCx
-              if (qm(l,i,j,k,ir,1) < smallrr) then
-                  qm(l,i,j,k,ir,1) = rini
-              endif
-
+              if (qm(l,i,j,k,ir,1)<smallr) qm(l,i,j,k,ir,1)=r
               qm(l,i,j,k,ip,1) = MAX(smallp, qm(l,i,j,k,ip,1))
 #if NENER>0
               do irad=1,nener
@@ -1046,18 +1142,18 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
 #endif
 
               ! Face averaged top state at bottom interface
-              qp(l,i,j,k,ir,2) = r - dry
+              qreq              = half*(req(l,i,j,k)+req(l,i,j-1,k))
+              qpeq(l,i,j-1,k,2) = half*(peq(l,i,j,k)+peq(l,i,j-1,k))
+
+              qp(l,i,j,k,ir,2) = r - dry - req(l,i,j,k) + qreq
               qp(l,i,j,k,iu,2) = u - duy
               qp(l,i,j,k,iv,2) = v - dvy
               qp(l,i,j,k,iw,2) = w - dwy
-              qp(l,i,j,k,ip,2) = p - dpy
+              qp(l,i,j,k,ip,2) = p - dpy - peq(l,i,j,k) + qpeq(l,i,j-1,k,2)
               qp(l,i,j,k,iA,2) = A - dAy
               qp(l,i,j,k,iB,2) = BL
               qp(l,i,j,k,iC,2) = C - dCy
-              if (qp(l,i,j,k,ir,2) < smallrr) then
-                  qp(l,i,j,k,ir,2) = rini
-              endif
-
+              if (qp(l,i,j,k,ir,2)<smallr) qp(l,i,j,k,ir,2)=r
               qp(l,i,j,k,ip,2) = MAX(smallp, qp(l,i,j,k,ip,2))
 #if NENER>0
               do irad=1,nener
@@ -1066,18 +1162,18 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
 #endif
 
               ! Face averaged bottom state at top interface
-              qm(l,i,j,k,ir,2) = r + dry
+              qreq              = half*(req(l,i,j+1,k)+req(l,i,j,k))
+              qpeq(l,i,j,k,2)   = half*(peq(l,i,j+1,k)+peq(l,i,j,k))
+
+              qm(l,i,j,k,ir,2) = r + dry - req(l,i,j,k) + qreq
               qm(l,i,j,k,iu,2) = u + duy
               qm(l,i,j,k,iv,2) = v + dvy
               qm(l,i,j,k,iw,2) = w + dwy
-              qm(l,i,j,k,ip,2) = p + dpy
+              qm(l,i,j,k,ip,2) = p + dpy - peq(l,i,j,k) + qpeq(l,i,j,k,2)
               qm(l,i,j,k,iA,2) = A + dAy
               qm(l,i,j,k,iB,2) = BR
               qm(l,i,j,k,iC,2) = C + dCy
-              if (qm(l,i,j,k,ir,2) < smallrr) then
-                  qm(l,i,j,k,ir,2) = rini
-              endif
-
+              if (qm(l,i,j,k,ir,2)<smallr) qm(l,i,j,k,ir,2)=r
               qm(l,i,j,k,ip,2) = MAX(smallp, qm(l,i,j,k,ip,2))
 #if NENER>0
               do irad=1,nener
@@ -1086,18 +1182,18 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
 #endif
 
               ! Face averaged front state at back interface
-              qp(l,i,j,k,ir,3) = r - drz
+              qreq             = half*(req(l,i,j,k)+req(l,i,j,k-1))
+              qpeq(l,i,j,k-1,3) = half*(peq(l,i,j,k)+peq(l,i,j,k-1))
+
+              qp(l,i,j,k,ir,3) = r - drz - req(l,i,j,k) + qreq
               qp(l,i,j,k,iu,3) = u - duz
               qp(l,i,j,k,iv,3) = v - dvz
               qp(l,i,j,k,iw,3) = w - dwz
-              qp(l,i,j,k,ip,3) = p - dpz
+              qp(l,i,j,k,ip,3) = p - dpz - peq(l,i,j,k) + qpeq(l,i,j,k-1,3)
               qp(l,i,j,k,iA,3) = A - dAz
               qp(l,i,j,k,iB,3) = B - dBz
               qp(l,i,j,k,iC,3) = CL
-              if (qp(l,i,j,k,ir,3) < smallrr) then
-                  qp(l,i,j,k,ir,3) = rini
-              endif
-
+              if (qp(l,i,j,k,ir,3)<smallr) qp(l,i,j,k,ir,3)=r
               qp(l,i,j,k,ip,3) = MAX(smallp, qp(l,i,j,k,ip,3))
 #if NENER>0
               do irad=1,nener
@@ -1106,18 +1202,18 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
 #endif
 
               ! Face averaged back state at front interface
-              qm(l,i,j,k,ir,3) = r + drz
+              qreq              = half*(req(l,i,j,k+1)+req(l,i,j,k))
+              qpeq(l,i,j,k,3)   = half*(peq(l,i,j,k+1)+peq(l,i,j,k))
+
+              qm(l,i,j,k,ir,3) = r + drz - req(l,i,j,k) + qreq
               qm(l,i,j,k,iu,3) = u + duz
               qm(l,i,j,k,iv,3) = v + dvz
               qm(l,i,j,k,iw,3) = w + dwz
-              qm(l,i,j,k,ip,3) = p + dpz
+              qm(l,i,j,k,ip,3) = p + dpz - peq(l,i,j,k) + qpeq(l,i,j,k,3)
               qm(l,i,j,k,iA,3) = A + dAz
               qm(l,i,j,k,iB,3) = B + dBz
               qm(l,i,j,k,iC,3) = CR
-              if (qm(l,i,j,k,ir,3) < smallrr) then
-                  qm(l,i,j,k,ir,3) = rini
-              endif
-
+              if (qm(l,i,j,k,ir,3)<smallr) qm(l,i,j,k,ir,3)=r
               qm(l,i,j,k,ip,3) = MAX(smallp, qm(l,i,j,k,ip,3))
 #if NENER>0
               do irad=1,nener
@@ -1126,256 +1222,244 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
 #endif
 
               ! X-edge averaged right-top corner state (RT->LL)
-              qRT(l,i,j,k,ir,1) = r + (+dry+drz)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i,j+1,k) + req(l,i,j,k+1) + req(l,i,j+1,k+1))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i,j+1,k) + peq(l,i,j,k+1) + peq(l,i,j+1,k+1))
+
+              qRT(l,i,j,k,ir,1) = r + (+dry+drz) - req(l,i,j,k) + qreq4
               qRT(l,i,j,k,iu,1) = u + (+duy+duz)
               qRT(l,i,j,k,iv,1) = v + (+dvy+dvz)
               qRT(l,i,j,k,iw,1) = w + (+dwy+dwz)
-              qRT(l,i,j,k,ip,1) = p + (+dpy+dpz)
+              qRT(l,i,j,k,ip,1) = p + (+dpy+dpz) - peq(l,i,j,k) + qpeq4
               qRT(l,i,j,k,iA,1) = A + (+dAy+dAz)
               qRT(l,i,j,k,iB,1) = BR+ (   +dBRz)
               qRT(l,i,j,k,iC,1) = CR+ (+dCRy   )
-              if (qRT(l,i,j,k,ir,1) < smallrr) then
-                  qRT(l,i,j,k,ir,1) = rini
-              endif
-
+              if (qRT(l,i,j,k,ir,1)<smallr) qRT(l,i,j,k,ir,1)=r
               qRT(l,i,j,k,ip,1) = MAX(smallp, qRT(l,i,j,k,ip,1))
 #if NENER>0
               do irad=1,nener
                  qRT(l,i,j,k,iC+irad,1) = e(irad) + (+dey(irad)+dez(irad))
               end do
 #endif
-              qRT(l,i,j,k,is,1) = pin(l,i,j,k)
 
               ! X-edge averaged right-bottom corner state (RB->LR)
-              qRB(l,i,j,k,ir,1) = r + (+dry-drz)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i,j+1,k) + req(l,i,j,k-1) + req(l,i,j+1,k-1))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i,j+1,k) + peq(l,i,j,k-1) + peq(l,i,j+1,k-1))
+
+              qRB(l,i,j,k,ir,1) = r + (+dry-drz) - req(l,i,j,k) + qreq4
               qRB(l,i,j,k,iu,1) = u + (+duy-duz)
               qRB(l,i,j,k,iv,1) = v + (+dvy-dvz)
               qRB(l,i,j,k,iw,1) = w + (+dwy-dwz)
-              qRB(l,i,j,k,ip,1) = p + (+dpy-dpz)
+              qRB(l,i,j,k,ip,1) = p + (+dpy-dpz) - peq(l,i,j,k) + qpeq4
               qRB(l,i,j,k,iA,1) = A + (+dAy-dAz)
               qRB(l,i,j,k,iB,1) = BR+ (   -dBRz)
               qRB(l,i,j,k,iC,1) = CL+ (+dCLy   )
-              if (qRB(l,i,j,k,ir,1) < smallrr) then
-                  qRB(l,i,j,k,ir,1) = rini
-              endif
-
+              if (qRB(l,i,j,k,ir,1)<smallr) qRB(l,i,j,k,ir,1)=r
               qRB(l,i,j,k,ip,1) = MAX(smallp, qRB(l,i,j,k,ip,1))
 #if NENER>0
               do irad=1,nener
                  qRB(l,i,j,k,iC+irad,1) = e(irad) + (+dey(irad)-dez(irad))
               end do
 #endif
-              qRB(l,i,j,k,is,1) = pin(l,i,j,k)
 
               ! X-edge averaged left-top corner state (LT->RL)
-              qLT(l,i,j,k,ir,1) = r + (-dry+drz)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i,j-1,k) + req(l,i,j,k+1) + req(l,i,j-1,k+1))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i,j-1,k) + peq(l,i,j,k+1) + peq(l,i,j-1,k+1))
+
+              qLT(l,i,j,k,ir,1) = r + (-dry+drz) - req(l,i,j,k) + qreq4
               qLT(l,i,j,k,iu,1) = u + (-duy+duz)
               qLT(l,i,j,k,iv,1) = v + (-dvy+dvz)
               qLT(l,i,j,k,iw,1) = w + (-dwy+dwz)
-              qLT(l,i,j,k,ip,1) = p + (-dpy+dpz)
+              qLT(l,i,j,k,ip,1) = p + (-dpy+dpz) - peq(l,i,j,k) + qpeq4
               qLT(l,i,j,k,iA,1) = A + (-dAy+dAz)
               qLT(l,i,j,k,iB,1) = BL+ (   +dBLz)
               qLT(l,i,j,k,iC,1) = CR+ (-dCRy   )
-              if (qLT(l,i,j,k,ir,1) < smallrr) then
-                  qLT(l,i,j,k,ir,1) = rini
-              endif
-
+              if (qLT(l,i,j,k,ir,1)<smallr) qLT(l,i,j,k,ir,1)=r
               qLT(l,i,j,k,ip,1) = MAX(smallp, qLT(l,i,j,k,ip,1))
 #if NENER>0
               do irad=1,nener
                  qLT(l,i,j,k,iC+irad,1) = e(irad) + (-dey(irad)+dez(irad))
               end do
 #endif
-              qLT(l,i,j,k,is,1) = pin(l,i,j,k)
 
               ! X-edge averaged left-bottom corner state (LB->RR)
-              qLB(l,i,j,k,ir,1) = r + (-dry-drz)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i,j-1,k) + req(l,i,j,k-1) + req(l,i,j-1,k-1))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i,j-1,k) + peq(l,i,j,k-1) + peq(l,i,j-1,k-1))
+
+              qLB(l,i,j,k,ir,1) = r + (-dry-drz) - req(l,i,j,k) + qreq4
               qLB(l,i,j,k,iu,1) = u + (-duy-duz)
               qLB(l,i,j,k,iv,1) = v + (-dvy-dvz)
               qLB(l,i,j,k,iw,1) = w + (-dwy-dwz)
-              qLB(l,i,j,k,ip,1) = p + (-dpy-dpz)
+              qLB(l,i,j,k,ip,1) = p + (-dpy-dpz) - peq(l,i,j,k) + qpeq4
               qLB(l,i,j,k,iA,1) = A + (-dAy-dAz)
               qLB(l,i,j,k,iB,1) = BL+ (   -dBLz)
               qLB(l,i,j,k,iC,1) = CL+ (-dCLy   )
-              if (qLB(l,i,j,k,ir,1) < smallrr) then
-                  qLB(l,i,j,k,ir,1) = rini
-              endif
-
+              if (qLB(l,i,j,k,ir,1)<smallr) qLB(l,i,j,k,ir,1)=r
               qLB(l,i,j,k,ip,1) = MAX(smallp, qLB(l,i,j,k,ip,1))
 #if NENER>0
               do irad=1,nener
                  qLB(l,i,j,k,iC+irad,1) = e(irad) + (-dey(irad)-dez(irad))
               end do
 #endif
-              qLB(l,i,j,k,is,1) = pin(l,i,j,k)
 
               ! Y-edge averaged right-top corner state (RT->LL)
-              qRT(l,i,j,k,ir,2) = r + (+drx+drz)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i+1,j,k) + req(l,i,j,k+1) + req(l,i+1,j,k+1))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i+1,j,k) + peq(l,i,j,k+1) + peq(l,i+1,j,k+1))
+
+              qRT(l,i,j,k,ir,2) = r + (+drx+drz) - req(l,i,j,k) + qreq4
               qRT(l,i,j,k,iu,2) = u + (+dux+duz)
               qRT(l,i,j,k,iv,2) = v + (+dvx+dvz)
               qRT(l,i,j,k,iw,2) = w + (+dwx+dwz)
-              qRT(l,i,j,k,ip,2) = p + (+dpx+dpz)
+              qRT(l,i,j,k,ip,2) = p + (+dpx+dpz) - peq(l,i,j,k) + qpeq4
               qRT(l,i,j,k,iA,2) = AR+ (   +dARz)
               qRT(l,i,j,k,iB,2) = B + (+dBx+dBz)
               qRT(l,i,j,k,iC,2) = CR+ (+dCRx   )
-              if (qRT(l,i,j,k,ir,2) < smallrr) then
-                  qRT(l,i,j,k,ir,2) = rini
-              endif
-
+              if (qRT(l,i,j,k,ir,2)<smallr) qRT(l,i,j,k,ir,2)=r
               qRT(l,i,j,k,ip,2) = MAX(smallp, qRT(l,i,j,k,ip,2))
 #if NENER>0
               do irad=1,nener
                  qRT(l,i,j,k,iC+irad,2) = e(irad) + (+dex(irad)+dez(irad))
               end do
 #endif
-              qRT(l,i,j,k,is,2) = pin(l,i,j,k)
 
               ! Y-edge averaged right-bottom corner state (RB->LR)
-              qRB(l,i,j,k,ir,2) = r + (+drx-drz)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i+1,j,k) + req(l,i,j,k-1) + req(l,i+1,j,k-1))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i+1,j,k) + peq(l,i,j,k-1) + peq(l,i+1,j,k-1))
+
+              qRB(l,i,j,k,ir,2) = r + (+drx-drz) - req(l,i,j,k) + qreq4
               qRB(l,i,j,k,iu,2) = u + (+dux-duz)
               qRB(l,i,j,k,iv,2) = v + (+dvx-dvz)
               qRB(l,i,j,k,iw,2) = w + (+dwx-dwz)
-              qRB(l,i,j,k,ip,2) = p + (+dpx-dpz)
+              qRB(l,i,j,k,ip,2) = p + (+dpx-dpz) - peq(l,i,j,k) + qpeq4
               qRB(l,i,j,k,iA,2) = AR+ (   -dARz)
               qRB(l,i,j,k,iB,2) = B + (+dBx-dBz)
               qRB(l,i,j,k,iC,2) = CL+ (+dCLx   )
-              if (qRB(l,i,j,k,ir,2) < smallrr) then
-                  qRB(l,i,j,k,ir,2) = rini
-              endif
-
+              if (qRB(l,i,j,k,ir,2)<smallr) qRB(l,i,j,k,ir,2)=r
               qRB(l,i,j,k,ip,2) = MAX(smallp, qRB(l,i,j,k,ip,2))
 #if NENER>0
               do irad=1,nener
                  qRB(l,i,j,k,iC+irad,2) = e(irad) + (+dex(irad)-dez(irad))
               end do
 #endif
-              qRB(l,i,j,k,is,2) = pin(l,i,j,k)
 
               ! Y-edge averaged left-top corner state (LT->RL)
-              qLT(l,i,j,k,ir,2) = r + (-drx+drz)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i-1,j,k) + req(l,i,j,k+1) + req(l,i-1,j,k+1))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i-1,j,k) + peq(l,i,j,k+1) + peq(l,i-1,j,k+1))
+
+              qLT(l,i,j,k,ir,2) = r + (-drx+drz) - req(l,i,j,k) + qreq4
               qLT(l,i,j,k,iu,2) = u + (-dux+duz)
               qLT(l,i,j,k,iv,2) = v + (-dvx+dvz)
               qLT(l,i,j,k,iw,2) = w + (-dwx+dwz)
-              qLT(l,i,j,k,ip,2) = p + (-dpx+dpz)
+              qLT(l,i,j,k,ip,2) = p + (-dpx+dpz) - peq(l,i,j,k) + qpeq4
               qLT(l,i,j,k,iA,2) = AL+ (   +dALz)
               qLT(l,i,j,k,iB,2) = B + (-dBx+dBz)
               qLT(l,i,j,k,iC,2) = CR+ (-dCRx   )
-              if (qLT(l,i,j,k,ir,2) < smallrr) then
-                  qLT(l,i,j,k,ir,2) = rini
-              endif
-
+              if (qLT(l,i,j,k,ir,2)<smallr) qLT(l,i,j,k,ir,2)=r
               qLT(l,i,j,k,ip,2) = MAX(smallp, qLT(l,i,j,k,ip,2))
 #if NENER>0
               do irad=1,nener
                  qLT(l,i,j,k,iC+irad,2) = e(irad) + (-dex(irad)+dez(irad))
               end do
 #endif
-              qLT(l,i,j,k,is,2) = pin(l,i,j,k)
 
               ! Y-edge averaged left-bottom corner state (LB->RR)
-              qLB(l,i,j,k,ir,2) = r + (-drx-drz)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i-1,j,k) + req(l,i,j,k-1) + req(l,i-1,j,k-1))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i-1,j,k) + peq(l,i,j,k-1) + peq(l,i-1,j,k-1))
+
+              qLB(l,i,j,k,ir,2) = r + (-drx-drz) - req(l,i,j,k) + qreq4
               qLB(l,i,j,k,iu,2) = u + (-dux-duz)
               qLB(l,i,j,k,iv,2) = v + (-dvx-dvz)
               qLB(l,i,j,k,iw,2) = w + (-dwx-dwz)
-              qLB(l,i,j,k,ip,2) = p + (-dpx-dpz)
+              qLB(l,i,j,k,ip,2) = p + (-dpx-dpz) - peq(l,i,j,k) + qpeq4
               qLB(l,i,j,k,iA,2) = AL+ (   -dALz)
               qLB(l,i,j,k,iB,2) = B + (-dBx-dBz)
               qLB(l,i,j,k,iC,2) = CL+ (-dCLx   )
-              if (qLB(l,i,j,k,ir,2) < smallrr) then
-                  qLB(l,i,j,k,ir,2) = rini
-              endif
-
+              if (qLB(l,i,j,k,ir,2)<smallr) qLB(l,i,j,k,ir,2)=r
               qLB(l,i,j,k,ip,2) = MAX(smallp, qLB(l,i,j,k,ip,2))
 #if NENER>0
               do irad=1,nener
                  qLB(l,i,j,k,iC+irad,2) = e(irad) + (-dex(irad)-dez(irad))
               end do
 #endif
-              qLB(l,i,j,k,is,2) = pin(l,i,j,k)
 
               ! Z-edge averaged right-top corner state (RT->LL)
-              qRT(l,i,j,k,ir,3) = r + (+drx+dry)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i+1,j,k) + req(l,i,j+1,k) + req(l,i+1,j+1,k))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i+1,j,k) + peq(l,i,j+1,k) + peq(l,i+1,j+1,k))
+
+              qRT(l,i,j,k,ir,3) = r + (+drx+dry) - req(l,i,j,k) + qreq4
               qRT(l,i,j,k,iu,3) = u + (+dux+duy)
               qRT(l,i,j,k,iv,3) = v + (+dvx+dvy)
               qRT(l,i,j,k,iw,3) = w + (+dwx+dwy)
-              qRT(l,i,j,k,ip,3) = p + (+dpx+dpy)
+              qRT(l,i,j,k,ip,3) = p + (+dpx+dpy) - peq(l,i,j,k) + qpeq4
               qRT(l,i,j,k,iA,3) = AR+ (   +dARy)
               qRT(l,i,j,k,iB,3) = BR+ (+dBRx   )
               qRT(l,i,j,k,iC,3) = C + (+dCx+dCy)
-              if (qRT(l,i,j,k,ir,3) < smallrr) then
-                  qRT(l,i,j,k,ir,3) = rini
-              endif
-
+              if (qRT(l,i,j,k,ir,3)<smallr) qRT(l,i,j,k,ir,3)=r
               qRT(l,i,j,k,ip,3) = MAX(smallp, qRT(l,i,j,k,ip,3))
 #if NENER>0
               do irad=1,nener
                  qRT(l,i,j,k,iC+irad,3) = e(irad) + (+dex(irad)+dey(irad))
               end do
 #endif
-              qRT(l,i,j,k,is,3) = pin(l,i,j,k)
 
               ! Z-edge averaged right-bottom corner state (RB->LR)
-              qRB(l,i,j,k,ir,3) = r + (+drx-dry)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i+1,j,k) + req(l,i,j-1,k) + req(l,i+1,j-1,k))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i+1,j,k) + peq(l,i,j-1,k) + peq(l,i+1,j-1,k))
+
+              qRB(l,i,j,k,ir,3) = r + (+drx-dry) - req(l,i,j,k) + qreq4
               qRB(l,i,j,k,iu,3) = u + (+dux-duy)
               qRB(l,i,j,k,iv,3) = v + (+dvx-dvy)
               qRB(l,i,j,k,iw,3) = w + (+dwx-dwy)
-              qRB(l,i,j,k,ip,3) = p + (+dpx-dpy)
+              qRB(l,i,j,k,ip,3) = p + (+dpx-dpy) - peq(l,i,j,k) + qpeq4
               qRB(l,i,j,k,iA,3) = AR+ (   -dARy)
               qRB(l,i,j,k,iB,3) = BL+ (+dBLx   )
               qRB(l,i,j,k,iC,3) = C + (+dCx-dCy)
-              if (qRB(l,i,j,k,ir,3) < smallrr) then
-                  qRB(l,i,j,k,ir,3) = rini
-              endif
-
+              if (qRB(l,i,j,k,ir,3)<smallr) qRB(l,i,j,k,ir,3)=r
               qRB(l,i,j,k,ip,3) = MAX(smallp, qRB(l,i,j,k,ip,3))
 #if NENER>0
               do irad=1,nener
                  qRB(l,i,j,k,iC+irad,3) = e(irad) + (+dex(irad)-dey(irad))
               end do
 #endif
-              qRB(l,i,j,k,is,3) = pin(l,i,j,k)
 
               ! Z-edge averaged left-top corner state (LT->RL)
-              qLT(l,i,j,k,ir,3) = r + (-drx+dry)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i-1,j,k) + req(l,i,j+1,k) + req(l,i-1,j+1,k))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i-1,j,k) + peq(l,i,j+1,k) + peq(l,i-1,j+1,k))
+
+              qLT(l,i,j,k,ir,3) = r + (-drx+dry) - req(l,i,j,k) + qreq4
               qLT(l,i,j,k,iu,3) = u + (-dux+duy)
               qLT(l,i,j,k,iv,3) = v + (-dvx+dvy)
               qLT(l,i,j,k,iw,3) = w + (-dwx+dwy)
-              qLT(l,i,j,k,ip,3) = p + (-dpx+dpy)
+              qLT(l,i,j,k,ip,3) = p + (-dpx+dpy) - peq(l,i,j,k) + qpeq4
               qLT(l,i,j,k,iA,3) = AL+ (   +dALy)
               qLT(l,i,j,k,iB,3) = BR+ (-dBRx   )
               qLT(l,i,j,k,iC,3) = C + (-dCx+dCy)
-              if (qLT(l,i,j,k,ir,3) < smallrr) then
-                  qLT(l,i,j,k,ir,3) = rini
-              endif
-
+              if (qLT(l,i,j,k,ir,3)<smallr) qLT(l,i,j,k,ir,3)=r
               qLT(l,i,j,k,ip,3) = MAX(smallp, qLT(l,i,j,k,ip,3))
 #if NENER>0
               do irad=1,nener
                  qLT(l,i,j,k,iC+irad,3) = e(irad) + (-dex(irad)+dey(irad))
               end do
 #endif
-              qLT(l,i,j,k,is,3) = pin(l,i,j,k)
 
               ! Z-edge averaged left-bottom corner state (LB->RR)
-              qLB(l,i,j,k,ir,3) = r + (-drx-dry)
+              qreq4 = 0.25*(req(l,i,j,k) + req(l,i-1,j,k) + req(l,i,j-1,k) + req(l,i-1,j-1,k))
+              qpeq4 = 0.25*(peq(l,i,j,k) + peq(l,i-1,j,k) + peq(l,i,j-1,k) + peq(l,i-1,j-1,k))
+
+              qLB(l,i,j,k,ir,3) = r + (-drx-dry) - req(l,i,j,k) + qreq4
               qLB(l,i,j,k,iu,3) = u + (-dux-duy)
               qLB(l,i,j,k,iv,3) = v + (-dvx-dvy)
               qLB(l,i,j,k,iw,3) = w + (-dwx-dwy)
-              qLB(l,i,j,k,ip,3) = p + (-dpx-dpy)
+              qLB(l,i,j,k,ip,3) = p + (-dpx-dpy) - peq(l,i,j,k) + qpeq4
               qLB(l,i,j,k,iA,3) = AL+ (   -dALy)
               qLB(l,i,j,k,iB,3) = BL+ (-dBLx   )
               qLB(l,i,j,k,iC,3) = C + (-dCx-dCy)
-              if (qLB(l,i,j,k,ir,3) < smallrr) then
-                  qLB(l,i,j,k,ir,3) = rini
-              endif
-
+              if (qLB(l,i,j,k,ir,3)<smallr) qLB(l,i,j,k,ir,3)=r
               qLB(l,i,j,k,ip,3) = MAX(smallp, qLB(l,i,j,k,ip,3))
 #if NENER>0
               do irad=1,nener
                  qLB(l,i,j,k,iC+irad,3) = e(irad) + (-dex(irad)-dey(irad))
               end do
 #endif
-              qLB(l,i,j,k,is,3) = pin(l,i,j,k)
 
            END DO
         END DO
@@ -1389,21 +1473,46 @@ SUBROUTINE trace3d(q,pin,bf,dq,dbf,qm,qp,qRT,qRB,qLT,qLB,dx,dy,dz,dt,ngrid)
         DO j = jlo, jhi
            DO i = ilo, ihi
               DO l = 1, ngrid
-                 r   = q(l,i,j,k,n )            ! Cell centered values
+                 seq = peq(l,i,j,k)/(req(l,i,j,k)**gamma) ! entropy equilibrium profile
+                 r   = q(l,i,j,k,n ) + seq        ! Cell centered values
                  u   = q(l,i,j,k,iu)
                  v   = q(l,i,j,k,iv)
                  w   = q(l,i,j,k,iw)
+                 ! slope for equilibrium profile 
+                 ! 1/2*(seq(i+1)-seq(i-1))
+                 ! the extra 1/2 comes from the half timestep, and is the same as in drx,dry,drz calculation
+                 ! Left and right
+                 seq_l = peq(l,i-1,j,k)/(req(l,i-1,j,k)**gamma)
+                 seq_r = peq(l,i+1,j,k)/(req(l,i+1,j,k)**gamma)
+                 dseqx = half*(half*(seq_r - seq_l))
+                 ! Top and bottom
+                 seq_b = peq(l,i,j-1,k)/(req(l,i,j-1,k)**gamma)
+                 seq_t = peq(l,i,j+1,k)/(req(l,i,j+1,k)**gamma)
+                 dseqy = half*(half*(seq_t - seq_b))
+                 ! Front and Posterior (back)
+                 seq_p = peq(l,i,j,k-1)/(req(l,i,j,k-1)**gamma)
+                 seq_f = peq(l,i,j,k+1)/(req(l,i,j,k+1)**gamma)
+                 dseqz = half*(half*(seq_f - seq_p))
+                 
                  drx = half * dq(l,i,j,k,n,1)   ! TVD slopes
                  dry = half * dq(l,i,j,k,n,2)
                  drz = half * dq(l,i,j,k,n,3)
-                 sr0 = -u*drx*dtdx -v*dry*dtdy -w*drz*dtdz   ! Source terms
+                 sr0 = -u*(drx+dseqx)*dtdx -v*(dry+dseqy)*dtdy -w*(drz+dseqz)*dtdz   ! Source terms
                  r   = r + sr0                  ! Predicted state
-                 qp(l,i,j,k,n,1) = r - drx      ! Right state
-                 qm(l,i,j,k,n,1) = r + drx      ! Left state
-                 qp(l,i,j,k,n,2) = r - dry      ! Top state
-                 qm(l,i,j,k,n,2) = r + dry      ! Bottom state
-                 qp(l,i,j,k,n,3) = r - drz      ! Front state
-                 qm(l,i,j,k,n,3) = r + drz      ! Back state
+                 ! To compute the r,l,t,b,f,p states, remove seq in the cell center and add extrapolated 
+                 ! seq to the interface to have same eq. value on the left and right of interface
+                 qseq = half*(seq+seq_l)
+                 qp(l,i,j,k,n,1) = r - drx - seq + qseq       ! Right state
+                 qseq = half*(seq+seq_r)
+                 qm(l,i,j,k,n,1) = r + drx - seq + qseq       ! Left state
+                 qseq = half*(seq+seq_b)
+                 qp(l,i,j,k,n,2) = r - dry - seq + qseq       ! Top state
+                 qseq = half*(seq+seq_t)
+                 qm(l,i,j,k,n,2) = r + dry - seq + qseq       ! Bottom state
+                 qseq = half*(seq+seq_p)
+                 qp(l,i,j,k,n,3) = r - drz - seq + qseq       ! Front state
+                 qseq = half*(seq+seq_f)
+                 qm(l,i,j,k,n,3) = r + drz - seq + qseq       ! Back state
               END DO
            END DO
         END DO
@@ -1418,8 +1527,8 @@ END SUBROUTINE trace3d
 !###########################################################
 !###########################################################
 subroutine cmpflxm(qm,im1,im2,jm1,jm2,km1,km2, &
-     &             qp,ip1,ip2,jp1,jp2,kp1,kp2, pin, &
-     &                ilo,ihi,jlo,jhi,klo,khi, &
+     &             qp,ip1,ip2,jp1,jp2,kp1,kp2, &
+     &             qpeq,ilo,ihi,jlo,jhi,klo,khi, &
      &                ln ,lt1,lt2,bn ,bt1,bt2, flx,tmp,ngrid)
   use amr_parameters
   use hydro_parameters
@@ -1433,17 +1542,16 @@ subroutine cmpflxm(qm,im1,im2,jm1,jm2,km1,km2, &
   integer ::ilo,ihi,jlo,jhi,klo,khi
   real(dp),dimension(1:nvector,im1:im2,jm1:jm2,km1:km2,1:nvar,1:ndim)::qm
   real(dp),dimension(1:nvector,ip1:ip2,jp1:jp2,kp1:kp2,1:nvar,1:ndim)::qp
-  real(dp),dimension(1:nvector,ip1:ip2,jp1:jp2,kp1:kp2)::pin
   real(dp),dimension(1:nvector,ip1:ip2,jp1:jp2,kp1:kp2,1:nvar)::flx
   real(dp),dimension(1:nvector,ip1:ip2,jp1:jp2,kp1:kp2,1:2)::tmp
+  real(dp),dimension(1:nvector,im1:im2,jm1:jm2,km1:km2,1:ndim)::qpeq ! Same indices as left state
+ 
 
   ! local variables
   integer ::i, j, k, l, xdim
-  real(dp)::snleft,snright
   real(dp),dimension(1:nvar)::qleft,qright
   real(dp),dimension(1:nvar+1)::fgdnv
   real(dp)::zero_flux, bn_mean, entho
-  real(dp)::rmin
 
 #if NVAR>8
   integer::n
@@ -1456,20 +1564,6 @@ subroutine cmpflxm(qm,im1,im2,jm1,jm2,km1,km2, &
      do j = jlo, jhi
         do i = ilo, ihi
            do l = 1, ngrid
-
-             ! Supernovae
-             if(ln==2)then
-                snleft  = pin(l,i-1,j,k)
-                snright = pin(l,i,j,k)
-             endif
-             if(ln==3)then
-                snleft  = pin(l,i,j-1,k)
-                snright = pin(l,i,j,k)
-             endif
-             if(ln==4)then
-                snleft  = pin(l,i,j,k-1)
-                snright = pin(l,i,j,k)
-             endif
 
               ! Enforce continuity for normal magnetic field
               bn_mean = half*(qm(l,i,j,k,bn,xdim)+qp(l,i,j,k,bn,xdim))
@@ -1502,7 +1596,6 @@ subroutine cmpflxm(qm,im1,im2,jm1,jm2,km1,km2, &
               end do
 #endif
               ! Solve 1D Riemann problem
-              rmin = MIN(qleft(1), qright(1))
               zero_flux = one
               IF(ischeme.NE.1)THEN
               SELECT CASE (iriemann)
@@ -1513,11 +1606,7 @@ subroutine cmpflxm(qm,im1,im2,jm1,jm2,km1,km2, &
               CASE (2)
                  CALL hll           (qleft,qright,fgdnv)
               CASE (3)
-                 if (rmin > dens_llf) then
-                    CALL hlld          (qleft,qright,snleft,snright,fgdnv)
-                 else
-                    CALL lax_friedrich (qleft,qright,fgdnv,zero_flux)
-                 endif
+                 CALL hlld          (qleft,qright,fgdnv)
               CASE (4)
                  CALL lax_friedrich (qleft,qright,fgdnv,zero_flux)
               CASE (5)
@@ -1533,7 +1622,7 @@ subroutine cmpflxm(qm,im1,im2,jm1,jm2,km1,km2, &
               ! Output fluxes
               flx(l,i,j,k,1  ) = fgdnv(1)  ! Mass density
               flx(l,i,j,k,5  ) = fgdnv(2)  ! Total energy
-              flx(l,i,j,k,ln ) = fgdnv(3)  ! Normal momentum
+              flx(l,i,j,k,ln ) = fgdnv(3) - qpeq(l,i,j,k,xdim)  ! Normal momentum (Momentum flux without equilibrium pressure)
               flx(l,i,j,k,bn ) = fgdnv(4)  ! Normal magnetic field
               flx(l,i,j,k,lt1) = fgdnv(5)  ! Transverse momentum 1
               flx(l,i,j,k,bt1) = fgdnv(6)  ! Transverse magnetic field 1
@@ -1576,24 +1665,23 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
   INTEGER ::ngrid
   ! indices of the 2 planar velocity lp1 and lp2 and the orthogonal one,
   ! lor and idem for the magnetic field
-  INTEGER ::lp1,lp2,lor,bp1,bp2,bor,is
+  INTEGER ::lp1,lp2,lor,bp1,bp2,bor
   INTEGER ::irt1,irt2,jrt1,jrt2,krt1,krt2
   INTEGER ::irb1,irb2,jrb1,jrb2,krb1,krb2
   INTEGER ::ilt1,ilt2,jlt1,jlt2,klt1,klt2
   INTEGER ::ilb1,ilb2,jlb1,jlb2,klb1,klb2
   INTEGER ::ilo,ihi,jlo,jhi,klo,khi
-  REAL(dp),DIMENSION(1:nvector,irt1:irt2,jrt1:jrt2,krt1:krt2,1:nvar+1,1:3)::qRT
-  REAL(dp),DIMENSION(1:nvector,irb1:irb2,jrb1:jrb2,krb1:krb2,1:nvar+1,1:3)::qRB
-  REAL(dp),DIMENSION(1:nvector,ilt1:ilt2,jlt1:jlt2,klt1:klt2,1:nvar+1,1:3)::qLT
-  REAL(dp),DIMENSION(1:nvector,ilb1:ilb2,jlb1:jlb2,klb1:klb2,1:nvar+1,1:3)::qLB
+  REAL(dp),DIMENSION(1:nvector,irt1:irt2,jrt1:jrt2,krt1:krt2,1:nvar,1:3)::qRT
+  REAL(dp),DIMENSION(1:nvector,irb1:irb2,jrb1:jrb2,krb1:krb2,1:nvar,1:3)::qRB
+  REAL(dp),DIMENSION(1:nvector,ilt1:ilt2,jlt1:jlt2,klt1:klt2,1:nvar,1:3)::qLT
+  REAL(dp),DIMENSION(1:nvector,ilb1:ilb2,jlb1:jlb2,klb1:klb2,1:nvar,1:3)::qLB
 
   REAL(dp),DIMENSION(1:nvector,ilb1:ilb2,jlb1:jlb2,klb1:klb2):: emf
 
   ! local variables
   INTEGER ::i, j, k, l, xdim
-  REAL(dp),DIMENSION(1:nvector,1:nvar+1)::qLL,qRL,qLR,qRR
-  REAL(dp),DIMENSION(1:nvar)::qleft,qright
-  REAL(dp),DIMENSION(1:nvar+1)::qtmp
+  REAL(dp),DIMENSION(1:nvector,1:nvar)::qLL,qRL,qLR,qRR
+  REAL(dp),DIMENSION(1:nvar)::qleft,qright,qtmp
   REAL(dp),DIMENSION(1:nvar+1)::fmean_x,fmean_y
   REAL(dp) :: ELL,ERL,ELR,ERR,SL,SR,SB,ST,SAL,SAR,SAT,SAB
   REAL(dp) :: zero_flux,E
@@ -1608,9 +1696,6 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
   REAL(dp) :: rstarLL,rstarLR,rstarRL,rstarRR,AstarLL,AstarLR,AstarRL,AstarRR,BstarLL,BstarLR,BstarRL,BstarRR
   REAL(dp) :: EstarLLx,EstarLRx,EstarRLx,EstarRRx,EstarLLy,EstarLRy,EstarRLy,EstarRRy,EstarLL,EstarLR,EstarRL,EstarRR
   REAL(dp) :: AstarT,AstarB,BstarR,BstarL
-  REAL(dp) :: rmin,Smax
-
-  is = nvar + 1
 
 #if NENER>0
   INTEGER :: irad
@@ -1636,14 +1721,6 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
               qRL (l,2) = qLT(l,i,j,k,5,xdim)
               qLR (l,2) = qRB(l,i,j,k,5,xdim)
               qRR (l,2) = qLB(l,i,j,k,5,xdim)
-           END DO
-
-           ! Supernovae Pressure
-           DO l = 1, ngrid
-              qLL(l,is) = qRT(l,i,j,k,is,xdim)
-              qRL(l,is) = qLT(l,i,j,k,is,xdim)
-              qLR(l,is) = qRB(l,i,j,k,is,xdim)
-              qRR(l,is) = qLB(l,i,j,k,is,xdim)
            END DO
 
            ! First parallel velocity
@@ -1722,9 +1799,6 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                   rLR=qLR(l,1); pLR=qLR(l,2); uLR=qLR(l,3); vLR=qLR(l,4); ALR=qLR(l,6); BLR=qLR(l,7) ; CLR=qLR(l,8)
                   rRL=qRL(l,1); pRL=qRL(l,2); uRL=qRL(l,3); vRL=qRL(l,4); ARL=qRL(l,6); BRL=qRL(l,7) ; CRL=qRL(l,8)
                   rRR=qRR(l,1); pRR=qRR(l,2); uRR=qRR(l,3); vRR=qRR(l,4); ARR=qRR(l,6); BRR=qRR(l,7) ; CRR=qRR(l,8)
-
-                  rmin=MIN(rLL, rLR, rRL, rRR)
-
 #if NENER>0
                   do irad = 1,nener
                      pLL = pLL + qLL(l,8+irad)
@@ -1742,9 +1816,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qLL(l,8+irad)
                   end do
 #endif
-                  qtmp(is) = qLL(l,is)
-                  ! Supernova pressure in qtmp(is)
-                  call find_speed_fast(qtmp,qtmp(is),cfastLLx)
+                  call find_speed_fast(qtmp,cfastLLx)
                   qtmp(1)=qLR(l,1); qtmp(2)=qLR(l,2); qtmp(7)=qLR(l,5); qtmp(8)=qLR(l,8)
                   qtmp(3)=qLR(l,3); qtmp(4)=qLR(l,6); qtmp(5)=qLR(l,4); qtmp(6)=qLR(l,7)
 #if NENER>0
@@ -1752,8 +1824,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qLR(l,8+irad)
                   end do
 #endif
-                  qtmp(is) = qLR(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cfastLRx)
+                  call find_speed_fast(qtmp,cfastLRx)
                   qtmp(1)=qRL(l,1); qtmp(2)=qRL(l,2); qtmp(7)=qRL(l,5); qtmp(8)=qRL(l,8)
                   qtmp(3)=qRL(l,3); qtmp(4)=qRL(l,6); qtmp(5)=qRL(l,4); qtmp(6)=qRL(l,7)
 #if NENER>0
@@ -1761,8 +1832,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qRL(l,8+irad)
                   end do
 #endif
-                  qtmp(is) = qRL(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cfastRLx)
+                  call find_speed_fast(qtmp,cfastRLx)
                   qtmp(1)=qRR(l,1); qtmp(2)=qRR(l,2); qtmp(7)=qRR(l,5); qtmp(8)=qRR(l,8)
                   qtmp(3)=qRR(l,3); qtmp(4)=qRR(l,6); qtmp(5)=qRR(l,4); qtmp(6)=qRR(l,7)
 #if NENER>0
@@ -1770,8 +1840,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qRR(l,8+irad)
                   end do
 #endif
-                  qtmp(is) = qRR(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cfastRRx)
+                  call find_speed_fast(qtmp,cfastRRx)
 
                   ! Compute 4 fast magnetosonic velocity relative to y direction
                   qtmp(1)=qLL(l,1); qtmp(2)=qLL(l,2); qtmp(7)=qLL(l,5); qtmp(8)=qLL(l,8)
@@ -1781,8 +1850,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qLL(l,8+irad)
                   end do
 #endif
-                  qtmp(is) = qLL(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cfastLLy)
+                  call find_speed_fast(qtmp,cfastLLy)
                   qtmp(1)=qLR(l,1); qtmp(2)=qLR(l,2); qtmp(7)=qLR(l,5); qtmp(8)=qLR(l,8)
                   qtmp(3)=qLR(l,4); qtmp(4)=qLR(l,7); qtmp(5)=qLR(l,3); qtmp(6)=qLR(l,6)
 #if NENER>0
@@ -1790,8 +1858,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qLR(l,8+irad)
                   end do
 #endif
-                  qtmp(is) = qLR(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cfastLRy)
+                  call find_speed_fast(qtmp,cfastLRy)
                   qtmp(1)=qRL(l,1); qtmp(2)=qRL(l,2); qtmp(7)=qRL(l,5); qtmp(8)=qRL(l,8)
                   qtmp(3)=qRL(l,4); qtmp(4)=qRL(l,7); qtmp(5)=qRL(l,3); qtmp(6)=qRL(l,6)
 #if NENER>0
@@ -1799,8 +1866,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qRL(l,8+irad)
                   end do
 #endif
-                  qtmp(is) = qRL(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cfastRLy)
+                  call find_speed_fast(qtmp,cfastRLy)
                   qtmp(1)=qRR(l,1); qtmp(2)=qRR(l,2); qtmp(7)=qRR(l,5); qtmp(8)=qRR(l,8)
                   qtmp(3)=qRR(l,4); qtmp(4)=qRR(l,7); qtmp(5)=qRR(l,3); qtmp(6)=qRR(l,6)
 #if NENER>0
@@ -1808,25 +1874,22 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qRR(l,8+irad)
                   end do
 #endif
-                  qtmp(is) = qRR(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cfastRRy)
+                  call find_speed_fast(qtmp,cfastRRy)
 
                   SL=min(uLL,uLR,uRL,uRR)-max(cfastLLx,cfastLRx,cfastRLx,cfastRRx)
                   SR=max(uLL,uLR,uRL,uRR)+max(cfastLLx,cfastLRx,cfastRLx,cfastRRx)
                   SB=min(vLL,vLR,vRL,vRR)-max(cfastLLy,cfastLRy,cfastRLy,cfastRRy)
                   ST=max(vLL,vLR,vRL,vRR)+max(cfastLLy,cfastLRy,cfastRLy,cfastRRy)
 
-                  Smax = max(abs(SR), abs(ST), abs(SL), abs(SB))
-
                   ELL=uLL*BLL-vLL*ALL
                   ELR=uLR*BLR-vLR*ALR
                   ERL=uRL*BRL-vRL*ARL
                   ERR=uRR*BRR-vRR*ARR
 
-                  PtotLL=pLL+half*(ALL*ALL+BLL*BLL+CLL*CLL) + qLL(l,is)
-                  PtotLR=pLR+half*(ALR*ALR+BLR*BLR+CLR*CLR) + qLR(l,is)
-                  PtotRL=pRL+half*(ARL*ARL+BRL*BRL+CRL*CRL) + qRL(l,is)
-                  PtotRR=pRR+half*(ARR*ARR+BRR*BRR+CRR*CRR) + qRR(l,is)
+                  PtotLL=pLL+half*(ALL*ALL+BLL*BLL+CLL*CLL)
+                  PtotLR=pLR+half*(ALR*ALR+BLR*BLR+CLR*CLR)
+                  PtotRL=pRL+half*(ARL*ARL+BRL*BRL+CRL*CRL)
+                  PtotRR=pRR+half*(ARR*ARR+BRR*BRR+CRR*CRR)
 
                   rcLLx=rLL*(uLL-SL); rcRLx=rRL*(SR-uRL)
                   rcLRx=rLR*(uLR-SL); rcRRx=rRR*(SR-uRR)
@@ -1902,11 +1965,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                           & -SAT*SAB/(SAT-SAB)*(AstarT-AstarB)+SAR*SAL/(SAR-SAL)*(BstarR-BstarL)
                   endif
 
-                  if(rmin > dens_llf) then
-                     emf(l,i,j,k) = E
-                  else
-                     emf(l,i,j,k) = forth*(ERR+ERL+ELR+ELL)+half*Smax*(qRR(l,6)-qLL(l,6))-half*Smax*(qRR(l,7)-qLL(l,7))
-                  endif
+                  emf(l,i,j,k) = E
 
                else if(iriemann2d==3)then
 
@@ -1918,9 +1977,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qLL(l,8+irad)
                   end do
 #endif
-                  vLLx=qtmp(3)
-                  qtmp(is) = qLL(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cLLx)
+                  vLLx=qtmp(3); call find_speed_fast(qtmp,cLLx)
                   qtmp(1)=qLR(l,1); qtmp(2)=qLR(l,2); qtmp(7)=qLR(l,5); qtmp(8)=qLR(l,8)
                   qtmp(3)=qLR(l,3); qtmp(4)=qLR(l,6); qtmp(5)=qLR(l,4); qtmp(6)=qLR(l,7)
 #if NENER>0
@@ -1928,9 +1985,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qLR(l,8+irad)
                   end do
 #endif
-                  vLRx=qtmp(3)
-                  qtmp(is) = qLR(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cLRx)
+                  vLRx=qtmp(3); call find_speed_fast(qtmp,cLRx)
                   qtmp(1)=qRL(l,1); qtmp(2)=qRL(l,2); qtmp(7)=qRL(l,5); qtmp(8)=qRL(l,8)
                   qtmp(3)=qRL(l,3); qtmp(4)=qRL(l,6); qtmp(5)=qRL(l,4); qtmp(6)=qRL(l,7)
 #if NENER>0
@@ -1938,9 +1993,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qRL(l,8+irad)
                   end do
 #endif
-                  vRLx=qtmp(3)
-                  qtmp(is) = qRL(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cRLx)
+                  vRLx=qtmp(3); call find_speed_fast(qtmp,cRLx)
                   qtmp(1)=qRR(l,1); qtmp(2)=qRR(l,2); qtmp(7)=qRR(l,5); qtmp(8)=qRR(l,8)
                   qtmp(3)=qRR(l,3); qtmp(4)=qRR(l,6); qtmp(5)=qRR(l,4); qtmp(6)=qRR(l,7)
 #if NENER>0
@@ -1948,9 +2001,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qRR(l,8+irad)
                   end do
 #endif
-                  vRRx=qtmp(3)
-                  qtmp(is) = qRR(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cRRx)
+                  vRRx=qtmp(3); call find_speed_fast(qtmp,cRRx)
 
                   ! Compute 4 fast magnetosonic velocity relative to y direction
                   qtmp(1)=qLL(l,1); qtmp(2)=qLL(l,2); qtmp(7)=qLL(l,5); qtmp(8)=qLL(l,8)
@@ -1960,9 +2011,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qLL(l,8+irad)
                   end do
 #endif
-                  vLLy=qtmp(3)
-                  qtmp(is) = qLL(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cLLy)
+                  vLLy=qtmp(3); call find_speed_fast(qtmp,cLLy)
                   qtmp(1)=qLR(l,1); qtmp(2)=qLR(l,2); qtmp(7)=qLR(l,5); qtmp(8)=qLR(l,8)
                   qtmp(3)=qLR(l,4); qtmp(4)=qLR(l,7); qtmp(5)=qLR(l,3); qtmp(6)=qLR(l,6)
 #if NENER>0
@@ -1970,9 +2019,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qLR(l,8+irad)
                   end do
 #endif
-                  vLRy=qtmp(3)
-                  qtmp(is) = qLR(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cLRy)
+                  vLRy=qtmp(3); call find_speed_fast(qtmp,cLRy)
                   qtmp(1)=qRL(l,1); qtmp(2)=qRL(l,2); qtmp(7)=qRL(l,5); qtmp(8)=qRL(l,8)
                   qtmp(3)=qRL(l,4); qtmp(4)=qRL(l,7); qtmp(5)=qRL(l,3); qtmp(6)=qRL(l,6)
 #if NENER>0
@@ -1980,9 +2027,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qRL(l,8+irad)
                   end do
 #endif
-                  vRLy=qtmp(3)
-                  qtmp(is) = qRL(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cRLy)
+                  vRLy=qtmp(3); call find_speed_fast(qtmp,cRLy)
                   qtmp(1)=qRR(l,1); qtmp(2)=qRR(l,2); qtmp(7)=qRR(l,5); qtmp(8)=qRR(l,8)
                   qtmp(3)=qRR(l,4); qtmp(4)=qRR(l,7); qtmp(5)=qRR(l,3); qtmp(6)=qRR(l,6)
 #if NENER>0
@@ -1990,9 +2035,7 @@ SUBROUTINE cmp_mag_flx(qRT,irt1,irt2,jrt1,jrt2,krt1,krt2, &
                      qtmp(8+irad) = qRR(l,8+irad)
                   end do
 #endif
-                  vRRy=qtmp(3)
-                  qtmp(is) = qRR(l,is)
-                  call find_speed_fast(qtmp,qtmp(is),cRRy)
+                  vRRy=qtmp(3); call find_speed_fast(qtmp,cRRy)
 
                   SL=min(min(vLLx,vLRx,VRLx,vRRx)-max(cLLx,cLRx,cRLx,cRRx),zero)
                   SR=max(max(vLLx,vLRx,VRLx,vRRx)+max(cLLx,cLRx,cRLx,cRRx),zero)
@@ -2173,7 +2216,7 @@ END SUBROUTINE cmp_mag_flx
 !###########################################################
 !###########################################################
 !###########################################################
-subroutine ctoprim(uin,q,bf,gravin,dt,ngrid)
+subroutine ctoprim(uin,q,bf,req,peq,gravin,dt,ngrid)
   use amr_parameters
   use hydro_parameters
   use const
@@ -2185,6 +2228,7 @@ subroutine ctoprim(uin,q,bf,gravin,dt,ngrid)
   real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:ndim)::gravin
   real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar)::q
   real(dp),dimension(1:nvector,iu1:iu2+1,ju1:ju2+1,ku1:ku2+1,1:3)::bf
+  real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2)::req,peq
 
   integer ::i, j, k, l, idim
   real(dp)::eint, smalle, smallp, etot
@@ -2299,13 +2343,19 @@ subroutine ctoprim(uin,q,bf,gravin,dt,ngrid)
               eint = etot/q(l,i,j,k,1)-eken(l)
               q(l,i,j,k,5)=MAX((gamma-one)*q(l,i,j,k,1)*eint,smallp)
            end do
+           
+           ! Store pressure perturbations 
+           do l = 1, ngrid
+              q(l,i,j,k,5)=q(l,i,j,k,5) - peq(l,i,j,k)
+           end do
 
            ! Gravity predictor step
            do idim = 1, ndim
               do l = 1, ngrid
-                 q(l,i,j,k,idim+1) = q(l,i,j,k,idim+1) + gravin(l,i,j,k,idim)*dt*half
+                 q(l,i,j,k,idim+1) = q(l,i,j,k,idim+1) + (q(l,i,j,k,1)-req(l,i,j,k))/q(l,i,j,k,1)*gravin(l,i,j,k,idim)*dt*half
               end do
            end do
+
         end do
      end do
   end do
@@ -2318,12 +2368,25 @@ subroutine ctoprim(uin,q,bf,gravin,dt,ngrid)
            do i = iu1, iu2
               do l = 1, ngrid
                  q(l,i,j,k,n) = uin(l,i,j,k,n)/q(l,i,j,k,1)
+                 ! remove entropy equilibrium profile
+                 q(l,i,j,k,n) = q(l,i,j,k,n) - peq(l,i,j,k)/(req(l,i,j,k)**gamma)
               end do
            end do
         end do
      end do
   end do
 #endif
+  
+  ! Store density perturbations 
+  do k = ku1, ku2
+     do j = ju1, ju2
+        do i = iu1, iu2
+           do l = 1, ngrid
+              q(l,i,j,k,1) = q(l,i,j,k,1) - req(l,i,j,k) 
+           end do
+        end do
+     end do
+  end do
 
 end subroutine ctoprim
 !###########################################################
@@ -2988,128 +3051,3 @@ subroutine uslope(bf,q,dq,dbf,dx,dt,ngrid)
 #endif
 
 end subroutine uslope
-
-subroutine turb_dynamo(uin,q,alphaT,ngrid)
-   use amr_parameters
-   use hydro_parameters
-   use cooling_module, ONLY: XH=>X
-   use constants, only: mH, rhoc
-   use const
-   implicit none
-
-   integer ::ngrid
-   real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar+3)::uin
-   real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar)::q
-   real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2)::alphaT
-
-   real(dp),dimension(1:nvector)::emag, emag_crit
-   real(dp)::emag_lim, b_lim
-   ! local constants
-   real(dp)::scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v
-   real(dp)::Kturb,sigma,d_old,epsilon,nISM,nCOM,d0
-   integer::i, j, k, l
-
-   ! Conversion factor from user units to cgs units
-   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
-
-   ! Dynamo density threshold from H/cc to code units
-   nISM = n_star
-   if(cosmo)then
-      nCOM = del_star*omega_b*rhoc*(h0/100)**2/aexp**3*XH/mH
-      nISM = MAX(nCOM,nISM)
-   endif
-      d0   = nISM/scale_nH
-
-   ! B field cap is 100 microGauss in cgs unit, convert to code unit
-   b_lim = 100D-6 / sqrt(4 * 3.14159 * scale_d) * (scale_t / scale_l)
-
-   do k = ku1, ku2
-      do j = ju1, ju2
-         do i = iu1, iu2
-            do l=1, ngrid
-              emag(l) = half*(q(l,i,j,k,6)**2+q(l,i,j,k,7)**2+q(l,i,j,k,8)**2)
-            end do
-
-            do l=1, ngrid
-              d_old=max(q(l,i,j,k,1),smallr)
-              Kturb=uin(l,i,j,k,ivirial1)
-              sigma=sqrt(max(2.0*Kturb/d_old,smallc**2))
-              if(d_old.GT.d0)then
-                  epsilon = 0.001
-                  emag_lim = half*b_lim**2
-                  emag_crit(l) = min(epsilon * d_old * sigma**2, emag_lim)
-                  alphaT(l,i,j,k)=sigma * max(1.0-emag(l)/emag_crit(l), 0.0)
-              else
-                  alphaT(l,i,j,k)=0.0
-              endif
-            end do
-         end do
-      end do
-   end do
-end subroutine turb_dynamo
-
-subroutine turb_emf(alphaT,bf,dt,dx,emfx,emfy,emfz,ngrid)
-   use amr_parameters
-   use const
-   use hydro_parameters
-   implicit none
-
-   real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2)::alphaT
-   real(dp),dimension(1:nvector,iu1:iu2+1,ju1:ju2+1,ku1:ku2+1,1:3)::bf
-   real(dp)::dx,dt
-   integer::ngrid
-
-   ! Local variables
-   integer::i,j,k,l
-   integer::ilo,ihi,jlo,jhi,klo,khi
-   real(dp)::alpha_edge
-
-   ! Outpur updated turbulent EMF
-   real(dp),dimension(1:nvector,1:3,1:3,1:3)::emfx
-   real(dp),dimension(1:nvector,1:3,1:3,1:3)::emfy
-   real(dp),dimension(1:nvector,1:3,1:3,1:3)::emfz
-
-   ilo=MIN(1,iu1+2); ihi=MAX(1,iu2-2)
-   jlo=MIN(1,ju1+2); jhi=MAX(1,ju2-2)
-   klo=MIN(1,ku1+2); khi=MAX(1,ku2-2)
-
-  ! EMF correction in z direction, assuming 3-dimension grid, sub-grid model for dynamo theory
-   DO i=if1,if2
-      DO j=jf1,jf2
-         DO k=klo,khi
-            DO l=1,ngrid
-               alpha_edge=0.25*(alphaT(l,i-1,j-1,k)+alphaT(l,i-1,j,k)+alphaT(l,i,j-1,k)+alphaT(l,i,j,k))
-               emfz(l,i,j,k)=emfz(l,i,j,k) + alpha_edge * 0.5 * (0.25*(bf(l,i-1,j-1,k  ,3) + bf(l,i-1,j,k  ,3) + bf(l,i,j-1,k  ,3) + bf(l,i,j,k  ,3) ) &
-               &                                              +  0.25*(bf(l,i-1,j-1,k+1,3) + bf(l,i-1,j,k+1,3) + bf(l,i,j-1,k+1,3) + bf(l,i,j,k+1,3))) * dt/dx
-            END DO
-         END DO
-      END DO
-   END DO
-
-  ! EMF correction in y direction, assuming 3-dimension grid
-   DO i=if1,if2
-      DO j=jlo,jhi
-         DO k=kf1,kf2
-            DO l=1,ngrid
-               alpha_edge=0.25*(alphaT(l,i-1,j,k-1)+alphaT(l,i-1,j,k)+alphaT(l,i,j,k-1)+alphaT(l,i,j,k))
-               emfy(l,i,j,k)=emfy(l,i,j,k) + alpha_edge * 0.5 * (0.25*(bf(l,i-1,j  ,k-1,2) + bf(l,i-1,j  ,k,2) + bf(l,i,j  ,k-1,2) + bf(l,i,j  ,k,2) ) &
-               &                                              +  0.25*(bf(l,i-1,j+1,k-1,2) + bf(l,i-1,j+1,k,2) + bf(l,i,j+1,k-1,2) + bf(l,i,j+1,k,2))) * dt/dx
-            END DO
-         END DO
-      END DO
-   END DO
-
-  ! EMF correction in x direction, assuming 3-dimension grid
-   DO i=ilo,ihi
-      DO j=jf1,jf2
-         DO k=kf1,kf2
-            DO l=1,ngrid
-               alpha_edge=0.25*(alphaT(l,i,j-1,k-1)+alphaT(l,i,j-1,k)+alphaT(l,i,j,k-1)+alphaT(l,i,j,k))
-               emfx(l,i,j,k)=emfx(l,i,j,k) + alpha_edge * 0.5 * (0.25*(bf(l,i  ,j-1,k-1,1) + bf(l,i  ,j-1,k,1) + bf(l,i  ,j,k-1,1) + bf(l,i  ,j,k,1) ) &
-               &                                              +  0.25*(bf(l,i+1,j-1,k-1,1) + bf(l,i+1,j-1,k,1) + bf(l,i+1,j,k-1,1) + bf(l,i+1,j,k,1))) * dt/dx
-            END DO
-         END DO
-      END DO
-   END DO
-
-end subroutine turb_emf
