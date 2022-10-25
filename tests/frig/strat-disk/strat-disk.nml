@@ -22,6 +22,14 @@ boxlen=1000.0
 &REFINE_PARAMS
 interpol_type=0
 interpol_var=1
+!--- prevent refinement at the z-boundary for boundary_frig
+x_refine=20*500.  ! center of refined region
+y_refine=20*500.
+z_refine=20*500.
+r_refine=20*1000. ! diameter of refined region
+b_refine=20*0.95  ! ratio Z/X of refined region
+exp_refine=20*10  ! exponent of the norm, 10=rectangle?
+!---
 jeans_refine=12,12,12,12,12,12
 /
 
@@ -114,7 +122,9 @@ riemann2d='hlld'
 smallr=1e-4
 rho_floor=.true.
 !temp_max=1e7
-switch_solv=100.
+allow_switch_solver=.true.
+allow_switch_solver2D=.true.
+switch_solv_B=100.
 switch_solv_dens=3.
 /
 
