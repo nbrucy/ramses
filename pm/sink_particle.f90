@@ -193,7 +193,7 @@ subroutine create_cloud_from_sink
   ! Mesh spacing in that level
   nx_loc=(icoarse_max-icoarse_min+1)
   scale=boxlen/dble(nx_loc)
-  dx_min=scale*0.5D0**nlevelmax_sink/aexp
+  dx_min=scale*0.5D0**nlevelmax/aexp
 
   rmax=dble(ir_cloud)*dx_min
   rmass=dble(ir_cloud_massive)*dx_min
@@ -1035,7 +1035,7 @@ subroutine compute_accretion_rate(write_sinks)
   scale_m=scale_d*scale_l**ndim
   nx_loc=(icoarse_max-icoarse_min+1)
   scale=boxlen/dble(nx_loc)
-  dx_min=scale*0.5D0**nlevelmax_sink/aexp
+  dx_min=scale*0.5D0**nlevelmax/aexp
   d_star=n_star/scale_nH
 
   ! Compute sink particle accretion rate by averaging contributions from all levels
@@ -1206,7 +1206,7 @@ subroutine print_sink_properties(dMEDoverdt,dMEDoverdt_smbh,rho_inf,r2)
   skip_loc(2)=dble(jcoarse_min)
   skip_loc(3)=dble(kcoarse_min)
   scale=boxlen/dble(nx_loc)
-  dx_min=0.5D0**nlevelmax_sink*scale/aexp
+  dx_min=0.5D0**nlevelmax*scale/aexp
 
   ! Scaling factors
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
