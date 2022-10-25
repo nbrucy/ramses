@@ -3,6 +3,9 @@ subroutine read_stellar_params()
   use pm_commons, only: iseed
   use amr_parameters, only: dp,stellar
   use sink_feedback_parameters
+#ifdef RT
+  use rt_parameters, only: nGroups
+#endif
   use constants, only:M_sun
   implicit none
 
@@ -12,12 +15,10 @@ subroutine read_stellar_params()
   namelist/stellar_params/ nstellarmax, stellar_msink_th, sn_direct, &
                          & imf_index, imf_low, imf_high, &
                          & lt_t0, lt_m0, lt_a, lt_b, &
-                         & stf_K, stf_m0, stf_a, stf_b, stf_c, &
-                         !& hii_w, hii_alpha, hii_c, hii_T2, &
-                         & hii_t, &
-                         & sn_feedback_sink,make_stellar_glob,iseed, &
+                         & hii_t, feedback_photon_group, &
+                         & sn_feedback_sink,stellar_strategy,iseed, &
                          & mstellarini, &
-                         & Tsat, Vsat, sn_r_sat, sn_p_ref, sn_e_ref, sn_mass_ref, &
+                         & Tsat, Vsat, sn_r_sat, sn_p_ref, sn_e_ref, &
                          !& FB_nsource, FB_on, FB_start, FB_end, FB_sourcetype, &
                          !& FB_pos_x, FB_pos_y, FB_pos_z, &
                          !& FB_mejecta, FB_energy, FB_thermal, &
@@ -57,6 +58,11 @@ subroutine read_stellar_params()
       call clean_stop
   end if
 
+  if((stellar_strategy .ne. 'local') .and. (stellar_strategy .ne. 'global'))then
+      if(myid == 1) write(*, *) 'stellar_strategy should be local or global'
+      call clean_stop
+  end if
+
   call units(scale_l, scale_t, scale_d, scale_v, scale_nH, scale_T2)
 
   ! Convert parameters to code units
@@ -76,15 +82,26 @@ subroutine read_stellar_params()
   stf_m0 = stf_m0 * msun 
 
   !Careful: normalised age of the time during which the star is emitting HII ionising flux
-  hii_t = hii_t * Myr 
-  !hii_T2 = hii_T2 / scale_T2
-  !hii_alpha = hii_alpha / (scale_l**3 / scale_t) ! alpha is in cm**3 / s
-  !hii_c = hii_c * km_s
+  hii_t = hii_t * Myr
+
+  ! photon group for HII radiation from sinks
+#ifdef RT
+  if (feedback_photon_group<=0) then
+     ! if not specified by user, use default
+     ! HII-ionising is group 1 if no IR, else group 3 (IR is group 1, optical is group 2)
+     if (ngroups.eq.3) then
+        feedback_photon_group = 1
+     else if (ngroups.eq.4) then
+        feedback_photon_group = 2
+     else
+        feedback_photon_group = 3
+     endif
+  endif
+#endif
 
   !normalise the supernova quantities
   sn_p_ref = sn_p_ref / (scale_d * scale_v * scale_l**3)
   sn_e_ref = sn_e_ref / (scale_d * scale_v**2 * scale_l**3)
-  sn_mass_ref = sn_mass_ref / (scale_d * scale_l**3) !1 solar mass ejected
 
   !normalise Vsat which is assumed to be in KM/S
   Vsat = Vsat * 1.e5 / scale_v

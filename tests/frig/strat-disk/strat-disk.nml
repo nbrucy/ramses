@@ -71,7 +71,7 @@ c_acc=0.1
 &STELLAR_PARAMS
 !iseed=21
 !sn_feedback_sink=.True.
-make_stellar_glob=.false.
+stellar_strategy=.false.
 nstellarmax=10000
 imf_index=-2.35
 imf_low=8.

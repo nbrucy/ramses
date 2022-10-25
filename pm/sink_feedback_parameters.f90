@@ -5,10 +5,15 @@ module sink_feedback_parameters
 
   integer:: nstellarmax                   ! maximum number of stellar objects
   real(dp):: imf_index, imf_low, imf_high ! power-law IMF model: PDF index (dN/dM), lower and higher mass bounds (Msun)
-  real(dp):: lt_t0, lt_m0, lt_a, lt_b     ! Stellar lifetime model: t(M) = lt_t0 * exp(lt_a * (log(lt_m0 / M))**lt_b)
+  ! Stellar lifetime model: t(M) = lt_t0 * exp(lt_a * (log(lt_m0 / M))**lt_b)
+  ! default: Woosley et al 2002
+  real(dp):: lt_t0=3.26515722d0   !Myr
+  real(dp):: lt_m0=148.158972d0   !Msun
+  real(dp):: lt_a=0.23840797d0
+  real(dp):: lt_b=2.20522946d0
 
-  logical:: make_stellar_glob = .false.   !if used, the objects are created when the total mass in sinks exceeds stellar_msink_th
-
+  character(LEN=100)::stellar_strategy='local' ! local: create stellar particles from each sink
+                                               ! global: create when the total mass in sinks exceeds stellar_msink_th
   real(dp):: stellar_msink_th                  ! sink mass threshold for stellar object creation (Msun)
 
   ! Allow users to pre-set stellar mass selection for physics comparison runs, etc
@@ -22,14 +27,13 @@ module sink_feedback_parameters
   logical::sn_direct = .false.        ! explode immediately instead of after lifetime
 
   real(dp):: sn_e_ref=1.d51      ! SN energy for forcing by sinks [erg]
-  real(dp):: sn_p_ref=4.d43      ! SN momentum [g cm/s]
-  real(dp):: sn_mass_ref=2.e33   ! SN mass [g]
+  real(dp):: sn_p_ref=4.d43      ! SN momentum [g cm/s] for 10 H/cc (Iffrig and Hennebelle 2015)
 
-  real(dp):: Tsat=1.d99   ! maximum temperature in SN remnants
-  real(dp):: Vsat=1.d99   ! maximum velocity in SN remnants
-  real(dp):: sn_r_sat=0.  ! minimum radius for SN remnant
+  real(dp):: Tsat=1d99    ! maximum temperature in SN remnants
+  real(dp):: Vsat=1d99    ! maximum velocity in SN remnants
+  real(dp):: sn_r_sat=0d0 ! minimum radius for SN remnant
 
-  real(dp):: Vdisp=1.     ! dispersion velocity of the stellar objects [km/s] 
+  real(dp):: Vdisp=1d0    ! dispersion velocity of the stellar objects [km/s] 
                           ! determines how far SN can explode from the sink
 
   logical::stellar_info=.true.  ! write stellar particles to log file
@@ -45,7 +49,8 @@ module sink_feedback_parameters
   real(dp)::stf_b=4.353614230584390d0
   real(dp)::stf_c=1.142166657042991d0 
 
-  real(dp):: hii_t=0 !fiducial HII region lifetime [yr?], it is normalised in code units in read_stellar 
+  real(dp):: hii_t=0 !fiducial HII region lifetime [yr?], it is normalised in code units in read_stellar
+  integer:: feedback_photon_group=-1 ! index of the photon group where to put the radiation
 
   ! commons
 

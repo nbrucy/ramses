@@ -9,9 +9,13 @@ SUBROUTINE update_sink_RT_feedback
 ! Update photon group properties from stellar populations.
 !-------------------------------------------------------------------------
   use rt_parameters
+  use sink_feedback_parameters
   implicit none
 
-  rt_advect=.true.
+  if(nstellar>0)then
+     rt_advect=.true.
+  endif
+
 END SUBROUTINE update_sink_RT_feedback
 !*************************************************************************
 !*************************************************************************
@@ -45,11 +49,8 @@ SUBROUTINE sink_RT_feedback(ilevel, dt)
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
 
-
-  !if stellar objects are used, start by looping over the stellar objects and gather their fluxes
-  !if (stellar) then
+  ! Start by looping over the stellar objects and gather their fluxes
   call gather_ioni_flux(dt,sink_ioni_flux)
-  !endif
 
   ! Loop over cpus
   do icpu=1,ncpu
@@ -91,13 +92,8 @@ SUBROUTINE sink_RT_feedback(ilevel, dt)
                  ind_grid_part(ip) = ig
               endif
               if(ip == nvector)then
-                 !if(stellar) then 
                  call sink_RT_vsweep_stellar( &
                               ind_grid,ind_part,ind_grid_part,ig,ip,dt,ilevel,sink_ioni_flux)
-                 !else
-                 !   call sink_RT_vsweep( &
-                 !             ind_grid,ind_part,ind_grid_part,ig,ip,dt,ilevel)
-                 !endif
                  ip = 0
                  ig = 0
               end if
@@ -109,13 +105,8 @@ SUBROUTINE sink_RT_feedback(ilevel, dt)
      end do
      ! End loop over grids
      if(ip > 0) then
-         !if(stellar) then 
          call sink_RT_vsweep_stellar( &
                      ind_grid,ind_part,ind_grid_part,ig,ip,dt,ilevel,sink_ioni_flux)
-         !else
-         !call sink_RT_vsweep( &
-         !            ind_grid,ind_part,ind_grid_part,ig,ip,dt,ilevel)
-         !endif
      endif
   end do 
   ! End loop over cpus
@@ -143,23 +134,19 @@ SUBROUTINE gather_ioni_flux(dt,sink_ioni_flux)
   real(dp),dimension(1:nsink,1:ngroups),intent(out):: sink_ioni_flux !this arrays gathers the ionising flux by looping over stellar object
   integer:: istellar,isink,ig
   real(dp)::M_stellar,Flux_stellar
-  !real(dp)::ts,dts,M_stellar_Msun
-  !real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2,scale_m
   real(dp),dimension(1:ngroups)::nphotons
 
   sink_ioni_flux = 0d0
-  !call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
-  !scale_m=scale_d*scale_l**3d0
 
   do istellar=1,nstellar
-     !id of the sink to which the stellar object belongs
+    ! find corresponding sink
      isink = 1
      do while ((isink.le.nsink) .and. (id_stellar(istellar) .ne. idsink(isink)))
-        isink = isink + 1
+       isink = isink + 1
      end do
      if (isink.gt.nsink) then
-        write(*,*)"BUG: COULD NOT FIND SINK"
-        call clean_stop
+       write(*,*)"BUG: COULD NOT FIND SINK"
+       call clean_stop
      endif
      M_stellar = mstellar(istellar)
      ! Reset the photon counter
@@ -179,20 +166,14 @@ SUBROUTINE gather_ioni_flux(dt,sink_ioni_flux)
      !! Use fit to Vacca+ 1996
      !else
 
+     ! Use fit to Vacca+ 1996
      !check whether the object is emitting
      if (t - tstellar(istellar) < hii_t) then
         !remember vaccafits is in code units because the corresponding parameters have been normalised in read_stellar_params (stf_K and stf_m0)
         call vaccafit(M_stellar,Flux_stellar)
-        ! HII-ionising is group 1 if no IR, else group 3 (IR is group 1, optical is group 2)
-        if (ngroups.eq.3) then
-           nphotons(1) = Flux_stellar
-        else
-           nphotons(3) = Flux_stellar
-        endif
+        nphotons(feedback_photon_group) = Flux_stellar
      endif
-     !endif
 
-     !write(*,*) "cpu",myid,"DEBUG isink",isink
      do ig=1,ngroups
         ! Remove negative photon counts
         nphotons(ig) = max(nphotons(ig),0d0)
@@ -597,7 +578,6 @@ SUBROUTINE vaccafit(M,S)
 
   real(dp),intent(in)::M
   real(dp),intent(out)::S
-  
   S = stf_K * (M / stf_m0)**stf_a / (1. + (M / stf_m0)**stf_b)**stf_c
 
 END SUBROUTINE

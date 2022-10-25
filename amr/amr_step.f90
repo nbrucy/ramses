@@ -204,7 +204,7 @@ recursive subroutine amr_step(ilevel,icount)
   !----------------------------------------------------
   ! Feedback on sink particles
   !----------------------------------------------------
-  if((ilevel==levelmin) .and. stellar) then
+  if(stellar) then
      call make_stellar_from_sinks
   endif
   if (sn_feedback_sink) then

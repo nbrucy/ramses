@@ -21,7 +21,7 @@ subroutine make_stellar_from_sinks
 
   nbuf = 0
 
-  if(.not.make_stellar_glob)then
+  if(stellar_strategy=='local')then
      ! Check for each sink whether a stellar particle (or multiple) should be created
      do isink = 1, nsink
         do while(dmfsink(isink) .gt. stellar_msink_th)
@@ -38,7 +38,7 @@ subroutine make_stellar_from_sinks
   else !global
      ! Determine how many new stellar objects must be created by summing all the mass
      ! within sinks and looking at how many objects have been created already.
-     ! It then places them on the sinks which have the largest dmfsink, i.e. recently accreted gas 
+     ! It then places them on the sinks which have the largest dmfsink, i.e. recently accreted gas
 
      !compare the total number of objects formed and the mass of the sinks
      mass_total = sum(dmfsink)
@@ -55,7 +55,7 @@ subroutine make_stellar_from_sinks
      !this assumes that the number of sinks is larger than the number of objects
      if(nobj_new .gt. nsink) then
         write(*,*) 'number of new objects is larger than the number of sinks ',nobj_new, nsink
-        write(*,*) 'use make_stellar_glob=.false.' 
+        write(*,*) "use stellar_strategy='local'"
         stop
      endif
 
@@ -97,13 +97,9 @@ subroutine create_stellar(ncreate, nbuf, id_new)
     !------------------------------------------------------------------------
     integer, intent(in):: ncreate, nbuf
     integer, dimension(1:nbuf), intent(in):: id_new
-    !logical:: print_table=.true.
     integer:: ncreate_loc
     real(dp), dimension(1:ncreate):: mnew_loc, ltnew_loc
     real(dp), dimension(1:ncreate):: mnew, tnew, ltnew
-    !real(dp):: scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v
-    !real(dp):: msun
-    
 #ifndef WITHOUTMPI
     integer, dimension(1:ncpu)::displ
     integer:: info, icpu, idim, isplit, nsplit
@@ -113,9 +109,6 @@ subroutine create_stellar(ncreate, nbuf, id_new)
 
     if(ncreate == 0) return
 
-    !call units(scale_l, scale_t, scale_d, scale_v, scale_nH, scale_T2)
-    !msun = M_sun / scale_d / scale_l**3
-    
     ! Check that there is enough space
     if(ncreate + nstellar > nstellarmax) then
         if(myid == 1) write(*, *) 'Not enough space for new stellar objects! Increase nstellarmax.'
@@ -155,8 +148,7 @@ subroutine create_stellar(ncreate, nbuf, id_new)
 !            & exp(lt_a * (log(lt_m0 / mnew_loc))**lt_b)
 !    endif
 !#else
-       ltnew_loc(1:ncreate_loc) = lt_t0 * &
-            & exp(lt_a * (log(lt_m0 / mnew_loc))**lt_b)
+    ltnew_loc(1:ncreate_loc) = lt_t0 * exp(lt_a * (log(lt_m0 / mnew_loc))**lt_b)
 !#endif
 
 
@@ -176,7 +168,9 @@ subroutine create_stellar(ncreate, nbuf, id_new)
 
     ! Set stellar masses and lifetimes
     ! EITHER: use mnew
-    ! OR: use mstellarini if this has non-zero values
+    ! OR: use mstellarini if this has non-zero values (sets first stellar objects to have specific mass)
+    !TC: remove mstellarini? I can think of only a few cases where this is useful.
+    !    Maybe not worth having this extra loop and checks
     do istellar = nstellar+1, nstellar+ncreate
        if(istellar .ge. nstellarini) then 
           mstellar(istellar) = mnew(istellar-nstellar)
@@ -198,8 +192,7 @@ subroutine create_stellar(ncreate, nbuf, id_new)
 !                    & exp(lt_a * (log(lt_m0 / mstellar(istellar)))**lt_b)
 !            endif
 !#else
-               ltnew(istellar-nstellar) = lt_t0 * &
-                    & exp(lt_a * (log(lt_m0 / mstellar(istellar)))**lt_b)
+             ltnew(istellar-nstellar) = lt_t0 * exp(lt_a * (log(lt_m0 / mstellar(istellar)))**lt_b)
 !#endif
 
          endif
@@ -210,15 +203,6 @@ subroutine create_stellar(ncreate, nbuf, id_new)
 
     if(myid == 1) then
         write(*, "('Created ', I5, ' stellar objects')") ncreate
-        !if(print_table) then
-        !    write(*, "('*****************************************************')")
-        !    write(*, "('       Mass          Birth          LifeT       id   ')")
-        !    write(*, "('*****************************************************')")
-        !    do istellar = nstellar + 1, nstellar + ncreate
-        !        write(*, "(3ES15.7,2X,i6)") mstellar(istellar), &
-        !            & tstellar(istellar), ltstellar(istellar), id_stellar(istellar)
-        !    end do
-        !end if
     end if
 
     if(sn_direct) then
@@ -300,7 +284,7 @@ subroutine sample_powerlaw(x, a, b, alpha, n)
 
     do i = 1, n
         call Ranf(localseed, u)
-        write(*,*) 'random number generated ', u
+        !write(*,*) 'random number generated ', u
         ! u follows an uniform law between 0 and 1
         ! Scale it to b^p..a^p
         u = b**p + (a**p - b**p) * u
@@ -325,11 +309,18 @@ subroutine print_stellar_properties
         call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
         scale_m=scale_d*scale_l**ndim
 
+        ! sort by remaining lifetime
+        !do istellar=1,nstellar
+        !    time_remaining(istellar) = ltstellar(istellar) - (t-tstellar(istellar))
+        !end do
+        !call quick_sort_dp(time_remaining(1),idstellar_sort(1),nstellar)
+
         write(*,*)'Number of stellar objects = ',nstellar
         write(*, "('***********************************************')")
         write(*, "('   id    mass[Msol]     age[yr]    lifetime[yr]')")
         write(*, "('***********************************************')")
         do i=1,nstellar
+            !istellar=idstellar_sort(i)
             write(*, "(I5,3(2X,1PE12.5))") id_stellar(i), &
                 & mstellar(i)*scale_m/M_sun, (t-tstellar(i))*scale_t/yr2sec, ltstellar(i)*scale_t/yr2sec
         end do

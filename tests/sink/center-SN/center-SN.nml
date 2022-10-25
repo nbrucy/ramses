@@ -41,7 +41,6 @@ boxlen=250. ! pc
 /
 
 &OUTPUT_PARAMS
-!foutput=1
 tend=0.18
 /
 

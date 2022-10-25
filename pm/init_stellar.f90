@@ -55,7 +55,7 @@ subroutine init_stellar
         read(ilun,'(A200)')comment_line
         read(ilun,'(A200)')comment_line
         do
-            read(ilun,'(I10,3(A1,ES20.10))',end=104)sid,co,sm,co,&
+            read(ilun,'(I10,3(A1,ES21.10))',end=104)sid,co,sm,co,&
                                 stform,co,stlife
             nstellar=nstellar+1
             id_stellar(nstellar)=sid
