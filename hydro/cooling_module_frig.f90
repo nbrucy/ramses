@@ -53,14 +53,6 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
   ! Mesh size at level ilevel in coarse cell units
   dx=0.5_dp**ilevel
   
-  ! Rescaling factors
-  !  nx_loc=(icoarse_max-icoarse_min+1)
-  !  skip_loc=(/0.0d0,0.0d0,0.0d0/)
-  !  if(ndim>0)skip_loc(1)=dble(icoarse_min)
-  !  if(ndim>1)skip_loc(2)=dble(jcoarse_min)
-  !  if(ndim>2)skip_loc(3)=dble(kcoarse_min)
-  !  scale=dble(nx_loc)!/boxlen
-  
   ! Set position of cell centers relative to grid center
   do ind=1,twotondim
      iz=(ind-1)/4
@@ -90,7 +82,7 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
   !  Here we calculate the limits for the cubic shells considered at each 
   !  resolution level. We obtain external and internal limits.
 
-  do idir=1,ndir        !  loop over the 6 directions
+  do idir=1,ndir        ! loop over the 6 directions
      do idim=1,ndim
         do i=1,ngrid
            xpart(i,idim,idir)=xg(ind_grid(i),idim)+shift(idim,idir)*dx
@@ -100,7 +92,7 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
       end do      !idim
    end do         !idir
 
-   do il = ilevel-1,1,-1            !  loop recursively over level
+   do il = ilevel-1,1,-1            ! loop recursively over level
       dx_loc = 0.5_dp**(il)
       do idir=1,ndir                ! loop over the 6 directions
          do i=1,ngrid
@@ -109,17 +101,17 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
                   xgaux = dx_loc*(INT(xg(ind_grid(i),idim)/dx_loc) + 0.5_dp)
                   ind_lim1(i,idir)= shift(idim,idir)*INT(ABS(xpart(i,idim,idir)-xgaux)/dx_loc )                  
                end if
-            end do                  !idim
-         end do                     !i
+            end do
+         end do
          
          !--- we do it twice because of oct structure           
-         do twice=1,2               !do it twice
+         do twice=1,2
             do idim=1,ndim
                do i=1,ngrid
                   xpart(i,idim,idir)= xpart(i,idim,idir)+shift(idim,idir)*(dx_loc/2.)*twice
                   xpart_int(i,idim)= xpart(i,idim,idir)
-               end do   !i
-            end do      !idim
+               end do
+            end do
             
             call get_cell_index3(cell_index,cell_levl,xpart_int,il,ngrid)
             
@@ -224,7 +216,7 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
       ! once we have calculated the limits we call the contribution routine,
       ! that sums up to the column density
 
-      call  contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_dens,H2column_dens)
+      call contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_dens,H2column_dens)
 
    end do                                   !end of loop recursively over level
 
@@ -461,7 +453,6 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
         
      end if
 
-
      !-----   SPLITTED LOOPS to avoid the "if" for skipping treated cells   -----
      ! we cut the cubic shell in 6 regions
      ! here we define the limits for the splitted regions and we integrate the column density.
@@ -530,15 +521,12 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
 
                  !+++  04/02/2013  ++++++++++++++++++++
                  ! here we obtain the direction to the center of the cell in the shell
-                 
-                 
+
                  mn = dirMN_ext(ind_oct, ix, iy, iz)
-                 
 
                  if(Mdx_ext_logical(ind_oct, ix, iy, iz, mn)) then
                     
                     call get_cell_index2(cell_ind2,cell_levl2,xpart2,il)
-                    
 
                     !PH 29/11/2019
                     !calculate the distance of the cells from the grid
@@ -546,7 +534,6 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
                     !if above a threshold, then we put the weigth of this cells to zero
                     weight=0.
                     if(dist_grid .lt. dist_screen)  weight=1. 
-
 
                     if (cell_ind2 .NE. -1) then  
                        m = dirM_ext(ind_oct, ix, iy, iz)
@@ -603,16 +590,16 @@ end subroutine contribution
 subroutine  calc_temp_extinc(NN,TT,dt_tot_unicode,coeff_chi) 
   use amr_parameters
   use hydro_commons
-  
+  use constants, only:kB
   implicit none
   
   real(dp)                                                   :: NN,TT, dt_tot_unicode,coeff_chi
 !  real(dp), dimension(1:NdirExt_m,1:NdirExt_n),intent(inout) :: vcolumn_dens
   
-  integer             :: n,i,j,k,idim, iter, itermax               
-  real(dp)            :: dt, dt_tot, temps, dt_max, itermoy,extinct
+  integer             :: n,i,j,k,idim, iter               
+  real(dp)            :: dt, dt_tot, temps, dt_max,extinct
   real(dp)            :: rho,temp
-  real(dp)            :: mm,uma, kb, alpha1,mu,kb_mm
+  real(dp)            :: mm,uma, alpha1,mu,kb_mm
   real(dp)            :: TTold, ref,dRefdT, eps, vardt,varrel, dTemp
   real(dp)            :: rhoutot2
   real(dp)            :: scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2
@@ -620,28 +607,18 @@ subroutine  calc_temp_extinc(NN,TT,dt_tot_unicode,coeff_chi)
   
   ! cgs units are used here
   ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  
-  kb  =  1.38062d-16   ! erg/degre
-  
+    
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
   
   if( TT .le. 0.) then 
      TT = 50. / scale_T2
      return
   endif
-  
-  
+
   vardt = 10.**(1./10.); varrel = 0.2
-  
-  
   
   dt_tot = dt_tot_unicode * scale_t ! * 3.08d18 / sqrt(kb_mm)
   TT     = TT * scale_T2
-  
-    
-  itermax = 0 ; itermoy = 0.
-  
-  
   
   if (NN .le. smallr) then 
      if( NN .le. 0)  write(*,*) 'prob dens',NN
@@ -652,8 +629,7 @@ subroutine  calc_temp_extinc(NN,TT,dt_tot_unicode,coeff_chi)
   
   iter = 0 ; temps = 0.
   do while ( temps < dt_tot)
-     
-     
+
      if (TT .lt.0) then
         write(*,*) 'prob Temp',TT, NN
         !         write(*,*) 'repair assuming isobariticity'
@@ -661,12 +637,10 @@ subroutine  calc_temp_extinc(NN,TT,dt_tot_unicode,coeff_chi)
         TT = min(4000./NN,8000.)  !2.*4000. / NN 
      endif
      
-     
      TTold = TT       
      
      !NN is assumed to be in cc and TT in Kelvin
-     
-     
+
      !! here we pass the value of the column density
      
      !PH modifies this as coeff_chi is now stored
@@ -696,8 +670,7 @@ subroutine  calc_temp_extinc(NN,TT,dt_tot_unicode,coeff_chi)
         write(*,*) 'rho   = ',rho 
         TT = 100.  !*kelvin
      endif
-     
-     
+
      iter = iter + 1
      
      temps = temps + dt
@@ -707,12 +680,10 @@ subroutine  calc_temp_extinc(NN,TT,dt_tot_unicode,coeff_chi)
      dt_max = dt_tot - temps
      if (dt > 0.7*dt_max) dt = dt_max*(1.+1.0E-12)
   enddo
-  
-  
+
   !!now convert temperature in code units
   TT = TT / scale_T2
-  
-  
+
   return
 end subroutine calc_temp_extinc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -840,7 +811,6 @@ subroutine get_mn(x0,x1,m,n)
      else
         phi = 2.*pi - acos(cos_phi)
      end if
-     
 
      n =  mod(INT(phi*NdirExt_n/(2.0*pi)+0.5),NdirExt_n) + 1
 
@@ -880,8 +850,6 @@ subroutine init_extinction
   allocate(Mdx_ext_logical(1:73, 1:11, 1:11, 1:11, 1:(NdirExt_m*NdirExt_n) ))
   allocate(dirM_ext(1:73, 1:11, 1:11, 1:11), dirN_ext(1:73, 1:11, 1:11, 1:11), dirMN_ext(1:73, 1:11, 1:11, 1:11) )
 
-
-
   Mdx_ext(:,:,:,:,:)=0
   Mdx_ext_logical(:,:,:,:,:)= .false.  
   dirM_ext(:,:,:,:) = 0
@@ -896,7 +864,6 @@ subroutine init_extinction
      if(ndim>1)xc(ind,2)=(dble(iy)-0.5_dp)
      if(ndim>2)xc(ind,3)=(dble(iz)-0.5_dp)
   end do
-
 
   !----- xalpha for  GET_DX   -----
   do n=1, NdirExt_n
@@ -924,8 +891,6 @@ subroutine init_extinction
      mod13(i+1)    = 1 + mod(i+1,3)
      mod23(i+1)    = 1 + mod(i+2,3)
   end do
-
-
 
   !-----   CALCULATION OF GEOMETRICAL CORRECTIONS   -----
   ! the correction factors are calculated for a cell of side 1
@@ -1488,7 +1453,6 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
   integer                                               :: neulS=8+nextinct
   !------------------------------------------------------------------------------------!
 
-
   !Valeska
   column_dens(:,:,:) = 0.
   H2column_dens(:,:,:) = 0.
@@ -1548,9 +1512,7 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
      if(ndim>2)xc(ind,3)=(dble(iz)-0.5_dp)*dx
   end do
 
-
 !******************************************************
-
 
   !---  PRECALCULATION of  m, n loop limits  ------------------------------------------
   ! each cell can contribute to the column density in several directions, then
@@ -1605,7 +1567,6 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
 #endif
 #endif
 
-
 #if NEXTINCT>1
      do i=1,nleaf                                  !loop over leaf cells 
         ind_ll=ind_leaf_loc(i)
@@ -1659,7 +1620,6 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
                  !  if(m .NE. Mdirection(ind,ii) .OR. n .NE. Ndirection(ind,ii)) write(*,*) ind,ii
                  !  if(myid .EQ.1 .AND. ii .EQ. 8  ) write(*,*) ind, i, ii, "     m,n:", m, n
                  !-------------------------------------------------
-                 
 
                  ! knowing the index of the target cell and the sibling cell we can find 
                  ! the closest direction from the target cell center to the sibling cell center.
@@ -1791,11 +1751,8 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
 !           kdest = kph0*uold(ind_leaf(i),neulS+2)
 #endif
 
-
-
      end do
 #endif
-
 
   end do
   ! End loop over cells
@@ -1806,7 +1763,7 @@ end subroutine extinctionfine1
 !###########################################################                                          
 !###########################################################                                          
 !########################################################### 
-
+!TC: not used?
 !###########################################################
 !!! VAL (09/07/2014)
 !!! VAL (update Nov 2014): I added dependence on T and the sticking coefficient for H2 formation
@@ -1863,8 +1820,6 @@ subroutine simple_chemostep1(ind_grid,ngrid,ilevel) !
   use cooling_module,ONLY: kB,mH
   use amr_commons
   use hydro_commons
-!!  use chemo_parameters
-!!  use thermochemistry  , verbose_thermo=>verbose, mype_thermo=>mype
   implicit none
   integer                      :: ilevel,ngrid
   integer,dimension(1:nvector) :: ind_grid
@@ -1882,7 +1837,6 @@ subroutine simple_chemostep1(ind_grid,ngrid,ilevel) !
   real(dp)                     :: TT, coeff_chi
 
   logical:: once
-
 
   once=.true.
 
@@ -1968,7 +1922,6 @@ subroutine simple_chemostep1(ind_grid,ngrid,ilevel) !
 
      end do
 
-
 !======================================================================
 
      !nH2 : just one value here
@@ -1982,9 +1935,7 @@ subroutine simple_chemostep1(ind_grid,ngrid,ilevel) !
         if(isnan(uold(ind_leaf(i),firstindex_extinct+2))) write(*,*) "WARNING (simple_chemostep1 BEFORE solve) uold( ,neulS+2) is nan, i, ind_leaf(i)",i, ind_leaf(i) 
         k2 = kph0 * uold(ind_leaf(i),firstindex_extinct+2) ! kph_0*<fshield*exp(-tau_(d,1000) )> (eq 31, Glover&MacLow2006) 
         k1 = k1_0*sqrt(T2(i)/100.0_dp)/(1.0_dp + (T2(i)/464.0_dp)**1.5_dp)        ! k1 = k1_0*sqrt(T/100K)*S(T)
-
-
-                                             
+                        
         ! 2nd: I solve the evolution of H2 for the next step
         call solve2_H2form(nH2, ntot, k1, k2, dt_ilev)   !!! xH and xH2 must be in/out variables.
 
@@ -2009,7 +1960,6 @@ subroutine simple_chemostep1(ind_grid,ngrid,ilevel) !
         !now recalculate the internal energy
         uold(ind_leaf(i),neulP) = TT / (gamma-1.0) * (uold(ind_leaf(i),1) - uold(ind_leaf(i),neulS+1)) + ekin(i)+ emag(i) + erad_loc(i)
 #endif
-
 
      end do   ! leaf
 
@@ -2085,7 +2035,6 @@ subroutine solve2_H2form(nH2, ntot, k1, k2, dt_ilev)
 
   if(isnan(nH2) .OR. isnan(ntot) .OR. isnan(k2) .OR. isnan(k1)) write(*,*) "WARNING: solve2_H2form invalid arguments nH2, ntot, k2, k1", nH2, ntot, k2, k1
 
-
   dennew = 1.0
   dt_tot = dt_ilev * scale_t ! * 3.08d18 / sqrt(kb_mm)
   dtchem = dt
@@ -2107,14 +2056,11 @@ subroutine solve2_H2form(nH2, ntot, k1, k2, dt_ilev)
   ! nH2(t+dt) =  (xH2(t) - k1*n*dt)/( 1 + (2*k1*n+k2)*dt)
   !---------------------------------------------------------------
 
-
   do while ( temps < dt_tot)
-
 
      denom= MAX((k1ntot - (2.0*k1ntot + k2)*xH2), 1./dt_tot)
      dtchem = MIN(ABS(xH2/denom), dt_tot)
      dtchem = 5d-2*MAX(1.0/(2*k1ntot + k2), dtchem)
-
 
      dt = min(dtchem, dt_tot-temps)
      temps = temps + dt

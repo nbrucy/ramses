@@ -542,6 +542,7 @@ subroutine make_fb_fixed(currlevel,isn)
   use hydro_commons
   use amr_parameters,only:dp
   use sink_feedback_parameters
+  use constants, only:pi,yr2sec,M_sun
   implicit none
 
   integer, intent(in) :: currlevel,isn
@@ -563,18 +564,14 @@ subroutine make_fb_fixed(currlevel,isn)
   real(dp),dimension(1:ndim):: sn_cent
   real(dp), dimension(1:nvector, 1:ndim), save:: xx
   real(dp):: sn_r, sn_m, sn_e, sn_vol, sn_d, sn_ed, dx_sel, sn_p, sn_v
-  real(dp):: rr, pi
+  real(dp):: rr
   real(dp), dimension(1:ndim)::rvec
   logical:: sel = .false.
-  real(dp),parameter::m_sun=1.9891d33  ! Solar mass [g]
-  real(dp),parameter::year2=3.154d7  ! 1 year [s]
 
   if(.not. hydro)return
   if(ndim .ne. 3)return
 
   if(verbose)write(*,*)'Entering make_fb_fixed'
-
-  pi = acos(-1.0)
 
   ! Make source active this timestep
   FB_sourceactive(isn) = .true.
@@ -613,8 +610,8 @@ subroutine make_fb_fixed(currlevel,isn)
 
   ! If this is a wind, scale the luminosity by the timestep
   if (FB_sourcetype(isn) .eq. 'wind') then
-    sn_m = sn_m * dt*scale_t/year2 ! dt in years
-    sn_e = sn_e * dt*scale_t/year2
+    sn_m = sn_m * dt*scale_t/yr2sec ! dt in years
+    sn_e = sn_e * dt*scale_t/yr2sec
   endif
 
   ! HACK !!! - KINETIC BLAST ONLY WORKS FOR sn_r > 0.0 !!!
