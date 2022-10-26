@@ -76,6 +76,7 @@ module amr_parameters
   logical::unbind=.false.     ! Enable particle unbinding for the clump finder
   logical::make_mergertree=.false. ! Make on the fly mergertrees
   logical::aton=.false.       ! Enable ATON coarse grid radiation transfer
+  logical::extinction=.false. ! extinction by dust and H2 self-shielding
 
   ! Mesh parameters
   integer::nx=1,ny=1,nz=1                  ! Number of coarse cells in each dimension
@@ -113,9 +114,6 @@ module amr_parameters
   logical::output_now=.false.    ! write output next step
   real(dp)::walltime_hrs=-1      ! Wallclock time for submitted job
   real(dp)::minutes_dump=1       ! Dump an output minutes before walltime ends
-
-
-  logical::writing=.false.    ! Write column density and save files
 
   ! Lightcone parameters
   real(dp)::thetay_cone=12.5d0
@@ -209,11 +207,11 @@ module amr_parameters
   logical ::sf_log_properties=.false.   ! Log in ascii files birth properties of stars and supernovae
   logical ::sf_imf=.false.              ! Activate IMF sampling for SN feedback when resolution allows it
   logical ::sf_compressive=.false.      ! Advect compressive and solenoidal turbulence terms separately
-  logical ::cooling_frig = .true.      ! Use cooling module from Audit & Hennebelle 2005 (non-RT and RT metals)
-                                        ! instead of ramses classical cooling 
+  logical ::cooling_ism = .true.       ! Use cooling module from Audit & Hennebelle 2005 (non-RT and RT metals)
+                                        ! instead of ramses classical cooling
+  logical ::cooling_frig = .true.       ! dummy for frig branch
 
  !PH 27/08/2021 parameters for extinction
-  logical ::extinction=.false.
   logical ::simplechem=.false.  ! H2 formation only
   real(dp)::p_UV   =1.0D0       ! Parameter of variation of G0 (UV)
 
@@ -224,6 +222,9 @@ module amr_parameters
   integer ::uvsfr_nb_points=100   ! Number of times the SFR is updated during uvsfr_avg_window
   logical ::uvsfr_verbose=.false. ! Display sfr info at each step
   real(dp)::p_UV_min=0.0           ! Minimal value for p_UV, initialized with p_UV value in namelist
+
+  logical::writing=.false.    ! Write column density and save files
+
   ! EOS parameters
   character(len=20)::barotropic_eos_form='legacy'  !Type of barotropic EOS: choose from:
                                         !'isothermal': constant temperature T0

@@ -34,9 +34,7 @@ recursive subroutine amr_step(ilevel,icount)
 
   if(verbose)write(*,999)icount,ilevel
 
-
   call boundary_frig(ilevel)
-
 
   !-------------------------------------------
   ! Make new refinements and update boundaries
@@ -453,9 +451,8 @@ recursive subroutine amr_step(ilevel,icount)
   ! Do RT/Chemistry step
   !---------------------
 #if NEXTINCT>0
- call extinction_fine(ilevel)
+  call extinction_fine(ilevel)
 #endif
-
 #ifdef RT
   if(rt .and. rt_advect) then
                                call timer('radiative transfer','start')

@@ -578,6 +578,7 @@ SUBROUTINE vaccafit(M,S)
 
   real(dp),intent(in)::M
   real(dp),intent(out)::S
+
   S = stf_K * (M / stf_m0)**stf_a / (1. + (M / stf_m0)**stf_b)**stf_c
 
 END SUBROUTINE

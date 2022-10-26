@@ -115,8 +115,6 @@ subroutine init_sink
 
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
 
-
-
   ! [UV_PROP_SFR] Allocate array for the history of the mass of the stars
   if(uv_prop_sfr) then
      allocate(sfr_total_mass_sinks(1:uvsfr_nb_points))
@@ -214,7 +212,6 @@ subroutine init_sink
       read(10) sfr_ilast
       close(10)
    end if
-
 
      ! Send the token
 #ifndef WITHOUTMPI

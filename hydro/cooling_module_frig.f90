@@ -1,5 +1,5 @@
 !! Cooling from frig version (Audit & Hennebelle 2005)
-!! solve_cooling_frig is used if there is no RT
+!! solve_cooling_ism is used if there is no RT
 !! rt_metal_cool is used to solve metal cooling with RT
 !! Authors: Valeska Valdivia, Patrick Hennebelle, Benjamin Godard
 !###########################################################
@@ -71,8 +71,6 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
      if(ndim>2)xc(ind,3)=(dble(iz)-0.5_dp)*dx
   end do
 
-    
- 
   ! define the path direction 
   ! first index is for x,y,z while second is for direction
   ! x,-x,y,-y,z,-z in this order 
@@ -83,12 +81,10 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
   shift(1,5) = 0. ; shift(2,5) = 0. ; shift(3,5) = 1. 
   shift(1,6) = 0. ; shift(2,6) = 0. ; shift(3,6) =-1.
   
-  
   column_dens(:,:,:) = 0.
   H2column_dens(:,:,:) = 0.
   ind_lim1(:,:)= 0
   ind_lim2(:,:)= 0
-  
 
   !-----    DETERMINATION OF BOUNDS  -----    
   !  Here we calculate the limits for the cubic shells considered at each 
@@ -103,8 +99,6 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
          end do   !i
       end do      !idim
    end do         !idir
-
-   
 
    do il = ilevel-1,1,-1            !  loop recursively over level
       dx_loc = 0.5_dp**(il)
@@ -145,8 +139,7 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
             !----------- not necessary ---              
             
          end do        !end of do it twice
-         
-         
+
          !move the particle at the edge of the cell at level il
          do idim=1,ndim
             do i=1,ngrid
@@ -161,8 +154,7 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
                               
             end do
          end do
-         
-         
+
          !now before starting the next iteration one must check whether the particle is 
          !at the interface of a cell at level il-1 or whether one is in the center of such a cell
          !in the first case it is fine in the other case, we must jump from another
@@ -187,8 +179,7 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
                enddo
             end if
          end do                             !ok
-         
-         
+
          !now calculate the distance between these cells and the particle
          !along the direction of interest
          dist=0
@@ -200,8 +191,7 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
          do i=1,ngrid
             dist(i)=sqrt(dist(i))
          end do
-         
-         
+
          !finally if we are not at an interface, we move the particle to the next interface
          do i=1,ngrid
             if( dist(i) .lt. dx_loc/4.) then
@@ -235,11 +225,9 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
       ! that sums up to the column density
 
       call  contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_dens,H2column_dens)
-      
-      
+
    end do                                   !end of loop recursively over level
-   
-   
+
    !now check that the whole grid has been properly covered
    do i=1,ngrid !end loop over grid
       !       if(myid .eq. 1 .and. i .eq. 1) write(*,*) 'col tot x',col_check(i,1)+col_check(i,2)+dx*2. 
@@ -259,8 +247,7 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
          stop
       endif
    enddo !end loop over grid
-   
-   
+
  end subroutine column_density
 !#########################################################
 !#########################################################
@@ -268,7 +255,6 @@ subroutine column_density(ind_grid,ngrid,ilevel,column_dens, H2column_dens)
 !#########################################################
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!! routine provided by Romain on July 2010 and included by PH on November 2010
-
 subroutine get_cell_index3(cell_index,cell_levl,xpart,ilevel,np)
   use amr_commons
   implicit none
@@ -312,11 +298,8 @@ subroutine get_cell_index3(cell_index,cell_levl,xpart,ilevel,np)
         cell_levl(i)=j
      endif
   end do
-  
-  
+
 end subroutine get_cell_index3
-
-
 !#########################################################
 !#########################################################
 !#########################################################
@@ -326,7 +309,6 @@ end subroutine get_cell_index3
 !! This subroutine gives the cell index of just one cell
 !! This function returns the index of one cell, at maximum level
 !! ilevel, in which the input particle sits
-
 subroutine get_cell_index2(cell_index2,cell_levl2,xpart2,ilevel)
   use amr_commons
   implicit none
@@ -378,7 +360,6 @@ end subroutine get_cell_index2
 !! It is here where we actually add the contributions of the cells in the shell
 !! to the column densities
 !! PH 20/09/2021 adapted it to ramses RT with H2 formation 
-
 subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_dens, H2column_dens)
   use amr_commons
   use hydro_commons
@@ -396,8 +377,8 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
   integer, dimension(1:ngrid,1:ndir), intent (in)                     :: ind_lim1, ind_lim2
   real(dp),dimension(1:nvector,1:NdirExt_m,1:NdirExt_n),intent(inout) :: column_dens, H2column_dens
 
-  !!take care "nent" should be added here. It is fine if it is 0 of course 
-  integer                                               :: neulS=8+nrad+nextinct
+  !!take care "nener" should be added here. It is fine if it is 0 of course 
+  integer                                               :: neulS=8+nextinct
 
   integer                                               :: i, inx,iny,inz, deltam
   integer                                               :: m, n, mloop, nloop, nl, mn
@@ -436,7 +417,6 @@ subroutine contribution(ind_grid, ngrid, ilevel, il, ind_lim1, ind_lim2, column_
   dx_loc = 0.5_dp**(il)
   halfdx  = dx_loc/2_dp
   quartdx = dx_loc/4.0_dp
-
 
   !-------------------------------------------------!
   !       CONTRIBUTION TO DIRECTIONS                !
@@ -829,6 +809,7 @@ subroutine get_mn(x0,x1,m,n)
   use amr_commons
   use hydro_commons
   use cooling_module
+  use constants, only:pi
   implicit none
 
   real(kind= dp),dimension(1:3), intent (in)  :: x0, x1
@@ -857,11 +838,11 @@ subroutine get_mn(x0,x1,m,n)
      if(sin_phi .GE. 0) then
         phi = acos(cos_phi)
      else
-        phi = 2.*pi_g - acos(cos_phi)
+        phi = 2.*pi - acos(cos_phi)
      end if
      
 
-     n =  mod(INT(phi*NdirExt_n/(2.0*pi_g)+0.5),NdirExt_n) + 1
+     n =  mod(INT(phi*NdirExt_n/(2.0*pi)+0.5),NdirExt_n) + 1
 
   end if
   
@@ -873,7 +854,7 @@ end subroutine get_mn
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !! 2012 VV
 !! initialisation for extinction calculation (Valdivia & Hennebelle 2014).
-!! This routine precalculates the correction factors and the value of pi (pi_g).
+!! This routine precalculates the correction factors.
 !! It is called from "adaptative_loop.f90" if in the namelist radiative=.true.
 !! Note PH 20/09/2021 changed the name form init_radiative in init_extinction
 
@@ -881,6 +862,7 @@ subroutine init_extinction
   use amr_commons
   use hydro_commons
   use cooling_module
+  use constants, only:pi
   implicit none
 
   ! geometrical corrections
@@ -906,8 +888,6 @@ subroutine init_extinction
   dirN_ext(:,:,:,:) = 0
   dirMN_ext(:,:,:,:) = 0
 
-  pi_g = 2.0*acos(0.0)    !global value of pi for cooling_fine.f90
-
   do ind=1,twotondim
      iz=(ind-1)/4
      iy=(ind-1-4*iz)/2
@@ -920,7 +900,7 @@ subroutine init_extinction
 
   !----- xalpha for  GET_DX   -----
   do n=1, NdirExt_n
-     phi       = 2.0_dp*pi_g*(n-1)/NdirExt_n
+     phi       = 2.0_dp*pi*(n-1)/NdirExt_n
      cos_phi   =  dsign(max(abs(cos(phi)),1D-10),cos(phi))
      sin_phi   =  dsign(max(abs(sin(phi)),1D-10),sin(phi))
      
@@ -1079,51 +1059,21 @@ end subroutine init_extinction
 !these routines have been modified by Benjamin Godard
 subroutine hot_cold_2(T,n,ref,dRefDT,coeff_chi,XH2)    
   use amr_parameters
-  
-
 #ifdef RT
   use rt_parameters,only: isH2,iIons
 #endif
-
   implicit none
   
-  real(dp), intent (in)    :: T
-  real(dp), intent (in)    :: n
+  real(dp), intent (in)    :: T,n
   real(dp), intent (inout) :: coeff_chi
-  real(dp), intent (out)   :: ref
-  real(dp), intent (out)   :: dRefDT
+  real(dp), intent (out)   :: ref,dRefDT
 
-  real(dp)                 :: G0
-  real(dp)                 :: zeta_p
-  real(dp)                 :: phi_pah
-  real(dp)                 :: x_cp
-  real(dp)                 :: x_o
-  real(dp)                 :: eps
-
-  real(dp)                 :: T_1
-  real(dp)                 :: T_2
-  real(dp)                 :: ne_1
-  real(dp)                 :: ne_2
-  real(dp)                 :: x_1
-  real(dp)                 :: x_2
-  real(dp)                 :: cold_cII_1
-  real(dp)                 :: cold_cII_2
-  real(dp)                 :: cold_o_1
-  real(dp)                 :: cold_o_2
-  real(dp)                 :: cold_h_1
-  real(dp)                 :: cold_h_2
-  real(dp)                 :: cold_rec_1
-  real(dp)                 :: cold_rec_2
-  real(dp)                 :: hot_ph_1
-  real(dp)                 :: hot_ph_2
-  real(dp)                 :: hot_cr
-
-  real(dp)                 :: cold_1
-  real(dp)                 :: cold_2
-  real(dp)                 :: hot_1
-  real(dp)                 :: hot_2
-  real(dp)                 :: ref_1
-  real(dp)                 :: ref_2
+  real(dp)                 :: G0,zeta_p,phi_pah,x_cp,x_o,eps
+  real(dp)                 :: T_1,T_2,ne_1,ne_2,x_1,x_2
+  real(dp)                 :: cold_cII_1,cold_o_1,cold_h_1,cold_rec_1,cold_1
+  real(dp)                 :: cold_cII_2,cold_o_2,cold_h_2,cold_rec_2,cold_2
+  real(dp)                 :: hot_ph_1,hot_ph_2,hot_cr,hot_1,hot_2
+  real(dp)                 :: ref_1,ref_2
 
   real(dp)                 :: XH2
   real(dp)                 :: x_cO=0.,cold_mol_1=0.,cold_mol_2=0.
@@ -1157,15 +1107,12 @@ subroutine hot_cold_2(T,n,ref,dRefDT,coeff_chi,XH2)
   x_cp = 3.5e-4_dp * 0.40_dp
   x_o  = 8.6e-4_dp * 0.37_dp
 
-
-
 #ifdef RT
   if(isH2) then
      !calculate CO abundance using a simple prescription and recalculate the x_cp abundance
      CALL compute_Cp_CO_NL(n,XH2,G0,x_o,x_cp,x_co)
   endif
 #endif
-
 
   ! ---------------------------------------------------
   ! ionization and PAH recombination parameter
@@ -1189,7 +1136,6 @@ subroutine hot_cold_2(T,n,ref,dRefDT,coeff_chi,XH2)
   x_1 = ne_1 / N
   x_2 = ne_2 / N
 
-
   ! ======================================================================================
   ! 2 - set the cooling functions
   !     a - hyperfine transitions at small temperature of CII and OI
@@ -1212,11 +1158,8 @@ subroutine hot_cold_2(T,n,ref,dRefDT,coeff_chi,XH2)
      CALL COOL_H(T_2, x_2, cold_h_2)
   endif
 
-
   CALL COOL_REC(G0, T_1, phi_pah, x_1, N, cold_rec_1)
   CALL COOL_REC(G0, T_2, phi_pah, x_2, N, cold_rec_2)
-
-
 
 #ifdef RT
   if(isH2) then
@@ -1226,9 +1169,6 @@ subroutine hot_cold_2(T,n,ref,dRefDT,coeff_chi,XH2)
   CALL cool_goldsmith(T_2,N,cold_mol_2)
   endif
 #endif
-
-
-
 
   ! Sum all cooling functions
   cold_1 = cold_cII_1  + cold_o_1 + cold_h_1 + cold_rec_1 + cold_mol_1
@@ -1244,7 +1184,6 @@ subroutine hot_cold_2(T,n,ref,dRefDT,coeff_chi,XH2)
   CALL HEAT_PH (G0, T_2, phi_pah, x_2, N, hot_ph_2)
 
   !corrected CR as value seems to be much higher than orif-ginally estimated (McCall+2003)
-  !note that values almost 
   hot_cr = 5.0E-27_dp
 
   ! Sum all heating functions
@@ -1262,16 +1201,10 @@ subroutine hot_cold_2(T,n,ref,dRefDT,coeff_chi,XH2)
 
 end subroutine hot_cold_2
 
-
 SUBROUTINE ELEC_DENS(zeta_p, G0_p, T, phi, xcp, nH, ne)
     !---------------------------------------------------------------------------
-    ! called by :
-    !     hot_cold_2
-    ! purpose :
-    !     compute the local electron density based on Wolfire et al. 
-    !     (2003, eq. C9) and adding to this equation the abundance of
-    !     C+
-    ! subroutine/function needed :
+    ! Compute the local electron density based on Wolfire et al. (2003, eq. C9) 
+    ! and adding to this equation the abundance of C+
     ! input variables :
     !     zeta_p -> ionization parameter (in units of 1.3e-16 s-1)
     !     G0_p   -> local UV radiation field (in Habing unit)
@@ -1281,18 +1214,11 @@ SUBROUTINE ELEC_DENS(zeta_p, G0_p, T, phi, xcp, nH, ne)
     !     nH     -> proton density
     ! output variables :
     !     ne     -> electron density (in cm-3)
-    ! results :
     !---------------------------------------------------------------------------
-    USE amr_parameters
-
+    USE amr_parameters, only:dp
     IMPLICIT none
 
-    REAL (KIND=dp), INTENT(IN)  :: zeta_p
-    REAL (KIND=dp), INTENT(IN)  :: G0_p
-    REAL (KIND=dp), INTENT(IN)  :: T
-    REAL (KIND=dp), INTENT(IN)  :: phi
-    REAL (KIND=dp), INTENT(IN)  :: xcp
-    REAL (KIND=dp), INTENT(IN)  :: nH
+    REAL (KIND=dp), INTENT(IN)  :: zeta_p,G0_p,T,phi,xcp,nH
     REAL (KIND=dp), INTENT(OUT) :: ne
 
     ! Careful. The formula of Wolfire is given as functions of parameters which 
@@ -1307,27 +1233,19 @@ END SUBROUTINE ELEC_DENS
 
 SUBROUTINE COOL_CP(T, xcp, xe, cool)
     !---------------------------------------------------------------------------
-    ! called by :
-    !     hot_cold_2
-    ! purpose :
-    !     compute the cooling rate due to the hyperfine 
-    !     (and metastable - NOT USED HERE) lines of C+
-    ! subroutine/function needed :
+    ! Compute the cooling rate due to the hyperfine 
+    ! (and metastable - NOT USED HERE) lines of C+
     ! input variables :
     !     T    -> local temperature
     !     xcp  -> C+ abundance (relative to nH)
     !     xe   -> e- abundance (relative to nH)
     ! output variables :
     !     cool -> cooling rate (erg cm3 s-1) 
-    ! results :
     !---------------------------------------------------------------------------
-    USE amr_parameters
-
+    USE amr_parameters, only:dp
     IMPLICIT none
 
-    REAL (KIND=dp), INTENT(IN)  :: T
-    REAL (KIND=dp), INTENT(IN)  :: xcp
-    REAL (KIND=dp), INTENT(IN)  :: xe
+    REAL (KIND=dp), INTENT(IN)  :: T,xcp,xe
     REAL (KIND=dp), INTENT(OUT) :: cool
 
     ! Ref : Wolfire et al. (2003, Eq. C1 & C2)
@@ -1337,25 +1255,18 @@ END SUBROUTINE COOL_CP
 
 SUBROUTINE COOL_O(T, xo, cool)
     !---------------------------------------------------------------------------
-    ! called by :
-    !     hot_cold_2
-    ! purpose :
-    !     compute the cooling rate due to the hyperfine 
-    !     (and metastable - NOT USED HERE) lines of O
-    ! subroutine/function needed :
+    ! Compute the cooling rate due to the hyperfine 
+    ! (and metastable - NOT USED HERE) lines of O
     ! input variables :
     !     T    -> local temperature
     !     xo   -> O abundance (relative to nH)
     ! output variables :
     !     cool -> cooling rate (erg cm3 s-1) 
-    ! results :
     !---------------------------------------------------------------------------
-    USE amr_parameters
-
+    USE amr_parameters, only:dp
     IMPLICIT none
 
-    REAL (KIND=dp), INTENT(IN)  :: T
-    REAL (KIND=dp), INTENT(IN)  :: xo
+    REAL (KIND=dp), INTENT(IN)  :: T,xo
     REAL (KIND=dp), INTENT(OUT) :: cool
 
     ! Ref : Wolfire et al. (2003, Eq. C3)
@@ -1363,43 +1274,31 @@ SUBROUTINE COOL_O(T, xo, cool)
 
 END SUBROUTINE COOL_O
 
-
 SUBROUTINE COOL_H(T, xe, cool)
     !---------------------------------------------------------------------------
-    ! called by :
-    !     hot_cold_2
-    ! purpose :
-    !     compute the cooling rate due to the electronic lines of H
-    !     Ref : taken from Spitzer (1978)
-    ! subroutine/function needed :
+    ! Compute the cooling rate due to the electronic lines of H
+    ! Ref : taken from Spitzer (1978)
     ! input variables :
     !     T    -> local temperature
     !     xe   -> e- abundance (relative to nH)
     ! output variables :
     !     cool -> cooling rate (erg cm3 s-1) 
-    ! results :
     !---------------------------------------------------------------------------
-    USE amr_parameters
-
+    USE amr_parameters, only:dp
     IMPLICIT none
 
-    REAL (KIND=dp), INTENT(IN)  :: T
-    REAL (KIND=dp), INTENT(IN)  :: xe
+    REAL (KIND=dp), INTENT(IN)  :: T,xe
     REAL (KIND=dp), INTENT(OUT) :: cool
 
-    cool = 7.3e-19_dp * xe * exp(-118400.0_dp / T )
+    cool = 7.3e-19_dp * xe * exp(-118400.0_dp / T)
 
 END SUBROUTINE COOL_H
 
-
+!TC: carefull, this is also defined in cooling_module.f90
 SUBROUTINE COOL_REC(G0_p, T, phi, xe, nH, cool)
     !---------------------------------------------------------------------------
-    ! called by :
-    !     hot_cold_2
-    ! purpose :
-    !     compute the cooling rate due to the recombination
-    !     of electrons on positively charged PAH
-    ! subroutine/function needed :
+    ! Compute the cooling rate due to the recombination
+    ! of electrons on positively charged PAH
     ! input variables :
     !     G0_p -> local UV radiation field (Draine's unit)
     !     T    -> local temperature
@@ -1408,20 +1307,13 @@ SUBROUTINE COOL_REC(G0_p, T, phi, xe, nH, cool)
     !     nH   -> proton density
     ! output variables :
     !     cool -> cooling rate (erg cm3 s-1) 
-    ! results :
     !---------------------------------------------------------------------------
-    USE amr_parameters
-
+    USE amr_parameters, only:dp
     IMPLICIT none
 
-    REAL (KIND=dp), INTENT(IN)  :: G0_p
-    REAL (KIND=dp), INTENT(IN)  :: T
-    REAL (KIND=dp), INTENT(IN)  :: phi
-    REAL (KIND=dp), INTENT(IN)  :: xe
-    REAL (KIND=dp), INTENT(IN)  :: nH
+    REAL (KIND=dp), INTENT(IN)  :: G0_p,T,phi,xe,nH
     REAL (KIND=dp), INTENT(OUT) :: cool
-    REAL (KIND=dp)              :: param
-    REAL (KIND=dp)              :: bet
+    REAL (KIND=dp)              :: param,bet
 
     param = G0_p * sqrt(T) / (nH * xe * phi)
     bet   = 0.74_dp / (T**0.068_dp)
@@ -1431,15 +1323,10 @@ SUBROUTINE COOL_REC(G0_p, T, phi, xe, nH, cool)
 
 END SUBROUTINE COOL_REC
 
-
 SUBROUTINE HEAT_PH(G0_p, T, phi, xe, nH, heat)
     !---------------------------------------------------------------------------
-    ! called by :
-    !     hot_cold_2
-    ! purpose :
-    !     compute the heating rate due to the photoelectric effect
-    !     Ref : Wolfire et al. (2003, Eqs. 19 & 20)
-    ! subroutine/function needed :
+    ! Compute the heating rate due to the photoelectric effect
+    ! Ref : Wolfire et al. (2003, Eqs. 19 & 20)
     ! input variables :
     !     G0_p -> local UV radiation field (in Habing units)
     !     T    -> local temperature
@@ -1448,20 +1335,13 @@ SUBROUTINE HEAT_PH(G0_p, T, phi, xe, nH, heat)
     !     nH   -> proton density
     ! output variables :
     !     heat -> cooling rate (erg cm3 s-1) 
-    ! results :
     !---------------------------------------------------------------------------
-    USE amr_parameters
-
+    USE amr_parameters, only:dp
     IMPLICIT none
 
-    REAL (KIND=dp), INTENT(IN)  :: G0_p
-    REAL (KIND=dp), INTENT(IN)  :: T
-    REAL (KIND=dp), INTENT(IN)  :: phi
-    REAL (KIND=dp), INTENT(IN)  :: xe
-    REAL (KIND=dp), INTENT(IN)  :: nH
+    REAL (KIND=dp), INTENT(IN)  :: G0_p,T,phi,xe,nH
     REAL (KIND=dp), INTENT(OUT) :: heat
-    REAL (KIND=dp)              :: param
-    REAL (KIND=dp)              :: epsilon
+    REAL (KIND=dp)              :: param,epsilon
 
     param = G0_p * sqrt(T) / (nH * xe * phi)
 
@@ -1471,8 +1351,6 @@ SUBROUTINE HEAT_PH(G0_p, T, phi, xe, nH, heat)
     heat = 1.3E-24 * epsilon * G0_p
 
 END SUBROUTINE HEAT_PH
-
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1606,8 +1484,8 @@ subroutine extinctionfine1(ind_grid,ngrid,ilevel)
   real(dp)                                             :: bturb = 2d5    
      ! 2km/s (Maryvonne Gerin, Jacques Le Bourlot, Pierre Lesaffre) 1:Gnedin+2009 !7.1d5(Krumholz2012)
   real(kind=8),dimension(1:nvector),save::nH2
-  !!take care "nent" should be added here. It is fine if it is 0 of course 
-  integer                                               :: neulS=8+nrad+nextinct
+  !!take care "nener" should be added here. It is fine if it is 0 of course 
+  integer                                               :: neulS=8+nextinct
   !------------------------------------------------------------------------------------!
 
 
@@ -2375,94 +2253,75 @@ end subroutine sfr_update_uv
 !###########################################################                                          
 !###########################################################                                          
 !########################################################### 
-!molecular cooling from table 2 of Goldsmith 2001
-!Temp: temperature in K
-!ndens: density in cc
-!cool_mol: molecular cooling 
+! Molecular cooling from table 2 of Goldsmith 2001
+! Temp: temperature in K
+! ndens: density in cc
+! cool_mol_dust: molecular and dust cooling 
 subroutine cool_goldsmith(Temp,ndens,cool_mol_dust)
-
-  use amr_commons
+  use amr_parameters, only:dp
   implicit none
 
-  real(dp) :: Temp,ndens,cool_mol,log_n,alpha,beta
-
+  real(dp):: Temp,ndens
+  real(dp)::cool_mol_dust
+  integer :: i
+  real(dp):: log_n,alpha,beta,cool_mol,cool_dust
   !Table from Goldsmith 2001
   real(dp),dimension(7),parameter:: logn_v= (/2.,2.5,3.,4.,5.,6.,7./)
   real(dp),dimension(7),parameter:: alpha_v=(/6.3e-26,3.2e-25,1.1e-24,5.6e-24,2.3e-23,4.9e-23,7.4e-23/)
   real(dp),dimension(7),parameter:: beta_v=(/1.4,1.8,2.4,2.7,3.,3.4,3.8/)
-
-  integer :: i
-
-  real(dp):: cool_dust,cool_mol_dust
-
   !dust temperature is assumed to be 10 K 
   !need to be improved particularly if stellar radiative feedback is accounted for
   real(dp):: Tdust=10.
 
+  !validity range 
+  if(ndens <  100. .or. ndens > 1.e7) then 
+     cool_mol=0.
+     ! TC: this should be cool_mol_dust?
+     !     What about the dust contribution below 100 H/cc?
+     return
+  endif
 
-    !validity range 
-    if(ndens <  100. .or. ndens > 1.e7) then 
-        cool_mol=0.
-        return
-    endif
+  log_n = log10(ndens)
+  do i = 1, 6
+     if (log_n .ge. logn_v(i) .and. log_n .le. logn_v(i+1)) exit
+     ! TC: exit necesary?
+  enddo
 
-    log_n = log10(ndens)
+  alpha = alpha_v(i+1) * (log_n - logn_v(i)) + alpha_v(i) * (-log_n + logn_v(i+1))
+  alpha = alpha / (logn_v(i+1)-logn_v(i))
 
+  beta = beta_v(i) * (log_n - logn_v(i)) + beta_v(i) * (-log_n + logn_v(i+1))
+  beta = beta / (logn_v(i+1)-logn_v(i))
 
-    do i = 1, 6
-       if (log_n .ge. logn_v(i) .and. log_n .le. logn_v(i+1)) exit
-    enddo
+  cool_mol = alpha * (Temp/10.)**beta / ndens**2 !division by n^2 because cooling works in cm^3 (rate)
+                                                 !while Goldsmith expressed it in cm^-3
 
-    
-    alpha = alpha_v(i+1) * (log_n - logn_v(i)) + alpha_v(i) * (-log_n + logn_v(i+1))
-    alpha = alpha / (logn_v(i+1)-logn_v(i))
+  !take into accound the cooling/heating through dust
+  cool_dust = 2.e-33 * (Temp-Tdust) * sqrt(Temp/10.)
+  cool_mol_dust = cool_mol + cool_dust
 
-    beta = beta_v(i) * (log_n - logn_v(i)) + beta_v(i) * (-log_n + logn_v(i+1))
-    beta = beta / (logn_v(i+1)-logn_v(i))
-
-    cool_mol = alpha * (Temp/10.)**beta / ndens**2 !division by n^2 because cooling works in cm^3 while Goldsmith expressed                                                            !it in cm^-3                                 
-
-
-    !take into accound the cooling/heating through dust
-    cool_dust = 2.e-33 * (Temp-Tdust) * sqrt(Temp/10.)
-
-    cool_mol_dust = cool_mol + cool_dust
-    
-                                                                                                       
 end subroutine cool_goldsmith
-
 !###########################################################                                          
 !###########################################################                                          
 !###########################################################                                          
 !########################################################### 
-!compute the C+/CO transition at equilibrium from Koyama & Inutuska 2000
-! taken from Nelson & Langer 1997
+! Compute the C+/CO transition at equilibrium from Koyama & Inutuska 2000
+! Taken from Nelson & Langer 1997
 subroutine compute_Cp_CO_NL(ndens,XH2,G0,xO,xCp,xCO)
-   
-  use amr_commons
+  use amr_parameters, only:dp
   implicit none
 
-  real(dp):: ndens,k0, gamma_CO ,k1, Gamma_CHx,beta, G0, XH2, xCp, xCO
-
+  real(dp):: ndens, XH2, G0, xO, xCp, xCO
+  real(dp),parameter:: k0 = 5d-16 !#cm^3 s^-1
+  real(dp),parameter:: k1 = 5d-10
+  real(dp):: xCp_0, gamma_CO, Gamma_CHx, beta
 !  real(dp):: xCp_0=3.e-4,xO=3.e-4
-  real(dp):: xCp_0,xO    
 
   xCp_0=xCp
-
-  
-  k0=5.d-16 !#cm^3 s^-1
-
-  gamma_CO = 1.d-10 * G0 !#s^-1
-
-  k1 = 5.d-10
-    
-  Gamma_CHx = 5.d-10 * G0 
-    
+  gamma_CO = 1d-10 * G0 !#s^-1
+  Gamma_CHx = 5d-10 * G0 
   beta = k1*xO / (k1*xO+gamma_CO/(XH2*ndens))
-  
   xCp = xCp_0 * gamma_CO / (gamma_CO + k0*beta*ndens)
-    
   xCO = xCp_0 - xCp
     
 end subroutine compute_Cp_CO_NL
-

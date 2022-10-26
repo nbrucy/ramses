@@ -60,7 +60,7 @@ subroutine dump_all
      call output_makefile(filename)
      filename=TRIM(filedir)//'patches.txt'
      call output_patch(filename)
-     if(cooling .and. .not. neq_chem .and. .not. cooling_frig)then
+     if(cooling .and. .not. neq_chem .and. .not. cooling_ism)then
 #ifdef grackle
         ! hack to prevent segfault
         if(use_grackle==0) then
