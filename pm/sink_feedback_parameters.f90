@@ -36,7 +36,7 @@ module sink_feedback_parameters
   real(dp):: Vdisp=1d0    ! dispersion velocity of the stellar objects [km/s] 
                           ! determines how far SN can explode from the sink
 
-  logical::stellar_info=.true.  ! write stellar particles to log file
+  logical::stellar_info=.false.  ! write stellar particles to log file
 
   ! STELLAR_PARAMS namelist: HII feedback parameters
 
