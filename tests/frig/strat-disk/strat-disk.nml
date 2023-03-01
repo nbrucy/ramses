@@ -69,16 +69,12 @@ c_acc=0.1
 /
 
 &STELLAR_PARAMS
-!iseed=21
-!sn_feedback_sink=.True.
-stellar_strategy=.false.
 nstellarmax=10000
 imf_index=-2.35
 imf_low=8.
 imf_high=120.
 hii_t=4.0 ! Myr
 stellar_msink_th=120.
-!SN_on=.false.
 Vsat=300.
 Tsat=1.e6
 Vdisp=1.
@@ -94,7 +90,7 @@ turb_T=0.5 ! 0.5 Myr autocorrelation time
 turb_Ndt=100
 turb_rms=1e-2
 turb_min_rho=0.01
-turb_2d_modes=.true.
+turb2D=.true.
 /
 
 &GALBOX_PARAMS
@@ -121,7 +117,6 @@ riemann='hlld'
 riemann2d='hlld'
 smallr=1e-4
 rho_floor=.true.
-!temp_max=1e7
 allow_switch_solver=.true.
 allow_switch_solver2D=.true.
 switch_solv_B=100.
@@ -132,15 +127,7 @@ switch_solv_dens=3.
 use_boundary_frig=.true.
 no_inflow=.true.
 /
-!nboundary=6
-!ibound_min= 0, 0, 0, 0,-1, 1
-!ibound_max= 0, 0, 0, 0,-1, 1
-!jbound_min= 0, 0,-1, 1,-1,-1
-!jbound_max= 0, 0,-1, 1, 1, 1
-!kbound_min=-1, 1,-1,-1,-1,-1
-!kbound_max=-1, 1, 1, 1, 1, 1
-!bound_type= 2, 2, 0, 0, 0, 0
-!/
+
 
 &RT_PARAMS
 rt_sink=.true.

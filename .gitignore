@@ -3,11 +3,14 @@
 *.mod
 *~
 *#
-ramses1d
-ramses2d
-ramses3d
+ramses*d
+*.log
+output*
+*.pdf
+*.tex
 .DS_Store
 .mmat
 *write_patch.f90
 *write_makefile.f90
 *launch.json
+*.pyc

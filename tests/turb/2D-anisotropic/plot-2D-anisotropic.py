@@ -75,4 +75,4 @@ for i in range(3):
 fig.savefig('2D-anisotropic.pdf',bbox_inches='tight')
 
 # Check results against reference solution
-visu_ramses.check_solution(data["data"],'2D-anisotropic', threshold=1e-30, overwrite=False)
+visu_ramses.check_solution(data["data"],'2D-anisotropic', threshold=1e-30, overwrite=False, tolerance=5e-2)

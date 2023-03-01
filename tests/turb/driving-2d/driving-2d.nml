@@ -66,5 +66,5 @@ turb_T=0.29241000937376255
 turb_Ndt=100
 turb_rms=5.094074502271999
 turb_min_rho=2.5470372511355715d-6
-turb_2d_modes=.true.
+turb2D=.true.
 /

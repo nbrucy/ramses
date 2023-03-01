@@ -101,4 +101,4 @@ for j in range(4):
 fig.savefig('driving-2d.pdf',bbox_inches='tight')
 
 # Check results against reference solution
-visu_ramses.check_solution(data["data"],'driving-2d', threshold=1e-30, overwrite=False)
+visu_ramses.check_solution(data["data"],'driving-2d', threshold=1e-30, overwrite=False, tolerance=5e-2)

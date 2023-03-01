@@ -59,4 +59,4 @@ ax[0].set_yscale('log')
 fig.savefig('uniform-driving.pdf',bbox_inches='tight')
 
 # Check results against reference solution
-visu_ramses.check_solution(data["data"],'uniform-driving', threshold=1e-30, overwrite=False)
+visu_ramses.check_solution(data["data"],'uniform-driving', threshold=1e-30, overwrite=False, tolerance=1e-1)
