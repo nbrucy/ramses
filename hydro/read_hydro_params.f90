@@ -519,6 +519,10 @@ subroutine read_hydro_params(nml_ok)
   endif
 #endif
 
+  if (condinit_kind == "disk") then
+    call read_disk_params()
+  end if
+
 end subroutine read_hydro_params
 !###############################################################
 !###############################################################

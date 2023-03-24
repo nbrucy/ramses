@@ -242,6 +242,7 @@ end subroutine make_boundary_hydro
 subroutine special_boundary
    use hydro_parameters
    use amr_commons
+   use disk_module
  
    !================================================================
    !This routine calls for special boundary conditions 
@@ -254,6 +255,10 @@ subroutine special_boundary
  
    case DEFAULT
       return
+
+   case('disk')
+      if (myid == 1) write(*,*) "[special_boundary] Using disk boundary conditions"
+      call disk_boundary(ilevel)
  
    end select
   
