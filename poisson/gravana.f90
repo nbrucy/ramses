@@ -3,7 +3,7 @@
 !#########################################################
 !#########################################################
 subroutine gravana(x,f,dx,ncell)
-  use amr_parameters
+  use amr_commons
   use poisson_parameters
   use poisson_commons, only: multipole
   use constants, only: mH, twopi, Myr2sec, factG_in_cgs
@@ -20,6 +20,7 @@ subroutine gravana(x,f,dx,ncell)
   !================================================================
   integer::idim,i
   real(dp)::gmass,emass,xmass,ymass,zmass,rr,rx,ry,rz
+  real(dp)::gmass2,xmass2,ymass2,zmass2,omega,radius2
   real(dp):: a1,a2,z0,a1_rho,a2_rho,sigma,f_max
 
   select case (gravity_type)
@@ -83,6 +84,62 @@ subroutine gravana(x,f,dx,ncell)
       ! Patrick: Bug? This should be f - sigma... probably.
       !f(i,3) = f(i,3) * sigma / (2.*f_max / 2*twopi)
     end do
+
+
+  case(4)
+    ! 2 point masses
+     gmass=gravity_params(1) ! GM
+     emass=dx
+     emass=gravity_params(2) ! Softening length
+     xmass=gravity_params(3) ! Point mass coordinates
+     ymass=gravity_params(4)
+     zmass=gravity_params(5)
+
+     gmass2 = gravity_params(6)  ! GM of the second point mass
+     radius2 = gravity_params(7) ! radius of the second point mass
+     omega = sqrt(gmass2 / radius2**3) ! Keplerian rotation speed
+
+     xmass2 = xmass + radius2 * cos(omega * t)
+     ymass2 = ymass + radius2 * sin(omega * t)
+     zmass2 = zmass
+
+     do i=1,ncell
+        rx=0.0d0; ry=0.0d0; rz=0.0d0
+        rx=x(i,1)-xmass
+#if NDIM>1
+        ry=x(i,2)-ymass
+#endif
+#if NDIM>2
+        rz=x(i,3)-zmass
+#endif
+        rr=sqrt(rx**2+ry**2+rz**2+emass**2)
+        f(i,1)=-gmass*rx/rr**3
+#if NDIM>1
+        f(i,2)=-gmass*ry/rr**3
+#endif
+#if NDIM>2
+        f(i,3)=-gmass*rz/rr**3
+#endif
+
+      ! redo for the second mass
+      rx=0.0d0; ry=0.0d0; rz=0.0d0
+      rx=x(i,1)-xmass2
+#if NDIM>1
+      ry=x(i,2)-ymass2
+#endif
+#if NDIM>2
+      rz=x(i,3)-zmass2
+#endif
+      rr=sqrt(rx**2+ry**2+rz**2+emass**2)
+      f(i,1)=f(i,1)-gmass2*rx/rr**3
+#if NDIM>1
+      f(i,2)=f(i,2)-gmass2*ry/rr**3
+#endif
+#if NDIM>2
+      f(i,3)=f(i,3)-gmass2*rz/rr**3
+#endif
+   end do
+
   end select
 
 end subroutine gravana
