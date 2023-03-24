@@ -10,7 +10,7 @@ COMPILER = GNU
 # Size of vector cache
 NVECTOR = 32
 # Number of dimensions
-NDIM = 1
+NDIM = 2
 # Float precision size
 NPRE = 8
 # hydro/mhd/rhd solver
@@ -167,7 +167,7 @@ endif
 AMROBJ = read_params.o init_amr.o init_time.o init_refine.o tracer_utils.o adaptive_loop.o \
          amr_step.o update_time.o output_amr.o flag_utils.o \
          physical_boundaries.o virtual_boundaries.o refine_utils.o \
-         nbors_utils.o hilbert.o load_balance.o title.o sort.o cooling_fine.o \
+         nbors_utils.o hilbert.o load_balance.o title.o sort.o disk_module.o cooling_fine.o \
          eos.o units.o light_cone.o movie.o memory.o end.o
 # Particle-Mesh objects
 PMOBJ = init_part.o output_part.o rho_fine.o synchro_fine.o move_fine.o \
@@ -185,7 +185,7 @@ POISSONOBJ = init_poisson.o phi_fine_cg.o interpol_phi.o force_fine.o \
 # Hydro objects
 HYDROOBJ = init_hydro.o init_flow_fine.o write_screen.o output_hydro.o \
            courant_fine.o godunov_fine.o uplmde.o umuscl.o interpol_hydro.o \
-           godunov_utils.o condinit.o  condinit_cloud.o condinit_galbox.o \
+           godunov_utils.o condinit.o  condinit_disk.o condinit_cloud.o condinit_galbox.o \
 			  hydro_flag.o hydro_boundary.o boundana.o \
            read_hydro_params.o synchro_hydro_fine.o cooling_module_frig.o cooling_module_ism.o
 # RT objects
