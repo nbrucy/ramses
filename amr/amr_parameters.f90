@@ -210,6 +210,7 @@ module amr_parameters
   logical ::cooling_ism = .true.       ! Use cooling module from Audit & Hennebelle 2005 (non-RT and RT metals)
                                         ! instead of ramses classical cooling
   logical ::cooling_frig = .true.       ! dummy for frig branch
+  logical ::disk_local_isothermal = .false. ! Use local isothermal eos (only compatible with disk IC) 
 
  !PH 27/08/2021 parameters for extinction
   logical ::simplechem=.false.  ! H2 formation only

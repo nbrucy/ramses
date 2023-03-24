@@ -3,7 +3,7 @@ subroutine read_hydro_params(nml_ok)
   use hydro_commons
   use mpi_mod
   use hydro_parameters
-  use amr_parameters, only:cooling_frig,cooling_ism
+  use amr_parameters, only:cooling_frig,cooling_ism,disk_local_isothermal
 
   implicit none
   logical::nml_ok
@@ -99,7 +99,7 @@ subroutine read_hydro_params(nml_ok)
   namelist/cooling_params/cooling,metal,isothermal,haardt_madau,J21 &
        &  ,dist_screen,NdirExt_m,NdirExt_n &
        & ,barotropic_eos,barotropic_eos_form,polytrope_rho,polytrope_index,T_eos,mu_gas &
-       & ,a_spec,self_shielding,z_ave,z_reion,ind_rsink,T2max,neq_chem,cooling_frig,cooling_ism &
+       & ,a_spec,self_shielding,z_ave,z_reion,ind_rsink,T2max,neq_chem,cooling_frig,cooling_ism,disk_local_isothermal &
        & , p_UV, p_UV_min, uv_prop_sfr, uvsfr_verbose, uvsfr_avg_window, uvsfr_nb_points & ! UV HEATING
   !!! FlorentR - PATCH Temperature extrema
        & ,temp_max
@@ -548,5 +548,9 @@ subroutine read_hydro_params(nml_ok)
     interpol_mag_type = interpol_type
   endif
 #endif
+
+  if (condinit_kind == "disk") then
+    call read_disk_params()
+  end if
 
 end subroutine read_hydro_params

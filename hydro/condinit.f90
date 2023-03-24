@@ -101,6 +101,9 @@ subroutine condinit(x,u,dx,nn)
   case('cloud')
      if (myid == 1 .and. first_call) write(*,*) "[condinit] Using cloud IC"
      call condinit_cloud(x, u, dx, nn)
+  case('disk')
+      if (myid == 1 .and. first_call) write(*,*) "[condinit] Using disk IC"
+      call condinit_disk(x, u, dx, nn)
   case('default')
      call condinit_default(x, u, dx, nn)
 
@@ -129,10 +132,12 @@ subroutine boundary_frig(ilevel)
 
   case('galbox')
     call boundary_frig_galbox(ilevel)
- case('cloud')
-    return
- case('default')
-    return
+  case('disk')
+    call boundary_disk(ilevel)
+  case('cloud')
+      return
+  case('default')
+      return
 
   case DEFAULT
      return
