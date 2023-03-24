@@ -2,6 +2,7 @@ subroutine read_hydro_params(nml_ok)
   use amr_commons
   use hydro_commons
   use mpi_mod
+
   implicit none
   logical::nml_ok
   !--------------------------------------------------
@@ -512,5 +513,9 @@ subroutine read_hydro_params(nml_ok)
     interpol_mag_type = interpol_type
   endif
 #endif
+
+  if (condinit_kind == "disk") then
+    call read_disk_params()
+  end if
 
 end subroutine read_hydro_params
