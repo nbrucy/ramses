@@ -3,7 +3,7 @@
 !#########################################################
 !#########################################################
 subroutine gravana(x,f,dx,ncell)
-  use amr_parameters
+  use amr_commons
   use poisson_parameters
   use constants
 
@@ -20,8 +20,10 @@ subroutine gravana(x,f,dx,ncell)
   !================================================================
   integer::idim,i
   real(dp)::gmass,emass,xmass,ymass,zmass,rr,rx,ry,rz
-  real(dp):: a1,a2,z0,sigma,f_max
+  real(dp)::gmass2,xmass2,ymass2,zmass2,omega,separation
+  real(dp):: a1,a2,z0,a1_rho,a2_rho,sigma,f_max
   real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2
+
 
   ! Constant vector
   if(gravity_type==1)then
@@ -60,7 +62,7 @@ subroutine gravana(x,f,dx,ncell)
      end do
   end if
 
-  if(gravity_type==3)then
+if(gravity_type==3)then
      ! vertical galactic gravitational field
      ! Kuijken & Gilmore 1989 taken from Joung & MacLow (2006)
      ! g = -a1 z / sqrt(z^2+z0^2) - a2 z
@@ -86,6 +88,73 @@ subroutine gravana(x,f,dx,ncell)
      end do
   end if
 
+  if(gravity_type==4)then
+        ! Proper 2 body problem
+         gmass=gravity_params(1) ! GM
+         emass=dx
+         emass=gravity_params(2) ! Softening length
+         xmass=gravity_params(3) ! center of mass coordinates
+         ymass=gravity_params(4)
+         zmass=gravity_params(5)
+    
+         gmass2 = gravity_params(6)  ! GM of the second point mass
+         separation = gravity_params(7) ! separation between the two point mass
+
+
+
+         omega = sqrt((gmass + gmass2) / separation**3) ! Keplerian rotation speed
+
+         fact1 = gmass2 / (gmass + gmass2)
+         fact2 = gmass / (gmass + gmass2)
+
+         xmass1 = xmass - fact1 * separation * cos(omega * t)
+         ymass1 = ymass - fact1 * separation * sin(omega * t)
+         zmass1 = zmass
+    
+         xmass2 = xmass + fact2 * separation * cos(omega * t)
+         ymass2 = ymass + fact2 * separation * sin(omega * t)
+         zmass2 = zmass
+
+    
+         do i=1,ncell
+            rx=0.0d0; ry=0.0d0; rz=0.0d0
+            rx=x(i,1)-xmass1
+#if NDIM>1
+            ry=x(i,2)-ymass1
+#endif
+#if NDIM>2
+            rz=x(i,3)-zmass1
+#endif
+            rr=sqrt(rx**2+ry**2+rz**2+emass**2)
+            f(i,1)=-gmass*rx/rr**3
+#if NDIM>1
+            f(i,2)=-gmass*ry/rr**3
+#endif
+#if NDIM>2
+            f(i,3)=-gmass*rz/rr**3
+#endif
+    
+          ! redo for the second mass
+          rx=0.0d0; ry=0.0d0; rz=0.0d0
+          rx=x(i,1)-xmass2
+#if NDIM>1
+          ry=x(i,2)-ymass2
+#endif
+#if NDIM>2
+          rz=x(i,3)-zmass2
+#endif
+          rr=sqrt(rx**2+ry**2+rz**2+emass**2)
+          f(i,1)=f(i,1)-gmass2*rx/rr**3
+#if NDIM>1
+          f(i,2)=f(i,2)-gmass2*ry/rr**3
+#endif
+#if NDIM>2
+          f(i,3)=f(i,3)-gmass2*rz/rr**3
+#endif
+       end do
+    
+  end if
+    
 end subroutine gravana
 !#########################################################
 !#########################################################
