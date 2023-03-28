@@ -189,8 +189,8 @@ subroutine boundary_disk(ilevel)
      
              
 
-             ! Reinitialize the density for the external border (cylindrical)
-             if (rc > r0*radius_max_factor .or. abs(zz) > 0.45 * boxlen) then
+             ! Reinitialize the density for the internal and external border (cylindrical)
+             if (rc < r0*radius_min_factor .or. rc > r0*radius_max_factor .or. abs(zz) > 0.45 * boxlen) then
   
                 ! sound velocity
                 if (rc_soft > rin) then
