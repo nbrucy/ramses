@@ -131,7 +131,9 @@ subroutine set_uold(ilevel)
   !---------------------------------------------------------
   integer::i,ivar,ind,iskip,nx_loc,ind_cell,idim
   real(dp)::scale,d,u,v,w
+  logical:: add_viscosity = .true.
   real(dp)::e_kin,e_cons,e_prim,e_trunc,div,dx
+
 #if NENER>0
   integer::irad
 #endif
@@ -172,6 +174,10 @@ subroutine set_uold(ilevel)
   ! Add gravity source terms to unew
   if(poisson)then
      call add_gravity_source_terms(ilevel)
+  end if
+
+  if (add_viscosity) then
+      call add_viscosity_source_terms(ilevel)
   end if
 
   ! Add non conservative pdV terms to unew
@@ -475,6 +481,165 @@ end subroutine add_pdv_source_terms
 !###########################################################
 !###########################################################
 !###########################################################
+subroutine add_viscosity_source_terms(ilevel)
+   use amr_commons
+   use hydro_commons
+   use poisson_commons
+   use pm_commons 
+   implicit none
+   integer::ilevel,levelmax
+   !--------------------------------------------------------------------------
+   ! This routine adds to unew the viscosity terms
+   ! Only the momentum and the
+   ! total energy are modified in array unew.
+   !--------------------------------------------------------------------------
+   integer::i,ind,iskip,nx_loc
+   integer::ncache,igrid,ngrid,idim,id1,ig1,ih1,id2,ig2,ih2,jdim
+   integer,dimension(1:3,1:2,1:8)::iii,jjj
+   real(dp)::scale,dx,dx_loc,dx_min
+   real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2
+ 
+   integer ,dimension(1:nvector),save::ind_grid,ind_cell
+   integer ,dimension(1:nvector,0:twondim),save::igridn
+   integer ,dimension(1:nvector,1:ndim),save::ind_left,ind_right
+   real(dp),dimension(1:nvector,1:ndim,1:ndim),save::vel_left,vel_right
+   real(dp),dimension(1:nvector,1:ndim),save::dx_left,dx_right
+   real(dp),dimension(1:nvector,1:ndim),save::laplacian_u_loc
+   real(dp) :: mu_viscosity = 0.001
+   real(dp), dimension(1:ndim) :: vel
+   real(dp) :: dvel_left, dvel_right ! velocity derivative left and right
+   real(dp) :: d,u,v,w,e_kin,e_prim
+ 
+   if(numbtot(1,ilevel)==0)return
+   if(verbose)write(*,111)ilevel
+ 
+   nx_loc=icoarse_max-icoarse_min+1
+   scale=boxlen/dble(nx_loc)
+   dx=0.5d0**ilevel
+   dx_loc=dx*scale
+   dx_min=(0.5**levelmax)*scale
+ 
+   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
+ 
+   iii(1,1,1:8)=(/1,0,1,0,1,0,1,0/); jjj(1,1,1:8)=(/2,1,4,3,6,5,8,7/)
+   iii(1,2,1:8)=(/0,2,0,2,0,2,0,2/); jjj(1,2,1:8)=(/2,1,4,3,6,5,8,7/)
+   iii(2,1,1:8)=(/3,3,0,0,3,3,0,0/); jjj(2,1,1:8)=(/3,4,1,2,7,8,5,6/)
+   iii(2,2,1:8)=(/0,0,4,4,0,0,4,4/); jjj(2,2,1:8)=(/3,4,1,2,7,8,5,6/)
+   iii(3,1,1:8)=(/5,5,5,5,0,0,0,0/); jjj(3,1,1:8)=(/5,6,7,8,1,2,3,4/)
+   iii(3,2,1:8)=(/0,0,0,0,6,6,6,6/); jjj(3,2,1:8)=(/5,6,7,8,1,2,3,4/)
+ 
+   ! Loop over myid grids by vector sweeps
+   ncache=active(ilevel)%ngrid
+   do igrid=1,ncache,nvector
+ 
+      ! Gather nvector grids
+      ngrid=MIN(nvector,ncache-igrid+1)
+      do i=1,ngrid
+         ind_grid(i)=active(ilevel)%igrid(igrid+i-1)
+      end do
+ 
+      ! Gather neighboring grids
+      do i=1,ngrid
+         igridn(i,0)=ind_grid(i)
+      end do
+      do idim=1,ndim
+         do i=1,ngrid
+            ind_left (i,idim)=nbor(ind_grid(i),2*idim-1)
+            ind_right(i,idim)=nbor(ind_grid(i),2*idim  )
+            igridn(i,2*idim-1)=son(ind_left (i,idim))
+            igridn(i,2*idim  )=son(ind_right(i,idim))
+         end do
+      end do
+ 
+      ! Loop over cells
+      do ind=1,twotondim
+ 
+         ! Compute central cell index
+         iskip=ncoarse+(ind-1)*ngridmax
+         do i=1,ngrid
+            ind_cell(i)=iskip+ind_grid(i)
+         end do
+ 
+         ! Gather all neighboring velocities
+         do idim=1,ndim
+            id1=jjj(idim,1,ind); ig1=iii(idim,1,ind)
+            ih1=ncoarse+(id1-1)*ngridmax
+            do i=1,ngrid
+               if(igridn(i,ig1)>0)then
+                  vel_left(i,idim,1:ndim) = uold(igridn(i,ig1)+ih1,2:ndim+1)/max(uold(igridn(i,ig1)+ih1,1),smallr)
+                  dx_left(i,idim) = dx_loc
+               else
+                  vel_left(i,idim,1:ndim) = uold(ind_left(i,idim),2:ndim+1)/max(uold(ind_left(i,idim),1),smallr)
+                  dx_left(i,idim) = dx_loc*1.5_dp
+               end if
+            enddo
+            id2=jjj(idim,2,ind); ig2=iii(idim,2,ind)
+            ih2=ncoarse+(id2-1)*ngridmax
+            do i=1,ngrid
+               if(igridn(i,ig2)>0)then
+                  vel_right(i,idim,1:ndim)= uold(igridn(i,ig2)+ih2,2:ndim+1)/max(uold(igridn(i,ig2)+ih2,1),smallr)
+                  dx_right(i,idim)=dx_loc
+               else
+                  vel_right(i,idim,1:ndim)= uold(ind_right(i,idim),2:ndim+1)/max(uold(ind_right(i,idim),1),smallr)
+                  dx_right(i,idim)=dx_loc*1.5_dp
+               end if
+            end do
+         end do
+         ! End loop over dimensions
+
+         ! Compute the laplacian of u 
+         laplacian_u_loc(1:ngrid,1:ndim)=0.0d0
+         do idim=1,ndim
+            do jdim=1,ndim
+               do i=1,ngrid
+                  vel(1:ndim) = uold(ind_cell(i), 2:ndim+1) / max(uold(ind_cell(i),1), smallr) ! velocity of the cell
+                  dvel_left  = (vel_left(i,idim,jdim) - vel(jdim)) /  dx_left(i,idim)  ! derivative at the boundary
+                  dvel_right = (vel(jdim) - vel_right(i,idim,jdim)) /  dx_right(i,idim) 
+                  laplacian_u_loc(i,jdim) = (dvel_left - dvel_right) /  dx_loc
+               end do
+            end do
+         end do
+ 
+
+         ! Add viscosity term at time t
+         do i=1,ngrid
+            d = max(unew(ind_cell(i),1),smallr)
+
+            u=0; v=0; w=0
+            if(ndim>0)u=unew(ind_cell(i),2)/d
+            if(ndim>1)v=unew(ind_cell(i),3)/d
+            if(ndim>2)w=unew(ind_cell(i),4)/d
+
+            e_kin = 0.5d0*d*(u**2 + v**2 + w**2)
+            e_prim = unew(ind_cell(i),ndim+2) - e_kin
+   
+            u = u + mu_viscosity*laplacian_u_loc(i, 1)*dtnew(ilevel)
+            unew(ind_cell(i), 2) = d*u
+
+#if NDIM > 1
+            v = v + mu_viscosity*laplacian_u_loc(i, 2)*dtnew(ilevel)
+            unew(ind_cell(i), 3) = d*v
+#endif      
+#if NDIM > 2     
+            w = w + mu_viscosity*laplacian_u_loc(i, 3)*dtnew(ilevel)
+            unew(ind_cell(i), 4) = d*w
+#endif
+            e_kin = 0.5d0*d*(u**2 + v**2 + w**2)
+            unew(ind_cell(i), ndim + 2) = e_prim + e_kin
+         end do
+
+      end do
+      ! End loop over cells
+   end do
+   ! End loop over sweeps
+  
+ 111 format('    Entering add_viscosity_terms for level ',i2)
+ 
+ end subroutine add_viscosity_source_terms
+ !###########################################################
+ !###########################################################
+ !###########################################################
+ !###########################################################
 subroutine godfine1(ind_grid,ncache,ilevel)
   use amr_commons
   use hydro_commons
