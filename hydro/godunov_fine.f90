@@ -155,15 +155,19 @@ subroutine set_uold(ilevel)
             ind_cell=active(ilevel)%igrid(i)+iskip
             if(unew(ind_cell, 1) < smallr) then
                do idim = 1, 3
-                  unew(ind_cell, 5) = unew(ind_cell, 5) - 0.5*unew(ind_cell, idim + 1)**2 / abs(unew(ind_cell, 1))
-                  unew(ind_cell, 5) = unew(ind_cell, 5) - 0.125*(unew(ind_cell,5 + idim) + unew(ind_cell,nvar + idim))**2
+                  unew(ind_cell, ndim + 2) = unew(ind_cell, ndim + 2) - 0.5*unew(ind_cell, idim + 1)**2 / abs(unew(ind_cell, 1))
+#ifdef SOLVERmhd
+                  unew(ind_cell, ndim + 2) = unew(ind_cell, ndim + 2) - 0.125*(unew(ind_cell, ndim + 2 + idim) + unew(ind_cell,nvar + idim))**2
+#endif
                   unew(ind_cell, idim + 1) = (unew(ind_cell, idim + 1) * smallr / abs(unew(ind_cell, 1)))
                end do
-               unew(ind_cell, 5) = abs(unew(ind_cell,5)) * smallr / abs(unew(ind_cell, 1))
+               unew(ind_cell, ndim + 2) = abs(unew(ind_cell,ndim + 2)) * smallr / abs(unew(ind_cell, 1))
                unew(ind_cell, 1) = smallr
                do idim = 1, 3
-                  unew(ind_cell, 5) = unew(ind_cell, 5) + 0.5*unew(ind_cell, idim + 1)**2 / abs(unew(ind_cell, 1))
-                  unew(ind_cell, 5) = unew(ind_cell, 5) + 0.125*(unew(ind_cell, 5 + idim) + unew(ind_cell, nvar + idim))**2
+                  unew(ind_cell, ndim + 2) = unew(ind_cell, ndim + 2) + 0.5*unew(ind_cell, idim + 1)**2 / abs(unew(ind_cell, 1))
+#ifdef SOLVERmhd
+                  unew(ind_cell, ndim + 2) = unew(ind_cell, ndim + 2) + 0.125*(unew(ind_cell, ndim + 2 + idim) + unew(ind_cell, nvar + idim))**2
+#endif
                end do
             end if
          end do
