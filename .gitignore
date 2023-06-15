@@ -34,3 +34,9 @@ __pycache__
 *.log
 # IDEs files
 .vscode
+.mmat
+*write_patch.f90
+*write_makefile.f90
+*launch.json
+*.pyc
+bin*/*

@@ -52,7 +52,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
   use hydro_commons
   use cooling_module
   use poisson_parameters
-  use disk_module
+  use alpha_disk_module
 #ifdef grackle
   use grackle_parameters
 #endif
@@ -112,20 +112,19 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
 
    ! disk
    real(dp) :: x_mass, y_mass, z_mass, xx, yy, zz, cs
-   real(dp) :: rc, rc_soft, rc_soft2, omega
-   real(dp) :: eint, tcool
-   real(dp) :: emass, r0, cs0, rin
+   real(dp) :: rc, rc_soft, omega
+   real(dp) :: emass, mass
 
    ! Position of the point mass
    x_mass = gravity_params(3)
    y_mass = gravity_params(4)
    z_mass = gravity_params(5)
+
+   mass = gravity_params(1)
+
    ! Softening coefficient
    emass = gravity_params(2)
-   ! Sound of speed reference
-   cs0 = sqrt(temper_iso)
-   ! Outer limit of the disk
-   r0 = disk_radius
+
 
   ! Mesh spacing in that level
   dx=0.5D0**ilevel
@@ -137,6 +136,17 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
   scale=boxlen/dble(nx_loc)
   dx_loc=dx*scale
   vol_loc=dx_loc**ndim
+
+   ! Set position of cell centers relative to grid center
+   do ind=1,twotondim
+      iz=(ind-1)/4
+      iy=(ind-1-4*iz)/2
+      ix=(ind-1-2*iy-4*iz)
+      if(ndim>0)xc(ind,1)=(dble(ix)-0.5D0)*dx
+      if(ndim>1)xc(ind,2)=(dble(iy)-0.5D0)*dx
+      if(ndim>2)xc(ind,3)=(dble(iz)-0.5D0)*dx
+   end do
+
 
   ! Conversion factor from user units to cgs units
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
@@ -189,6 +199,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
         if(son(ind_cell(i))==0)then
            nleaf=nleaf+1
            ind_leaf(nleaf)=ind_cell(i)
+           ind_leaf_loc(nleaf)=i
         end if
      end do
      if(nleaf.eq.0)cycle
@@ -607,32 +618,20 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
             igrid=ind_grid(ind_leaf_loc(i)) ! index father
  
             ! grid position + leaf position relative to box center
-            xx = (xg(igrid,1) + xc(ind,1)) * scale - x_mass
-            yy = (xg(igrid,2) + xc(ind,2)) * scale - y_mass
+            xx = (xg(igrid,1) + xc(ind,1) - skip_loc(1)) * scale - x_mass
+            yy = (xg(igrid,2) + xc(ind,2) - skip_loc(2)) * scale - y_mass
 #if NDIM > 2
-            zz = (xg(igrid,3) + xc(ind,3)) * scale - z_mass
+            zz = (xg(igrid,3) + xc(ind,3) - skip_loc(3)) * scale - z_mass
 #endif
  
             ! cylindrical radius
-            rc = sqrt(xx**2 + yy**2)
             rc_soft = sqrt(xx**2 + yy**2 + emass**2)
- 
-            ! Inner limit of the isothermal zone
-#if NDIM > 2
-            rin = sqrt(r0*radius_min_factor*(r0*radius_min_factor + inner_iso_z_flaring*abs(zz)))
-#else
-            rin = r0*radius_min_factor
-#endif
-            ! sound velocity
-            if (rc_soft > rin) then
-               cs = cs0*(rc_soft/r0)**(-temper_expo/2.)
-            else
-               cs = cs0*(rin/r0)**(-temper_expo/2.)
-            end if
- 
+
+            cs = h_over_r * sqrt(mass / rc_soft)
+
             ! Update internal energy
-            uold(ind_leaf(i), ndim + 2) = uold(ind_leaf(i), 1)*cs**2/(gamma - 1)  + ekk(i) + err(i) + emag(i)
- 
+            uold(ind_leaf(i), neul) = uold(ind_leaf(i), 1)*cs**2/(gamma - 1) + ekk(i) + err(i) + emag(i)
+
          end do
      else if(cooling .or. neq_chem)then
         do i=1,nleaf

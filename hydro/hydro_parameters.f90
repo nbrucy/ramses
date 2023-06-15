@@ -115,4 +115,12 @@ module hydro_parameters
   logical  :: rho_floor  = .false.  ! whether to set a minimal value (equal to smallr) to density
 !!! NBrucy
 
+! Viscosity parameters
+logical :: add_viscosity = .false.
+character(LEN=20)::viscosity_kind='constant_uniform' ! 'constant_uniform', 'alpha' 
+! Note, 'alpha' is only available when using the alpha_disk module
+
+real(dp) :: mu_viscosity_constant = 0.001
+real(dp) :: alpha_viscosity = 0.01
+
 end module hydro_parameters

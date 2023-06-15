@@ -5,6 +5,7 @@
 subroutine condinit(x,u,dx,nn)
   use amr_commons
   use hydro_parameters
+  use alpha_disk_module
   implicit none
   integer ::nn                            ! Number of cells
   real(dp)::dx                            ! Cell size
@@ -36,6 +37,9 @@ subroutine condinit(x,u,dx,nn)
 
   case('ana_disk_potential')
      call ana_disk_potential_condinit(x, q, dx, nn)
+
+  case('alpha_disk')
+      call condinit_alpha_disk(x, q, dx, nn)
 
   ! Add here, if you wish, some user-defined initial conditions
   ! ........
