@@ -511,7 +511,7 @@ subroutine add_viscosity_source_terms(ilevel)
    real(dp) :: mu_viscosity = 0.001
    real(dp), dimension(1:ndim) :: vel
    real(dp) :: dvel_left, dvel_right ! velocity derivative left and right
-   real(dp) :: d,u,v,w,e_kin,e_prim,e_other,e_int,A,B,C
+   real(dp) :: d,u,v,w,e_kin,e_prim,e_other,e_int
 
    real(dp),dimension(1:nvector,1:ndim),save::x
    real(dp),dimension(1:twotondim,1:3)::xc
@@ -618,8 +618,10 @@ subroutine add_viscosity_source_terms(ilevel)
          end do
 
          ! shift coordinate system
-         xx = x(i,1) - x0
-         yy = x(i,2) - y0
+         do i=1,ngrid
+            xx = x(i,1) - x0
+            yy = x(i,2) - y0
+         end do
          ! cylindrical radius
          rc = sqrt(xx**2 + yy**2)
  

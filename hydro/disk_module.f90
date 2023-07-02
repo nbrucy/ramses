@@ -162,6 +162,11 @@ subroutine boundary_disk(ilevel)
              ! spherical radius
              rs = sqrt(xx**2 + yy**2 + zz**2)
              rs_soft = sqrt(xx**2 + yy**2 + zz**2 + emass**2)
+
+             ! softened coordinates
+             xx_soft =  xx * (rs_soft / rs);
+             yy_soft =  yy * (rs_soft / rs);
+
          
              ! Inner limit of the isothermal zone
 #if NDIM>2
