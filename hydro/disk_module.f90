@@ -59,7 +59,7 @@ subroutine boundary_disk(ilevel)
   !----------------------------------------------------------
     integer::igrid,ngrid,ncache,i,ind,iskip,ix,iy,iz
     integer::nx_loc,idim,neul=5
-    real(dp)::dx,dx_loc,scale,u,v,w,A,B,C,dx_min
+    real(dp)::dx,dx_loc,scale,u,v,w,A,B,C
     real(dp),dimension(1:twotondim,1:3)::xc
     real(dp),dimension(1:3)::skip_loc
   
@@ -83,7 +83,6 @@ subroutine boundary_disk(ilevel)
     scale = dble(nx_loc)/boxlen
     dx_loc = dx/scale
   
-    dx_min = (0.5D0**levelmin)/scale
    ! Position of the point mass
     x0 = gravity_params(3)
     y0 = gravity_params(4)
@@ -101,21 +100,6 @@ subroutine boundary_disk(ilevel)
     ! Outer limit of the disk
     r0 = disk_radius
   
-
-  
-    if(numbtot(1,ilevel)==0)return
-  
-    ! Mesh size at level ilevel in coarse cell units
-    dx=0.5D0**ilevel
-  
-    ! Rescaling factors
-    nx_loc=(icoarse_max-icoarse_min+1)
-    skip_loc=(/0.0d0,0.0d0,0.0d0/)
-    if(ndim>0)skip_loc(1)=dble(icoarse_min)
-    if(ndim>1)skip_loc(2)=dble(jcoarse_min)
-    if(ndim>2)skip_loc(3)=dble(kcoarse_min)
-    scale=dble(nx_loc)/boxlen
-    dx_loc=dx/scale
   
     ! Set position of cell centers relative to grid center
     do ind=1,twotondim

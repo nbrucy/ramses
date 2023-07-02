@@ -55,6 +55,7 @@ subroutine read_hydro_params(nml_ok)
 #endif
        & ,pressure_fix,beta_fix,scheme,riemann &
        & ,strict_equilibrium &
+       & ,add_viscosity,viscosity_kind,mu_viscosity_constant,alpha_viscosity &
 !!! BrucyN - rho_floor
        & ,rho_floor
 !!! NBrucy

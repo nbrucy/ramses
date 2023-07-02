@@ -172,6 +172,11 @@ module hydro_parameters
   logical  :: rho_floor  = .false.  ! whether to set a minimal value (equal to smallr) to density
 !!! NBrucy
 
+  logical :: add_viscosity = .false.
+  character(LEN=20)::viscosity_kind='constant_uniform' ! 'constant_uniform', 'alpha'
+  real(dp) :: mu_viscosity_constant = 0.001
+  real(dp) :: alpha_viscosity = 0.01
+
 
   ! Column density module (Valdivia & Hennebelle 2014)
   integer::NdirExt_m=3       ! Theta directions for screening

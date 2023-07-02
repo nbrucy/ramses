@@ -131,7 +131,6 @@ subroutine set_uold(ilevel)
   !---------------------------------------------------------
   integer::i,ivar,ind,iskip,nx_loc,ind_cell,idim
   real(dp)::scale,d,u,v,w
-  logical:: add_viscosity = .true.
   real(dp)::e_kin,e_cons,e_prim,e_trunc,div,dx
 
 #if NENER>0
@@ -497,10 +496,10 @@ subroutine add_viscosity_source_terms(ilevel)
    ! Only the momentum and the
    ! total energy are modified in array unew.
    !--------------------------------------------------------------------------
-   integer::i,ind,iskip,nx_loc
+   integer::i,ind,iskip,nx_loc,ix,iy,iz
    integer::ncache,igrid,ngrid,idim,id1,ig1,ih1,id2,ig2,ih2,jdim
    integer,dimension(1:3,1:2,1:8)::iii,jjj
-   real(dp)::scale,dx,dx_loc,dx_min
+   real(dp)::scale,dx,dx_loc
    real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2
  
    integer ,dimension(1:nvector),save::ind_grid,ind_cell
@@ -512,7 +511,12 @@ subroutine add_viscosity_source_terms(ilevel)
    real(dp) :: mu_viscosity = 0.001
    real(dp), dimension(1:ndim) :: vel
    real(dp) :: dvel_left, dvel_right ! velocity derivative left and right
-   real(dp) :: d,u,v,w,e_kin,e_prim
+   real(dp) :: d,u,v,w,e_kin,e_prim,e_other,e_int,A,B,C
+
+   real(dp),dimension(1:nvector,1:ndim),save::x
+   real(dp),dimension(1:twotondim,1:3)::xc
+   real(dp),dimension(1:3)::skip_loc
+   real(dp):: x0, y0, z0, xx, yy, cs, height, rc, v_norm
  
    if(numbtot(1,ilevel)==0)return
    if(verbose)write(*,111)ilevel
@@ -521,7 +525,22 @@ subroutine add_viscosity_source_terms(ilevel)
    scale=boxlen/dble(nx_loc)
    dx=0.5d0**ilevel
    dx_loc=dx*scale
-   dx_min=(0.5**levelmax)*scale
+
+   ! Position of the point mass
+   x0 = gravity_params(3)
+   y0 = gravity_params(4)
+   z0 = gravity_params(5)
+
+   ! Set position of cell centers relative to grid center
+   do ind=1,twotondim
+      iz=(ind-1)/4
+      iy=(ind-1-4*iz)/2
+      ix=(ind-1-2*iy-4*iz)
+      if(ndim>0)xc(ind,1)=(dble(ix)-0.5D0)*dx
+      if(ndim>1)xc(ind,2)=(dble(iy)-0.5D0)*dx
+      if(ndim>2)xc(ind,3)=(dble(iz)-0.5D0)*dx
+   end do
+ 
  
    call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
  
@@ -591,6 +610,20 @@ subroutine add_viscosity_source_terms(ilevel)
          end do
          ! End loop over dimensions
 
+         ! Gather cell centre positions
+         do idim=1,ndim
+            do i=1,ngrid
+               x(i,idim)=xg(ind_grid(i),idim)+xc(ind,idim)
+            end do
+         end do
+
+         ! shift coordinate system
+         xx = x(i,1) - x0
+         yy = x(i,2) - y0
+         ! cylindrical radius
+         rc = sqrt(xx**2 + yy**2)
+ 
+
          ! Compute the laplacian of u 
          laplacian_u_loc(1:ngrid,1:ndim)=0.0d0
          do idim=1,ndim
@@ -610,20 +643,40 @@ subroutine add_viscosity_source_terms(ilevel)
             d = max(unew(ind_cell(i),1),smallr)
 
             u=0; v=0; w=0
-            if(ndim>0)u=unew(ind_cell(i),2)/d
-            if(ndim>1)v=unew(ind_cell(i),3)/d
-            if(ndim>2)w=unew(ind_cell(i),4)/d
-
+            u=unew(ind_cell(i),2)/d
+            v=unew(ind_cell(i),3)/d
+#if NDIM > 2               
+            w=unew(ind_cell(i),4)/d
+#endif
             e_kin = 0.5d0*d*(u**2 + v**2 + w**2)
             e_prim = unew(ind_cell(i),ndim+2) - e_kin
+
+            select case (viscosity_kind)
+               case('constant_uniform')
+                  mu_viscosity = mu_viscosity_constant
+               case('alpha')
+                  e_other = 0.
+#ifdef SOLVERMHD
+                  A=0.5*(unew(ind_cell(i),6)+unew(ind_cell(i),nvar+1))
+                  B=0.5*(unew(ind_cell(i),7)+unew(ind_cell(i),nvar+2))
+#if NDIM>2
+                  C=0.5*(unew(ind_cell(i),8)+unew(ind_cell(i),nvar+3))
+#endif
+                  e_other=e_other+0.5*(A**2+B**2+C**2)
+                 
+#endif                
+                  e_int = e_prim - e_other
+                  cs = sqrt((gamma - 1)*e_int/d)
+                  v_norm = sqrt(u*u + v*v)
+                  
+                  height = (cs / v_norm) * rc
+                  mu_viscosity = alpha_viscosity * cs * height
+            end select
    
             u = u + mu_viscosity*laplacian_u_loc(i, 1)*dtnew(ilevel)
             unew(ind_cell(i), 2) = d*u
-
-#if NDIM > 1
             v = v + mu_viscosity*laplacian_u_loc(i, 2)*dtnew(ilevel)
             unew(ind_cell(i), 3) = d*v
-#endif      
 #if NDIM > 2     
             w = w + mu_viscosity*laplacian_u_loc(i, 3)*dtnew(ilevel)
             unew(ind_cell(i), 4) = d*w
