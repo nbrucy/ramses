@@ -135,8 +135,8 @@ subroutine condinit_disk(x,u,dx,nn)
 #endif 
 
      ! Also add radial velocity
-     if (alpha > 0) then
-        ur = - (3/2.) * alpha * cs**2 * sqrt(rc_soft)
+     if (alpha_viscosity > 0) then
+        ur = - (3/2.) * alpha_viscosity * cs**2 * sqrt(rc_soft)
         u(i, 2) = u(i, 2) + u(i, 1) * ur * xx_soft / rc_soft
         u(i, 3) =  u(i, 3) + u(i, 1) * ur * yy_soft / rc_soft
      end if

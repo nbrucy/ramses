@@ -13,7 +13,6 @@ module disk_module
     real(dp) :: contrast_factor     = 1000.  ! magnitude between the disk and the rest of the simulation
     real(dp) :: inner_iso_z_flaring = 1.0    ! Flaring of the inner isothermal zone in z to prevent resolution effects
     real(dp) :: radius_max_factor   = 3    ! Outer limit of the simulation
-    real(dp) :: alpha               = 0
     !real(dp) :: gravity_threshold_factor = 1. ! Cell with a density under gravity_threshold_factor * smallr will not undergo gravity kick
     !logical  :: local_cooling       = .false. ! Disk cooling with cooling timae proportional to angular speed
     !real(dp) :: beta_cool           = 10.     ! tcool = beta_cool / omega
@@ -30,7 +29,7 @@ subroutine read_disk_params()
     !--------------------------------------------------
     ! Namelist definitions
     !--------------------------------------------------
-    namelist/disk_params/disk_radius, disk_density, temper_iso, temper_expo, radius_min_factor, contrast_factor, inner_iso_z_flaring, radius_max_factor, alpha
+    namelist/disk_params/disk_radius, disk_density, temper_iso, temper_expo, radius_min_factor, contrast_factor, inner_iso_z_flaring, radius_max_factor
   
     ! Read namelist file
     call getarg(1, infile) ! get the name of the namelist
