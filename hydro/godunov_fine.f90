@@ -511,7 +511,10 @@ subroutine add_viscosity_source_terms(ilevel)
    real(dp) :: mu_viscosity = 0.001
    real(dp), dimension(1:ndim) :: vel
    real(dp) :: dvel_left, dvel_right ! velocity derivative left and right
-   real(dp) :: d,u,v,w,e_kin,e_prim,e_other,e_int
+   real(dp) :: d,u,v,w,e_kin,e_nokin,e_other,e_int
+#ifdef SOLVERMHD
+   real(dp) :: A,B,C
+#endif
 
    real(dp),dimension(1:nvector,1:ndim),save::x
    real(dp),dimension(1:twotondim,1:3)::xc
@@ -638,6 +641,8 @@ subroutine add_viscosity_source_terms(ilevel)
                end do
             end do
          end do
+
+         ! TODO: compute grad(div(u))
  
 
          ! Add viscosity term at time t
@@ -651,23 +656,28 @@ subroutine add_viscosity_source_terms(ilevel)
             w=unew(ind_cell(i),4)/d
 #endif
             e_kin = 0.5d0*d*(u**2 + v**2 + w**2)
-            e_prim = unew(ind_cell(i),ndim+2) - e_kin
+            e_nokin = unew(ind_cell(i),ndim+2) - e_kin
 
             select case (viscosity_kind)
                case('constant_uniform')
                   mu_viscosity = mu_viscosity_constant
                case('alpha')
-                  e_other = 0.
+
+                  if(pressure_fix) then
+                     e_int = enew((ind_cell(i)))
+                  else
+                     e_other = 0.
 #ifdef SOLVERMHD
-                  A=0.5*(unew(ind_cell(i),6)+unew(ind_cell(i),nvar+1))
-                  B=0.5*(unew(ind_cell(i),7)+unew(ind_cell(i),nvar+2))
+                     A=0.5*(unew(ind_cell(i),6)+unew(ind_cell(i),nvar+1))
+                     B=0.5*(unew(ind_cell(i),7)+unew(ind_cell(i),nvar+2))
 #if NDIM>2
-                  C=0.5*(unew(ind_cell(i),8)+unew(ind_cell(i),nvar+3))
+                     C=0.5*(unew(ind_cell(i),8)+unew(ind_cell(i),nvar+3))
 #endif
-                  e_other=e_other+0.5*(A**2+B**2+C**2)
+                     e_other=e_other+0.5*(A**2+B**2+C**2)
                  
-#endif                
-                  e_int = e_prim - e_other
+#endif
+                     e_int = e_nokin - e_other
+                  end if
                   cs = sqrt((gamma - 1)*e_int/d)
                   v_norm = sqrt(u*u + v*v)
                   
@@ -684,7 +694,7 @@ subroutine add_viscosity_source_terms(ilevel)
             unew(ind_cell(i), 4) = d*w
 #endif
             e_kin = 0.5d0*d*(u**2 + v**2 + w**2)
-            unew(ind_cell(i), ndim + 2) = e_prim + e_kin
+            unew(ind_cell(i), ndim + 2) = e_nokin + e_kin
          end do
 
       end do
