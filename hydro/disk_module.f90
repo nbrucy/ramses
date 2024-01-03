@@ -64,7 +64,7 @@ subroutine boundary_disk(ilevel)
   
     integer ,dimension(1:nvector),save::ind_grid,ind_cell
     real(dp),dimension(1:nvector,1:ndim),save::x
-    real(dp):: x0, y0, z0, xx, yy, zz = 0., cs, omega, xx_soft, yy_soft
+    real(dp):: x0, y0, z0, xx, yy, zz = 0., cs, omega, xx_soft, yy_soft, ur
     real(dp):: rc, rc_soft, rs,  rs_soft
     real(dp):: mass, emass, r0, cs0, d0, density, rin, ekin, eint
     
@@ -152,7 +152,7 @@ subroutine boundary_disk(ilevel)
              xx = x(i,1) - x0
              yy = x(i,2) - y0
 #if NDIM>2
-            zz = x(i,3) - z0
+             zz = x(i,3) - z0
 #endif
   
              ! cylindrical radius
@@ -164,10 +164,9 @@ subroutine boundary_disk(ilevel)
              rs_soft = sqrt(xx**2 + yy**2 + zz**2 + emass**2)
 
              ! softened coordinates
-             xx_soft =  xx * (rs_soft / rs);
-             yy_soft =  yy * (rs_soft / rs);
+             xx_soft =  xx * (rs_soft / rs)
+             yy_soft =  yy * (rs_soft / rs)
 
-         
              ! Inner limit of the isothermal zone
 #if NDIM>2
              rin = sqrt(r0*radius_min_factor*(r0*radius_min_factor + inner_iso_z_flaring*abs(zz)))
@@ -206,9 +205,15 @@ subroutine boundary_disk(ilevel)
 #else
                 omega = sqrt(mass / rc_soft**3 - (3/2.)*(cs**2/rc_soft**2) )
 #endif
-           
                 ! density
                 uold(ind_cell(i), 1) = density
+
+                     ! Also add radial velocity
+               if (alpha_viscosity > 0) then
+                  ur = - (3/2.) * alpha_viscosity * cs**2 * sqrt(rc_soft)
+                  uold(i, 2) = uold(i, 2) + uold(i, 1) * ur * xx_soft / rc_soft
+                  uold(i, 3) =  uold(i, 3) + uold(i, 1) * ur * yy_soft / rc_soft
+               end if
   
                 ! momentum
                 uold(ind_cell(i), 2) = - uold(ind_cell(i), 1) * omega * yy_soft

@@ -489,6 +489,8 @@ subroutine add_viscosity_source_terms(ilevel)
    use hydro_commons
    use poisson_commons
    use pm_commons 
+   use disk_module
+
    implicit none
    integer::ilevel,levelmax
    !--------------------------------------------------------------------------
@@ -520,6 +522,17 @@ subroutine add_viscosity_source_terms(ilevel)
    real(dp),dimension(1:twotondim,1:3)::xc
    real(dp),dimension(1:3)::skip_loc
    real(dp):: x0, y0, z0, xx, yy, cs, height, rc, v_norm
+
+   real(dp):: r0, cs0, rin
+ 
+   ! Sound of speed reference
+   cs0 = sqrt(temper_iso)
+   ! Outer limit of the disk
+   r0 = disk_radius
+  ! Inner limit of the isothermal zone
+   rin = r0*radius_min_factor
+
+   
  
    if(numbtot(1,ilevel)==0)return
    if(verbose)write(*,111)ilevel
@@ -543,6 +556,7 @@ subroutine add_viscosity_source_terms(ilevel)
       if(ndim>1)xc(ind,2)=(dble(iy)-0.5D0)*dx
       if(ndim>2)xc(ind,3)=(dble(iz)-0.5D0)*dx
    end do
+   
  
  
    call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
@@ -620,15 +634,6 @@ subroutine add_viscosity_source_terms(ilevel)
             end do
          end do
 
-         ! shift coordinate system
-         do i=1,ngrid
-            xx = x(i,1) - x0
-            yy = x(i,2) - y0
-         end do
-         ! cylindrical radius
-         rc = sqrt(xx**2 + yy**2)
- 
-
          ! Compute the laplacian of u 
          laplacian_u_loc(1:ngrid,1:ndim)=0.0d0
          do idim=1,ndim
@@ -647,6 +652,14 @@ subroutine add_viscosity_source_terms(ilevel)
 
          ! Add viscosity term at time t
          do i=1,ngrid
+
+            ! shift coordinate system
+            xx = x(i,1) - x0
+            yy = x(i,2) - y0
+
+            ! cylindrical radius
+            rc = sqrt(xx**2 + yy**2)
+
             d = max(unew(ind_cell(i),1),smallr)
 
             u=0; v=0; w=0
@@ -663,22 +676,30 @@ subroutine add_viscosity_source_terms(ilevel)
                   mu_viscosity = mu_viscosity_constant
                case('alpha')
 
-                  if(pressure_fix) then
-                     e_int = enew((ind_cell(i)))
-                  else
-                     e_other = 0.
-#ifdef SOLVERMHD
-                     A=0.5*(unew(ind_cell(i),6)+unew(ind_cell(i),nvar+1))
-                     B=0.5*(unew(ind_cell(i),7)+unew(ind_cell(i),nvar+2))
-#if NDIM>2
-                     C=0.5*(unew(ind_cell(i),8)+unew(ind_cell(i),nvar+3))
-#endif
-                     e_other=e_other+0.5*(A**2+B**2+C**2)
+!                   if(pressure_fix) then
+!                      e_int = enew((ind_cell(i)))
+!                   else
+!                      e_other = 0.
+! #ifdef SOLVERMHD
+!                      A=0.5*(unew(ind_cell(i),6)+unew(ind_cell(i),nvar+1))
+!                      B=0.5*(unew(ind_cell(i),7)+unew(ind_cell(i),nvar+2))
+! #if NDIM>2
+!                      C=0.5*(unew(ind_cell(i),8)+unew(ind_cell(i),nvar+3))
+! #endif
+!                      e_other=e_other+0.5*(A**2+B**2+C**2)
                  
-#endif
-                     e_int = e_nokin - e_other
+! #endif
+!                      e_int = e_nokin - e_other
+!                   end if
+                  
+                  
+                  ! sound velocity
+                  if (rc > rin) then
+                     cs = cs0*(rc/r0)**(-temper_expo/2.)
+                  else
+                     cs = cs0*(rin/r0)**(-temper_expo/2.)
                   end if
-                  cs = sqrt((gamma - 1)*e_int/d)
+
                   v_norm = sqrt(u*u + v*v)
                   
                   height = (cs / v_norm) * rc

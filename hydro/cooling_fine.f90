@@ -125,7 +125,6 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
    ! disk
    real(dp) :: x_mass, y_mass, z_mass, xx, yy, zz, cs
    real(dp) :: rc, rc_soft, rc_soft2, omega
-   real(dp) :: eint, tcool
    real(dp) :: emass, r0, cs0, rin
 
    ! Position of the point mass
@@ -149,6 +148,17 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
   scale=boxlen/dble(nx_loc)
   dx_loc=dx*scale
   vol_loc=dx_loc**ndim
+
+   ! Set position of cell centers relative to grid center
+   do ind=1,twotondim
+      iz=(ind-1)/4
+      iy=(ind-1-4*iz)/2
+      ix=(ind-1-2*iy-4*iz)
+      if(ndim>0)xc(ind,1)=(dble(ix)-0.5D0)*dx
+      if(ndim>1)xc(ind,2)=(dble(iy)-0.5D0)*dx
+      if(ndim>2)xc(ind,3)=(dble(iz)-0.5D0)*dx
+   end do
+
 
   ! Conversion factor from user units to cgs units
   call units(scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2)
@@ -201,6 +211,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
         if(son(ind_cell(i))==0)then
            nleaf=nleaf+1
            ind_leaf(nleaf)=ind_cell(i)
+           ind_leaf_loc(nleaf)=i
         end if
      end do
      if(nleaf.eq.0)cycle
@@ -631,10 +642,10 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
             igrid=ind_grid(ind_leaf_loc(i)) ! index father
  
             ! grid position + leaf position relative to box center
-            xx = (xg(igrid,1) + xc(ind,1)) * scale - x_mass
-            yy = (xg(igrid,2) + xc(ind,2)) * scale - y_mass
+            xx = (xg(igrid,1) + xc(ind,1) - skip_loc(1)) * scale - x_mass
+            yy = (xg(igrid,2) + xc(ind,2) - skip_loc(2)) * scale - y_mass
 #if NDIM > 2
-            zz = (xg(igrid,3) + xc(ind,3)) * scale - z_mass
+            zz = (xg(igrid,3) + xc(ind,3) - skip_loc(3)) * scale - z_mass
 #endif
  
             ! cylindrical radius
@@ -655,7 +666,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
             end if
  
             ! Update internal energy
-            uold(ind_leaf(i), ndim + 2) = uold(ind_leaf(i), 1)*cs**2/(gamma - 1)  + ekk(i) + err(i) + emag(i)
+            uold(ind_leaf(i), neul) = uold(ind_leaf(i), 1)*cs**2/(gamma - 1)  + ekk(i) + err(i) + emag(i)
  
          end do
      else if(cooling .or. neq_chem)then
