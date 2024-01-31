@@ -208,13 +208,6 @@ subroutine boundary_disk(ilevel)
                 ! density
                 uold(ind_cell(i), 1) = density
 
-                     ! Also add radial velocity
-               if (alpha_viscosity > 0) then
-                  ur = - (3/2.) * alpha_viscosity * cs**2 * sqrt(rc_soft)
-                  uold(i, 2) = uold(i, 2) + uold(i, 1) * ur * xx_soft / rc_soft
-                  uold(i, 3) =  uold(i, 3) + uold(i, 1) * ur * yy_soft / rc_soft
-               end if
-  
                 ! momentum
                 uold(ind_cell(i), 2) = - uold(ind_cell(i), 1) * omega * yy_soft
                 uold(ind_cell(i), 3) =  uold(ind_cell(i), 1) * omega * xx_soft
@@ -222,6 +215,14 @@ subroutine boundary_disk(ilevel)
                 uold(ind_cell(i), 4) = 0.
 #endif
   
+               ! Also add radial velocity
+               if (alpha_viscosity > 0) then
+                  ur = - (3/2.) * alpha_viscosity * cs**2 * sqrt(rc_soft)
+                  uold(ind_cell(i), 2) = uold(ind_cell(i), 2) + uold(ind_cell(i), 1) * ur * xx_soft / rc_soft
+                  uold(ind_cell(i), 3) =  uold(ind_cell(i), 3) + uold(ind_cell(i), 1) * ur * yy_soft / rc_soft
+               end if
+  
+
                 ! internal energy
                 eint = + uold(ind_cell(i), 1)*cs**2 /(gamma -1)
                 ! kinetic energy
