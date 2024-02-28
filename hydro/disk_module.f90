@@ -5,19 +5,10 @@ module disk_module
    !================================================================
 
    ! Protostellar disks
-   real(dp) :: disk_radius = 0.25   ! Radius of the disk
+   real(dp) :: disk_radius = 0.25    ! Radius of the disk
    real(dp) :: disk_density = 1.0    ! Disk density at the limit of the disk
-   real(dp) :: temper_iso = 0.1    ! Sound velocity at the limit of the disk
-   real(dp) :: temper_expo = 1.0    ! Exponent used in local isothermal profile
-   real(dp) :: radius_min_factor = 0.1    ! Radius of the inner isothermal zone
-   real(dp) :: contrast_factor = 1000.  ! magnitude between the disk and the rest of the simulation
-   real(dp) :: inner_iso_z_flaring = 1.0    ! Flaring of the inner isothermal zone in z to prevent resolution effects
+   real(dp) :: radius_min_factor = 0.5    ! Radius of the inner isothermal zone
    real(dp) :: radius_max_factor = 3    ! Outer limit of the simulation
-   !real(dp) :: gravity_threshold_factor = 1. ! Cell with a density under gravity_threshold_factor * smallr will not undergo gravity kick
-   !logical  :: local_cooling       = .false. ! Disk cooling with cooling timae proportional to angular speed
-   !real(dp) :: beta_cool           = 10.     ! tcool = beta_cool / omega
-   logical  :: merubate = .false.  ! whether to use Meru & Bate initial setup
-   logical  :: lisa = .false.  ! whether to use LISA Diusk IMRI initial setup
    real(dp) :: h_over_r=0.1 ! h/r param in lisa setup
 
 
@@ -32,7 +23,7 @@ subroutine read_disk_params()
    !--------------------------------------------------
    ! Namelist definitions
    !--------------------------------------------------
-   namelist/disk_params/disk_radius, disk_density, temper_iso, temper_expo, radius_min_factor, contrast_factor, inner_iso_z_flaring, radius_max_factor,merubate,lisa,h_over_r
+   namelist/disk_params/disk_radius, disk_density, radius_min_factor, radius_max_factor, h_over_r
 
    ! Read namelist file
    call getarg(1, infile) ! get the name of the namelist
@@ -65,9 +56,9 @@ subroutine boundary_disk(ilevel)
 
    integer, dimension(1:nvector), save::ind_grid, ind_cell
    real(dp), dimension(1:nvector, 1:ndim), save::x
-   real(dp):: x0, y0, z0, xx, yy, zz = 0., cs, omega, xx_soft, yy_soft, ur
-   real(dp):: rc, rc_soft, rs, rs_soft
-   real(dp):: mass, emass, r0, cs0, d0, density, rin, ekin, eint
+   real(dp):: x0, y0, z0, xx, yy, cs, omega, xx_soft, yy_soft, ur
+   real(dp):: rc, rc_soft
+   real(dp):: mass, emass, r0, d0, density, rin, ekin, eint
 
    if (numbtot(1, ilevel) == 0) return
 
@@ -86,7 +77,6 @@ subroutine boundary_disk(ilevel)
    ! Position of the point mass
    x0 = gravity_params(3)
    y0 = gravity_params(4)
-   z0 = gravity_params(5)
 
    ! Central mass
    mass = gravity_params(1)
@@ -95,8 +85,6 @@ subroutine boundary_disk(ilevel)
 
    ! Density reference
    d0 = disk_density
-   ! Sound of speed reference
-   cs0 = sqrt(temper_iso)
    ! Outer limit of the disk
    r0 = disk_radius
 
@@ -149,81 +137,33 @@ subroutine boundary_disk(ilevel)
             ! shift coordinate system
             xx = x(i, 1) - x0
             yy = x(i, 2) - y0
-#if NDIM>2
-            zz = x(i, 3) - z0
-#endif
 
             ! cylindrical radius
             rc = sqrt(xx**2 + yy**2)
             rc_soft = sqrt(xx**2 + yy**2 + emass**2)
 
-            ! spherical radius
-            rs = sqrt(xx**2 + yy**2 + zz**2)
-            rs_soft = sqrt(xx**2 + yy**2 + zz**2 + emass**2)
-
             ! softened coordinates
-            xx_soft = xx*(rs_soft/rs)
-            yy_soft = yy*(rs_soft/rs)
+            xx_soft = xx*(rc_soft/rc)
+            yy_soft = yy*(rc_soft/rc)
 
-     ! Inner limit of the isothermal zone
-            if (.not. lisa) then
-#if NDIM>2
-               rin = sqrt(r0*radius_min_factor*(r0*radius_min_factor + inner_iso_z_flaring*abs(zz)))
-#else
-               rin = r0*radius_min_factor
-#endif
-            end if
+            omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
+            cs = h_over_r * omega * rc_soft
 
             ! Reinitialize the density for the internal and external border (cylindrical)
-            if (rc < r0*radius_min_factor*2 .or. rc > r0*radius_max_factor .or. abs(zz) > 0.45*boxlen) then
 
-               if (.not. lisa) then
-               ! sound velocity
-                  if (rc_soft > rin) then
-                     cs = cs0*(rc_soft/r0)**(-temper_expo/2.)
-                  else
-                     cs = cs0*(rin/r0)**(-temper_expo/2.)
-                  end if
-               end if
+            if (rc < r0*radius_min_factor .or. rc > r0*radius_max_factor) then
 
-               if (rc < r0*radius_min_factor .or. rc > r0*radius_max_factor .or. abs(zz) > 0.45*boxlen) then
-#if NDIM>2
-                  if (merubate) then
-                     densityd = d0*(r0/rc_soft)**((temper_expo - 5.)/2.)*exp((mass/cs**2)*(1./rs_soft - 1./rc_soft))
-                  else
-                     density = d0*(r0/rc_soft)**(3 - temper_expo/2.)*exp((mass/cs**2)*(1./rs_soft - 1./rc_soft))
-                  end if
-#else
-                  density = d0*(rc_soft/r0)**(-1/2.)
-#endif
-                  if (.not. lisa .and. (rc_soft > r0 .or. abs(zz) > 0.5*r0)) then
-                     density = density/contrast_factor
-                  end if
-                  density = max(density, smallr)
-
-                  ! density
-                  uold(ind_cell(i), 1) = density
-
-               end if
+               density = d0*(rc_soft/r0)**(-1/2.)
+               ! density
+               uold(ind_cell(i), 1) = density
 
                ! angular velocity
-#if NDIM>2
-               omega = sqrt(max(mass/((rc_soft**2)*rs_soft) - (4.-temper_expo/2.)*(cs**2/rc_soft**2), 0.0))
-#else
-               if (lisa) then
-                  omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
-                  cs = h_over_r * omega * rc_soft
-               else
-                  omega = sqrt(mass / rc_soft**3 - (3/2.)*(cs**2/rc_soft**2) )
-               end if 
-#endif
+               omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
+               cs = h_over_r * omega * rc_soft
 
                ! momentum
                uold(ind_cell(i), 2) = -uold(ind_cell(i), 1)*omega*yy_soft
                uold(ind_cell(i), 3) = uold(ind_cell(i), 1)*omega*xx_soft
-#if NDIM>2
-               uold(ind_cell(i), 4) = 0.
-#endif
 
                ! Also add radial velocity
                if (alpha_viscosity > 0) then
@@ -244,13 +184,8 @@ subroutine boundary_disk(ilevel)
                ! energy
                uold(ind_cell(i), ndim + 2) = eint + ekin
 
-#ifdef SOLVERMHD
-               ! magnetic field
-               uold(ind_cell(i), 6:8) = (/0., 0., 0./)
-               uold(ind_cell(i), nvar + 1:nvar + 3) = (/0., 0., 0./)
-#endif
-
             end if
+
          end do
 
       end do

@@ -124,19 +124,19 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
 
    ! disk
    real(dp) :: x_mass, y_mass, z_mass, xx, yy, zz, cs
-   real(dp) :: rc, rc_soft, rc_soft2, omega
-   real(dp) :: emass, r0, cs0, rin
+   real(dp) :: rc, rc_soft, omega
+   real(dp) :: emass, mass
 
    ! Position of the point mass
    x_mass = gravity_params(3)
    y_mass = gravity_params(4)
    z_mass = gravity_params(5)
+
+   mass = gravity_params(0)
+
    ! Softening coefficient
    emass = gravity_params(2)
-   ! Sound of speed reference
-   cs0 = sqrt(temper_iso)
-   ! Outer limit of the disk
-   r0 = disk_radius
+
 
   ! Mesh spacing in that level
   dx=0.5D0**ilevel
@@ -651,19 +651,9 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
             ! cylindrical radius
             rc = sqrt(xx**2 + yy**2)
             rc_soft = sqrt(xx**2 + yy**2 + emass**2)
- 
-            ! Inner limit of the isothermal zone
-#if NDIM > 2
-            rin = sqrt(r0*radius_min_factor*(r0*radius_min_factor + inner_iso_z_flaring*abs(zz)))
-#else
-            rin = r0*radius_min_factor
-#endif
-            ! sound velocity
-            if (rc_soft > rin) then
-               cs = cs0*(rc_soft/r0)**(-temper_expo/2.)
-            else
-               cs = cs0*(rin/r0)**(-temper_expo/2.)
-            end if
+
+            omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
+            cs = h_over_r * omega * rc_soft
  
             ! Update internal energy
             uold(ind_leaf(i), neul) = uold(ind_leaf(i), 1)*cs**2/(gamma - 1)  + ekk(i) + err(i) + emag(i)

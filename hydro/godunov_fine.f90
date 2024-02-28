@@ -521,19 +521,11 @@ subroutine add_viscosity_source_terms(ilevel)
    real(dp),dimension(1:nvector,1:ndim),save::x
    real(dp),dimension(1:twotondim,1:3)::xc
    real(dp),dimension(1:3)::skip_loc
-   real(dp):: x0, y0, z0, xx, yy, cs, height, rc, v_norm
 
-   real(dp):: r0, cs0, rin
- 
-   ! Sound of speed reference
-   cs0 = sqrt(temper_iso)
-   ! Outer limit of the disk
-   r0 = disk_radius
-  ! Inner limit of the isothermal zone
-   rin = r0*radius_min_factor
+   real(dp):: x0, y0, z0, xx, yy, cs, rc, mass, emass
+   real(dp):: rc_soft, omega
 
-   
- 
+
    if(numbtot(1,ilevel)==0)return
    if(verbose)write(*,111)ilevel
  
@@ -542,10 +534,18 @@ subroutine add_viscosity_source_terms(ilevel)
    dx=0.5d0**ilevel
    dx_loc=dx*scale
 
-   ! Position of the point mass
-   x0 = gravity_params(3)
-   y0 = gravity_params(4)
-   z0 = gravity_params(5)
+
+     
+  ! Central mass
+  mass = gravity_params(1)
+  ! Softening coefficient
+  emass = gravity_params(2)
+
+  ! Position of the point mass
+  x0 = gravity_params(3)
+  y0 = gravity_params(4)
+  z0 = gravity_params(5)
+
 
    ! Set position of cell centers relative to grid center
    do ind=1,twotondim
@@ -659,6 +659,9 @@ subroutine add_viscosity_source_terms(ilevel)
 
             ! cylindrical radius
             rc = sqrt(xx**2 + yy**2)
+            rc_soft = sqrt(xx**2 + yy**2 + emass**2) 
+            omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
+            cs = h_over_r * omega * rc_soft
 
             d = max(unew(ind_cell(i),1),smallr)
 
@@ -674,36 +677,8 @@ subroutine add_viscosity_source_terms(ilevel)
             select case (viscosity_kind)
                case('constant_uniform')
                   mu_viscosity = mu_viscosity_constant
-               case('alpha')
-
-!                   if(pressure_fix) then
-!                      e_int = enew((ind_cell(i)))
-!                   else
-!                      e_other = 0.
-! #ifdef SOLVERMHD
-!                      A=0.5*(unew(ind_cell(i),6)+unew(ind_cell(i),nvar+1))
-!                      B=0.5*(unew(ind_cell(i),7)+unew(ind_cell(i),nvar+2))
-! #if NDIM>2
-!                      C=0.5*(unew(ind_cell(i),8)+unew(ind_cell(i),nvar+3))
-! #endif
-!                      e_other=e_other+0.5*(A**2+B**2+C**2)
-                 
-! #endif
-!                      e_int = e_nokin - e_other
-!                   end if
-                  
-                  
-                  ! sound velocity
-                  if (rc > rin) then
-                     cs = cs0*(rc/r0)**(-temper_expo/2.)
-                  else
-                     cs = cs0*(rin/r0)**(-temper_expo/2.)
-                  end if
-
-                  v_norm = sqrt(u*u + v*v)
-                  
-                  height = (cs / v_norm) * rc
-                  mu_viscosity = alpha_viscosity * cs * height
+               case('alpha')          
+                  mu_viscosity = alpha_viscosity * cs * h_over_r * rc_soft
             end select
    
             u = u + mu_viscosity*laplacian_u_loc(i, 1)*dtnew(ilevel)
