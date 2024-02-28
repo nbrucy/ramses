@@ -80,17 +80,20 @@ subroutine condinit_disk(x,u,dx,nn)
      yy_soft =  yy * (rs_soft / rs);
 
      ! Inner limit of the isothermal zone
+     if (.not. lisa) then
+
 #if NDIM>2
-     rin = sqrt(r0*radius_min_factor*(r0*radius_min_factor + inner_iso_z_flaring*abs(zz)))
+          rin = sqrt(r0*radius_min_factor*(r0*radius_min_factor + inner_iso_z_flaring*abs(zz)))
 #else
-    rin = r0*radius_min_factor
+          rin = r0*radius_min_factor
 #endif
 
      ! sound velocity
-     if (rc_soft > rin) then
-        cs = cs0*(rc_soft/r0)**(-temper_expo/2.)
-     else
-        cs = cs0*(rin/r0)**(-temper_expo/2.)
+          if (rc_soft > rin) then
+          cs = cs0*(rc_soft/r0)**(-temper_expo/2.)
+          else
+          cs = cs0*(rin/r0)**(-temper_expo/2.)
+          end if
      end if
 
      ! density. The exponent of the central radial profile (3 - temper_expo/2.)
@@ -104,12 +107,11 @@ subroutine condinit_disk(x,u,dx,nn)
         d = d0 * (r0 / rc_soft)**(3 - temper_expo/2.) * exp((mass/cs**2)*(1./rs_soft - 1./rc_soft))
      end if
 #else
-     ! Here d is the column density
+     ! Here d is the column density - lisa SETUP
      d = d0 * (rc_soft / r0)**(-1/2.) 
 #endif
 
-
-     if(rc_soft > r0 .or. abs(zz) > 0.5 * r0) then
+     if (.not. lisa .and. (rc_soft > r0 .or. abs(zz) > 0.5 * r0)) then
           d = d / contrast_factor
      end if
 
@@ -124,9 +126,13 @@ subroutine condinit_disk(x,u,dx,nn)
         omega = sqrt(max(mass/(rs_soft**3) - (3. - temper_expo/2.)*(cs**2/rc_soft**2), 0.0))
      end if
 #else
-    omega = sqrt(mass / rc_soft**3 - (3/2.)*(cs**2/rc_soft**2) )
+     if (lisa) then
+          omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
+          cs = h_over_r * omega * rc_soft
+     else
+          omega = sqrt(mass / rc_soft**3 - (3/2.)*(cs**2/rc_soft**2) )
+     end if 
 #endif
-
      ! momentum
      u(i, 2) = - u(i, 1) * omega * yy_soft
      u(i, 3) =  u(i, 1) * omega * xx_soft
@@ -136,7 +142,7 @@ subroutine condinit_disk(x,u,dx,nn)
 
      ! Also add radial velocity
      if (alpha_viscosity > 0) then
-        ur = - (3/2.) * alpha_viscosity * cs**2 * sqrt(rc_soft)
+        ur = - (3/2.) * alpha_viscosity * cs * h_over_r
         u(i, 2) = u(i, 2) + u(i, 1) * ur * xx_soft / rc_soft
         u(i, 3) =  u(i, 3) + u(i, 1) * ur * yy_soft / rc_soft
      end if
