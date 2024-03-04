@@ -10,6 +10,7 @@ module disk_module
    real(dp) :: radius_min_factor = 0.5    ! Radius of the inner isothermal zone
    real(dp) :: radius_max_factor = 3    ! Outer limit of the simulation
    real(dp) :: h_over_r=0.1 ! h/r param in lisa setup
+   real(dp) :: damping_time=1 ! Damping at inner and outer boundary, in units of rotation time (2 pi * omega^-1)
 
 
 end module disk_module
@@ -57,10 +58,12 @@ subroutine boundary_disk(ilevel)
    integer, dimension(1:nvector), save::ind_grid, ind_cell
    real(dp), dimension(1:nvector, 1:ndim), save::x
    real(dp):: x0, y0, z0, xx, yy, cs, omega, xx_soft, yy_soft, ur
-   real(dp):: rc, rc_soft
+   real(dp):: rc, rc_soft, damping_time_r
    real(dp):: mass, emass, r0, d0, density, rin, ekin, eint
+   real(dp), dimension(1:nvar) :: u0 = 0.! initial condtions
+   real(dp),parameter::pi = acos(-1.0d0)
 
-   if (numbtot(1, ilevel) == 0) return
+   if (numbtot(1, ilevel) == 0 .or. t == 0) return
 
    ! Mesh size at level ilevel in coarse cell units
    dx = 0.5D0**ilevel
@@ -153,37 +156,45 @@ subroutine boundary_disk(ilevel)
 
             if (rc < r0*radius_min_factor .or. rc > r0*radius_max_factor) then
 
+
                density = d0*(rc_soft/r0)**(-1/2.)
                ! density
-               uold(ind_cell(i), 1) = density
+               u0(1) = density
 
                ! angular velocity
                omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
                cs = h_over_r * omega * rc_soft
-
                ! momentum
-               uold(ind_cell(i), 2) = -uold(ind_cell(i), 1)*omega*yy_soft
-               uold(ind_cell(i), 3) = uold(ind_cell(i), 1)*omega*xx_soft
+               u0(2) = -u0(1)*omega*yy_soft
+               u0(3) = u0(1)*omega*xx_soft
 
                ! Also add radial velocity
                if (alpha_viscosity > 0) then
                   ur = - (3/2.) * alpha_viscosity * cs * h_over_r
-                  uold(ind_cell(i), 2) = uold(ind_cell(i), 2) + uold(ind_cell(i), 1)*ur*xx_soft/rc_soft
-                  uold(ind_cell(i), 3) = uold(ind_cell(i), 3) + uold(ind_cell(i), 1)*ur*yy_soft/rc_soft
+                  u0(2)  = u0(2) + u0(1)*ur*xx_soft/rc_soft
+                  u0(3) = u0(3) + u0(1)*ur*yy_soft/rc_soft
                end if
 
                ! internal energy
-               eint = +uold(ind_cell(i), 1)*cs**2/(gamma - 1)
+               eint = u0(1)*cs**2/(gamma - 1)
 
                ! kinetic energy
                ekin = 0
                do idim = 2, ndim + 1
-                  ekin = ekin + 0.5*uold(ind_cell(i), idim)**2/uold(ind_cell(i), 1)
+                  ekin = ekin + 0.5*u0(idim)**2/u0(1)
                end do
 
                ! energy
-               uold(ind_cell(i), ndim + 2) = eint + ekin
+               u0(ndim + 2) = eint + ekin
 
+               ! Apply damping
+               if(rc < r0*radius_min_factor) then
+                  damping_time_r = r0*radius_min_factor * 2 * pi / omega
+               else
+                  ! For the outer boundary, we enforce a quicker dumping time computed as if we were at r = r0
+                  damping_time_r = damping_time * 2 * pi  * sqrt(mass / (r0**3 ) * (1 - (3/2.)*h_over_r**2))
+               end if
+               uold(ind_cell(i), 1:ndim + 2) = uold(ind_cell(i), 1:ndim + 2) - (uold(ind_cell(i), 1:ndim + 2) - u0(1:ndim + 2)) * (dtold(ilevel) / damping_time_r)
             end if
 
          end do
