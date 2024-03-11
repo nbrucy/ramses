@@ -642,7 +642,7 @@ subroutine add_viscosity_source_terms(ilevel)
                   vel(1:ndim) = uold(ind_cell(i), 2:ndim+1) / max(uold(ind_cell(i),1), smallr) ! velocity of the cell
                   dvel_left  = (vel_left(i,idim,jdim) - vel(jdim)) /  dx_left(i,idim)  ! derivative at the boundary
                   dvel_right = (vel(jdim) - vel_right(i,idim,jdim)) /  dx_right(i,idim) 
-                  laplacian_u_loc(i,jdim) = (dvel_left - dvel_right) /  dx_loc
+                  laplacian_u_loc(i,jdim) = laplacian_u_loc(i,jdim) + (dvel_left - dvel_right) /  dx_loc
                end do
             end do
          end do
