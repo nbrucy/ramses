@@ -78,7 +78,7 @@ subroutine condinit_disk(x,u,dx,nn)
 
      ! angular velocity
      omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
-     cs = h_over_r * omega * rc_soft
+     cs = h_over_r * sqrt(mass / rc_soft )
  
      ! momentum
      u(i, 2) = - u(i, 1) * omega * yy_soft

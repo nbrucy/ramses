@@ -660,8 +660,7 @@ subroutine add_viscosity_source_terms(ilevel)
             ! cylindrical radius
             rc = sqrt(xx**2 + yy**2)
             rc_soft = sqrt(xx**2 + yy**2 + emass**2) 
-            omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
-            cs = h_over_r * omega * rc_soft
+            cs = h_over_r * sqrt(mass / rc_soft)
 
             d = max(unew(ind_cell(i),1),smallr)
 

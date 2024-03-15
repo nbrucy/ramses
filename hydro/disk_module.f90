@@ -10,6 +10,7 @@ module disk_module
    real(dp) :: radius_min_factor = 0.5    ! Radius of the inner isothermal zone
    real(dp) :: radius_max_factor = 3    ! Outer limit of the simulation
    real(dp) :: h_over_r=0.1 ! h/r param in lisa setup
+   logical  :: damping= .true. ! Whether to use damping boudary conditions
    real(dp) :: damping_time=1 ! Damping at inner and outer boundary, in units of rotation time (2 pi * omega^-1)
 
 
@@ -24,7 +25,7 @@ subroutine read_disk_params()
    !--------------------------------------------------
    ! Namelist definitions
    !--------------------------------------------------
-   namelist/disk_params/disk_radius, disk_density, radius_min_factor, radius_max_factor, h_over_r
+   namelist/disk_params/disk_radius, disk_density, radius_min_factor, radius_max_factor, h_over_r, damping, damping_time
 
    ! Read namelist file
    call getarg(1, infile) ! get the name of the namelist
@@ -149,8 +150,8 @@ subroutine boundary_disk(ilevel)
             xx_soft = xx*(rc_soft/rc)
             yy_soft = yy*(rc_soft/rc)
 
-            omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
-            cs = h_over_r * omega * rc_soft
+           
+
 
             ! Reinitialize the density for the internal and external border (cylindrical)
 
@@ -161,9 +162,9 @@ subroutine boundary_disk(ilevel)
                ! density
                u0(1) = density
 
-               ! angular velocity
                omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
-               cs = h_over_r * omega * rc_soft
+               cs = h_over_r * sqrt(mass / rc_soft)
+
                ! momentum
                u0(2) = -u0(1)*omega*yy_soft
                u0(3) = u0(1)*omega*xx_soft
@@ -188,13 +189,17 @@ subroutine boundary_disk(ilevel)
                u0(ndim + 2) = eint + ekin
 
                ! Apply damping
-               if(rc < r0*radius_min_factor) then
-                  damping_time_r = r0*radius_min_factor * 2 * pi / omega
-               else
-                  ! For the outer boundary, we enforce a quicker dumping time computed as if we were at r = r0
-                  damping_time_r = damping_time * 2 * pi  * sqrt(mass / (r0**3 ) * (1 - (3/2.)*h_over_r**2))
+               if (damping) then
+                  if(rc < r0*radius_min_factor) then
+                     damping_time_r = r0*radius_min_factor * 2 * pi / omega
+                  else
+                     ! For the outer boundary, we enforce a quicker dumping time computed as if we were at r = r0
+                     damping_time_r = damping_time * 2 * pi  * sqrt(mass / (r0**3 ) * (1 - (3/2.)*h_over_r**2))
+                  end if
+                  uold(ind_cell(i), 1:ndim + 2) = uold(ind_cell(i), 1:ndim + 2) - (uold(ind_cell(i), 1:ndim + 2) - u0(1:ndim + 2)) * (dtold(ilevel) / damping_time_r)
+               else 
+                  uold(ind_cell(i), 1:ndim + 2) = u0(1:ndim + 2)
                end if
-               uold(ind_cell(i), 1:ndim + 2) = uold(ind_cell(i), 1:ndim + 2) - (uold(ind_cell(i), 1:ndim + 2) - u0(1:ndim + 2)) * (dtold(ilevel) / damping_time_r)
             end if
 
          end do

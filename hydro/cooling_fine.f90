@@ -132,7 +132,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
    y_mass = gravity_params(4)
    z_mass = gravity_params(5)
 
-   mass = gravity_params(0)
+   mass = gravity_params(1)
 
    ! Softening coefficient
    emass = gravity_params(2)
@@ -649,15 +649,13 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
 #endif
  
             ! cylindrical radius
-            rc = sqrt(xx**2 + yy**2)
             rc_soft = sqrt(xx**2 + yy**2 + emass**2)
 
-            omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
-            cs = h_over_r * omega * rc_soft
- 
+            cs = h_over_r * sqrt(mass / rc_soft)
+
             ! Update internal energy
-            uold(ind_leaf(i), neul) = uold(ind_leaf(i), 1)*cs**2/(gamma - 1)  + ekk(i) + err(i) + emag(i)
- 
+            uold(ind_leaf(i), neul) = uold(ind_leaf(i), 1)*cs**2/(gamma - 1) + ekk(i) + err(i) + emag(i)
+
          end do
      else if(cooling .or. neq_chem)then
         do i=1,nleaf
