@@ -189,15 +189,10 @@ subroutine boundary_disk(ilevel)
                u0(ndim + 2) = eint + ekin
 
                ! Apply damping
-               if (damping) then
-                  if(rc < r0*radius_min_factor) then
-                     damping_time_r = r0*radius_min_factor * 2 * pi / omega
-                  else
-                     ! For the outer boundary, we enforce a quicker dumping time computed as if we were at r = r0
-                     damping_time_r = damping_time * 2 * pi  * sqrt(mass / (r0**3 ) * (1 - (3/2.)*h_over_r**2))
-                  end if
+               if (damping .and. rc < r0*radius_min_factor) then
+                  damping_time_r = damping_time * 2 * pi / omega
                   uold(ind_cell(i), 1:ndim + 2) = uold(ind_cell(i), 1:ndim + 2) - (uold(ind_cell(i), 1:ndim + 2) - u0(1:ndim + 2)) * (dtold(ilevel) / damping_time_r)
-               else 
+               else   ! No damping for the outer boundary
                   uold(ind_cell(i), 1:ndim + 2) = u0(1:ndim + 2)
                end if
             end if
