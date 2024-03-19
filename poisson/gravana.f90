@@ -97,7 +97,7 @@ subroutine gravana(x,f,dx,ncell)
 
      gmass2 = gravity_params(6)  ! GM of the second point mass
      radius2 = gravity_params(7) ! radius of the second point mass
-     omega = sqrt(gmass2 / radius2**3) ! Keplerian rotation speed
+     omega = sqrt(gmass / radius2**3) ! Keplerian rotation speed
 
      xmass2 = xmass + radius2 * cos(omega * t)
      ymass2 = ymass + radius2 * sin(omega * t)
