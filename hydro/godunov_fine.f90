@@ -513,7 +513,7 @@ subroutine add_viscosity_source_terms(ilevel)
    real(dp) :: mu_viscosity = 0.001
    real(dp), dimension(1:ndim) :: vel
    real(dp) :: dvel_left, dvel_right ! velocity derivative left and right
-   real(dp) :: d,u,v,w,e_kin,e_nokin,e_other,e_int
+   real(dp) :: d=0,u=0,v=0,w=0,e_kin=0,e_nokin=0,e_other=0,e_int=0
 #ifdef SOLVERMHD
    real(dp) :: A,B,C
 #endif
@@ -522,8 +522,8 @@ subroutine add_viscosity_source_terms(ilevel)
    real(dp),dimension(1:twotondim,1:3)::xc
    real(dp),dimension(1:3)::skip_loc
 
-   real(dp):: x0, y0, z0, xx, yy, cs, rc, mass, emass
-   real(dp):: rc_soft, omega
+   real(dp):: x0, y0, z0, xx, yy, cs, mass, emass
+   real(dp):: rc_soft
 
 
    if(numbtot(1,ilevel)==0)return
@@ -634,15 +634,23 @@ subroutine add_viscosity_source_terms(ilevel)
             end do
          end do
 
+         ! Rescale position from code units to user units
+         do idim = 1, ndim
+            do i = 1, ngrid
+               x(i, idim) = (x(i, idim) - skip_loc(idim))*scale
+            end do
+         end do
+
          ! Compute the laplacian of u 
          laplacian_u_loc(1:ngrid,1:ndim)=0.0d0
-         do idim=1,ndim
-            do jdim=1,ndim
+         do jdim=1,ndim ! component of the laplacian and the velocity
+            do idim=1,ndim ! direction for derivatives
                do i=1,ngrid
                   vel(1:ndim) = uold(ind_cell(i), 2:ndim+1) / max(uold(ind_cell(i),1), smallr) ! velocity of the cell
-                  dvel_left  = (vel_left(i,idim,jdim) - vel(jdim)) /  dx_left(i,idim)  ! derivative at the boundary
-                  dvel_right = (vel(jdim) - vel_right(i,idim,jdim)) /  dx_right(i,idim) 
-                  laplacian_u_loc(i,jdim) = laplacian_u_loc(i,jdim) + (dvel_left - dvel_right) /  dx_loc
+                  dvel_left  = (vel(jdim) - vel_left(i,idim,jdim)) /  dx_left(i,idim)  ! derivative at the boundary
+                  dvel_right = (vel_right(i,idim,jdim) - vel(jdim)) /  dx_right(i,idim) 
+                  laplacian_u_loc(i,jdim) = laplacian_u_loc(i,jdim) + (dvel_right - dvel_left) /  dx_loc
+                  ! laplacian_u_loc(i,jdim) = laplacian_u_loc(i,jdim) + (vel_left(i,idim,jdim) + vel_right(i,idim,jdim)  - 2 * vel(jdim)) / dx_loc**2 ! for unigrid only
                end do
             end do
          end do
@@ -658,7 +666,6 @@ subroutine add_viscosity_source_terms(ilevel)
             yy = x(i,2) - y0
 
             ! cylindrical radius
-            rc = sqrt(xx**2 + yy**2)
             rc_soft = sqrt(xx**2 + yy**2 + emass**2) 
             cs = h_over_r * sqrt(mass / rc_soft)
 
