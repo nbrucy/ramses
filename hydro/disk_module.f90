@@ -7,11 +7,12 @@ module disk_module
    ! Protostellar disks
    real(dp) :: disk_radius = 0.25    ! Radius of the disk
    real(dp) :: disk_density = 1.0    ! Disk density at the limit of the disk
-   real(dp) :: radius_min_factor = 0.5    ! Radius of the inner isothermal zone
-   real(dp) :: radius_max_factor = 3    ! Outer limit of the simulation
-   real(dp) :: h_over_r=0.1 ! h/r param in lisa setup
+   real(dp) :: inner_boundary = 0.5    ! Inner boundary, in unit of disk_radius
+   real(dp) :: outer_boundary = 3    ! Outer boundary, in unit of disk_radius
+   real(dp) :: h_over_r = 0.1 ! h/r param in lisa setup
    logical  :: damping= .true. ! Whether to use damping boudary conditions
-   real(dp) :: damping_time=1 ! Damping at inner and outer boundary, in units of rotation time (2 pi * omega^-1)
+   real(dp) :: damping_time = 1 ! Damping at inner  boundary, in units of rotation time (2 pi * omega^-1)
+   real(dp) :: damping_inner_boundary = 0.4 ! Inner boundary of the damping region, in unit of disk_radius (should be less than inner_boundary)
 
 
 end module disk_module
@@ -25,7 +26,7 @@ subroutine read_disk_params()
    !--------------------------------------------------
    ! Namelist definitions
    !--------------------------------------------------
-   namelist/disk_params/disk_radius, disk_density, radius_min_factor, radius_max_factor, h_over_r, damping, damping_time
+   namelist/disk_params/disk_radius, disk_density, inner_boundary, outer_boundary, h_over_r, damping, damping_time, damping_inner_boundary
 
    ! Read namelist file
    call getarg(1, infile) ! get the name of the namelist
@@ -33,6 +34,11 @@ subroutine read_disk_params()
    rewind (1)
    read (1, NML=disk_params)
    close (1)
+
+   if (damping .and. damping_inner_boundary > inner_boundary) then
+      write(*,*) "error, damping_inner_boundary should be less than inner_boundary (in disk_radius units)"
+      call clean_end()
+   end if
 
 end subroutine read_disk_params
 
@@ -59,7 +65,7 @@ subroutine boundary_disk(ilevel)
    integer, dimension(1:nvector), save::ind_grid, ind_cell
    real(dp), dimension(1:nvector, 1:ndim), save::x
    real(dp):: x0, y0, z0, xx, yy, cs, omega, xx_soft, yy_soft, ur
-   real(dp):: rc, rc_soft, damping_time_r
+   real(dp):: rc, rc_soft, damping_time_inner_boundary, damping_factor
    real(dp):: mass, emass, r0, d0, density, rin, ekin, eint
    real(dp), dimension(1:nvar) :: u0 = 0.! initial condtions
    real(dp),parameter::pi = acos(-1.0d0)
@@ -75,8 +81,8 @@ subroutine boundary_disk(ilevel)
    if (ndim > 0) skip_loc(1) = dble(icoarse_min)
    if (ndim > 1) skip_loc(2) = dble(jcoarse_min)
    if (ndim > 2) skip_loc(3) = dble(kcoarse_min)
-   scale = dble(nx_loc)/boxlen
-   dx_loc = dx/scale
+   scale = boxlen/dble(nx_loc)
+   dx_loc = dx*scale
 
    ! Position of the point mass
    x0 = gravity_params(3)
@@ -132,7 +138,7 @@ subroutine boundary_disk(ilevel)
          ! Rescale position from code units to user units
          do idim = 1, ndim
             do i = 1, ngrid
-               x(i, idim) = (x(i, idim) - skip_loc(idim))/scale
+               x(i, idim) = (x(i, idim) - skip_loc(idim))*scale
             end do
          end do
 
@@ -150,12 +156,9 @@ subroutine boundary_disk(ilevel)
             xx_soft = xx*(rc_soft/rc)
             yy_soft = yy*(rc_soft/rc)
 
-           
-
-
             ! Reinitialize the density for the internal and external border (cylindrical)
 
-            if (rc < r0*radius_min_factor .or. rc > r0*radius_max_factor) then
+            if (rc < r0*inner_boundary .or. rc > r0*outer_boundary) then
 
 
                density = d0*(rc_soft/r0)**(-1/2.)
@@ -189,9 +192,10 @@ subroutine boundary_disk(ilevel)
                u0(ndim + 2) = eint + ekin
 
                ! Apply damping
-               if (damping .and. rc < r0*radius_min_factor) then
-                  damping_time_r = damping_time * 2 * pi / omega
-                  uold(ind_cell(i), 1:ndim + 2) = uold(ind_cell(i), 1:ndim + 2) - (uold(ind_cell(i), 1:ndim + 2) - u0(1:ndim + 2)) * (dtold(ilevel) / damping_time_r)
+               if (damping .and. rc < r0*inner_boundary .and. rc >= r0*damping_inner_boundary  ) then
+                  damping_time_inner_boundary = damping_time * 2 * pi / sqrt(mass / (r0*inner_boundary)**3 ) 
+                  damping_factor = max(0., 1. - ((rc/r0 - damping_inner_boundary)/(inner_boundary - damping_inner_boundary))**2)
+                  uold(ind_cell(i), 1:ndim + 2) = uold(ind_cell(i), 1:ndim + 2) - (uold(ind_cell(i), 1:ndim + 2) - u0(1:ndim + 2)) * (damping_factor * dtold(ilevel) / damping_time_inner_boundary)
                else   ! No damping for the outer boundary
                   uold(ind_cell(i), 1:ndim + 2) = u0(1:ndim + 2)
                end if
