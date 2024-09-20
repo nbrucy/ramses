@@ -701,8 +701,8 @@ subroutine add_viscosity_source_terms(ilevel)
                   vel(1:ndim) = uold(ind_cell(i), 2:ndim + 1)/max(uold(ind_cell(i), 1), smallr) ! velocity of the cell
                   dvel_left = (vel_left(i, idim, jdim) - vel(jdim))/dx_left(i, idim)  ! derivative at the boundary
                   dvel_right = (vel(jdim) - vel_right(i, idim, jdim))/dx_right(i, idim)
-                  eta_left = density_left(i, idim)*mu_viscosity_left
-                  eta_right = density_right(i, idim)*mu_viscosity_right
+                  eta_left = 0.5*(density_left(i, idim) + density)*mu_viscosity_left
+                  eta_right = 0.5*(density_right(i, idim) + density)*mu_viscosity_right
                   viscous_term(i, jdim) = viscous_term(i, jdim) + (dvel_left*eta_left - dvel_right*eta_right)/dx_loc
                end do
             end do
@@ -720,7 +720,7 @@ subroutine add_viscosity_source_terms(ilevel)
 #if NDIM > 2     
             w = unew(ind_cell(i), 4)
 #endif
-            e_kin = 0.5d0*(u**2 + v**2 + w**2)
+            e_kin = 0.5d0*(u**2 + v**2 + w**2) / density
             e_nokin = unew(ind_cell(i), ndim + 2) - e_kin
 
             u = u + viscous_term(i, 1)*dtnew(ilevel)
@@ -731,7 +731,7 @@ subroutine add_viscosity_source_terms(ilevel)
             w = w + viscous_term(i, 3)*dtnew(ilevel)
             unew(ind_cell(i), 4) = w
 #endif
-            e_kin = 0.5d0*(u**2 + v**2 + w**2)
+            e_kin = 0.5d0*(u**2 + v**2 + w**2)  / density
             unew(ind_cell(i), ndim + 2) = e_nokin + e_kin
          end do
 
