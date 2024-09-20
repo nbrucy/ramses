@@ -504,16 +504,21 @@ subroutine add_viscosity_source_terms(ilevel)
    real(dp)::scale,dx,dx_loc
    real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2
  
-   integer ,dimension(1:nvector),save::ind_grid,ind_cell
-   integer ,dimension(1:nvector,0:twondim),save::igridn
-   integer ,dimension(1:nvector,1:ndim),save::ind_left,ind_right
-   real(dp),dimension(1:nvector,1:ndim,1:ndim),save::vel_left,vel_right
-   real(dp),dimension(1:nvector,1:ndim),save::dx_left,dx_right
-   real(dp),dimension(1:nvector,1:ndim),save::laplacian_u_loc
+  integer, dimension(1:nvector), save::ind_grid, ind_cell
+  integer, dimension(1:nvector, 0:twondim), save::igridn
+  integer, dimension(1:nvector, 1:ndim), save::ind_left, ind_right
+  real(dp), dimension(1:nvector, 1:ndim, 1:ndim), save::vel_left, vel_right
+  real(dp), dimension(1:nvector, 1:ndim), save::dx_left, dx_right
+  real(dp), dimension(1:nvector, 1:ndim), save::viscous_term
+  real(dp), dimension(1:nvector, 1:ndim), save::density_left, density_right
+  real(dp) :: xleft, xright, yleft, yright
+  real(dp) :: cs_left, cs_right, rc_soft_left, rc_soft_right
+  real(dp) :: mu_viscosity_left, mu_viscosity_right, eta_left, eta_right ! viscosity coefficients for left and right boundaries
+
    real(dp) :: mu_viscosity = 0.001
    real(dp), dimension(1:ndim) :: vel
    real(dp) :: dvel_left, dvel_right ! velocity derivative left and right
-   real(dp) :: d=0,u=0,v=0,w=0,e_kin=0,e_nokin=0,e_other=0,e_int=0
+  real(dp) :: density = 0, u = 0, v = 0, w = 0, e_kin = 0, e_nokin = 0, e_other = 0, e_int = 0
 #ifdef SOLVERMHD
    real(dp) :: A,B,C
 #endif
@@ -545,7 +550,6 @@ subroutine add_viscosity_source_terms(ilevel)
   x0 = gravity_params(3)
   y0 = gravity_params(4)
   z0 = gravity_params(5)
-
 
    ! Set position of cell centers relative to grid center
    do ind=1,twotondim
@@ -588,7 +592,7 @@ subroutine add_viscosity_source_terms(ilevel)
             ind_right(i,idim)=nbor(ind_grid(i),2*idim  )
             igridn(i,2*idim-1)=son(ind_left (i,idim))
             igridn(i,2*idim  )=son(ind_right(i,idim))
-         end do
+      end do
       end do
  
       ! Loop over cells
@@ -601,27 +605,29 @@ subroutine add_viscosity_source_terms(ilevel)
          end do
  
          ! Gather all neighboring velocities
-         do idim=1,ndim
-            id1=jjj(idim,1,ind); ig1=iii(idim,1,ind)
-            ih1=ncoarse+(id1-1)*ngridmax
-            do i=1,ngrid
-               if(igridn(i,ig1)>0)then
-                  vel_left(i,idim,1:ndim) = uold(igridn(i,ig1)+ih1,2:ndim+1)/max(uold(igridn(i,ig1)+ih1,1),smallr)
-                  dx_left(i,idim) = dx_loc
-               else
-                  vel_left(i,idim,1:ndim) = uold(ind_left(i,idim),2:ndim+1)/max(uold(ind_left(i,idim),1),smallr)
-                  dx_left(i,idim) = dx_loc*1.5_dp
-               end if
-            enddo
-            id2=jjj(idim,2,ind); ig2=iii(idim,2,ind)
-            ih2=ncoarse+(id2-1)*ngridmax
-            do i=1,ngrid
-               if(igridn(i,ig2)>0)then
-                  vel_right(i,idim,1:ndim)= uold(igridn(i,ig2)+ih2,2:ndim+1)/max(uold(igridn(i,ig2)+ih2,1),smallr)
-                  dx_right(i,idim)=dx_loc
-               else
-                  vel_right(i,idim,1:ndim)= uold(ind_right(i,idim),2:ndim+1)/max(uold(ind_right(i,idim),1),smallr)
-                  dx_right(i,idim)=dx_loc*1.5_dp
+         do idim = 1, ndim
+         id1 = jjj(idim, 1, ind); ig1 = iii(idim, 1, ind)
+         ih1 = ncoarse + (id1 - 1)*ngridmax
+         do i = 1, ngrid
+            if (igridn(i, ig1) > 0) then
+               density_left(i, idim) = uold(igridn(i, ig1) + ih1, 1)
+               vel_left(i, idim, 1:ndim) = uold(igridn(i, ig1) + ih1, 2:ndim + 1)/max(density_left(i, idim), smallr)
+               dx_left(i, idim) = dx_loc
+            else
+               density_left(i, idim) = uold(ind_left(i, idim), 1)
+               vel_left(i, idim, 1:ndim) = uold(ind_left(i, idim), 2:ndim + 1)/max(density_left(i, idim), smallr)
+               dx_left(i, idim) = dx_loc*1.5_dp
+            end if
+         end do
+         id2=jjj(idim,2,ind); ig2=iii(idim,2,ind)
+         ih2=ncoarse+(id2-1)*ngridmax
+         do i=1,ngrid
+            if(igridn(i,ig2)>0)then
+                        vel_right(i,idim,1:ndim)= uold(igridn(i,ig2)+ih2,2:ndim+1)/max(uold(igridn(i,ig2)+ih2,1),smallr)
+            dx_right(i,idim)=dx_loc
+            else
+            vel_right(i,idim,1:ndim)= uold(ind_right(i,idim),2:ndim+1)/max(uold(ind_right(i,idim),1),smallr)
+                        dx_right(i,idim)=dx_loc*1.5_dp
                end if
             end do
          end do
@@ -637,65 +643,95 @@ subroutine add_viscosity_source_terms(ilevel)
          ! Rescale position from code units to user units
          do idim = 1, ndim
             do i = 1, ngrid
-               x(i, idim) = (x(i, idim) - skip_loc(idim))*scale
+                  x(i, idim) = (x(i, idim) - skip_loc(idim))*scale
             end do
          end do
 
          ! Compute the laplacian of u 
-         laplacian_u_loc(1:ngrid,1:ndim)=0.0d0
-         do jdim=1,ndim ! component of the laplacian and the velocity
-            do idim=1,ndim ! direction for derivatives
-               do i=1,ngrid
-                  vel(1:ndim) = uold(ind_cell(i), 2:ndim+1) / max(uold(ind_cell(i),1), smallr) ! velocity of the cell
-                  dvel_left  = (vel(jdim) - vel_left(i,idim,jdim)) /  dx_left(i,idim)  ! derivative at the boundary
-                  dvel_right = (vel_right(i,idim,jdim) - vel(jdim)) /  dx_right(i,idim) 
-                  laplacian_u_loc(i,jdim) = laplacian_u_loc(i,jdim) + (dvel_right - dvel_left) /  dx_loc
-                  ! laplacian_u_loc(i,jdim) = laplacian_u_loc(i,jdim) + (vel_left(i,idim,jdim) + vel_right(i,idim,jdim)  - 2 * vel(jdim)) / dx_loc**2 ! for unigrid only
+         viscous_term(1:ngrid, 1:ndim) = 0.0d0
+         do jdim = 1, ndim
+            do idim = 1, ndim
+               do i = 1, ngrid
+
+                  ! shift coordinate system
+                  xx = x(i, 1) - x0
+                  yy = x(i, 2) - y0
+
+                  ! position at the cell boundaries
+                  if (idim == 1) then
+                     xleft = xx - dx_left(i, idim)/2
+                     xright = xx + dx_right(i, idim)/2
+                  else
+                     xleft = xx
+                     xright = xx
+                  end if
+
+                  if (idim == 2) then
+                     yleft = yy - dx_left(i, idim)/2
+                     yright = yy + dx_right(i, idim)/2
+                  else
+                     yleft = yy
+                     yright = yy
+                  end if
+
+                  ! cylindrical radius
+                  rc_soft = sqrt(xx**2 + yy**2 + emass**2) 
+                  cs = h_over_r*sqrt(mass/rc_soft)
+
+                  rc_soft_left = sqrt(xleft**2 + yleft**2 + emass**2)
+                  rc_soft_right = sqrt(xright**2 + yright**2 + emass**2)
+
+                  ! temperature at the cell boundaries
+                  cs_left = h_over_r*sqrt(mass/rc_soft_left)
+                  cs_right = h_over_r*sqrt(mass/rc_soft_right)
+
+                  density = max(unew(ind_cell(i), 1), smallr)
+
+                  select case (viscosity_kind)
+                     case ('constant_uniform')
+                        mu_viscosity = mu_viscosity_constant
+                        mu_viscosity_left = mu_viscosity
+                        mu_viscosity_right = mu_viscosity
+                     case ('alpha')
+                        mu_viscosity = alpha_viscosity*cs*h_over_r*rc_soft
+                        mu_viscosity_left = alpha_viscosity*cs_left*h_over_r*rc_soft_left
+                        mu_viscosity_right = alpha_viscosity*cs_right*h_over_r*rc_soft_right
+                  end select
+         
+                  vel(1:ndim) = uold(ind_cell(i), 2:ndim + 1)/max(uold(ind_cell(i), 1), smallr) ! velocity of the cell
+                  dvel_left = (vel_left(i, idim, jdim) - vel(jdim))/dx_left(i, idim)  ! derivative at the boundary
+                  dvel_right = (vel(jdim) - vel_right(i, idim, jdim))/dx_right(i, idim)
+                  eta_left = density_left(i, idim)*mu_viscosity_left
+                  eta_right = density_right(i, idim)*mu_viscosity_right
+                  viscous_term(i, jdim) = viscous_term(i, jdim) + (dvel_left*eta_left - dvel_right*eta_right)/dx_loc
                end do
             end do
          end do
 
          ! TODO: compute grad(div(u))
- 
 
          ! Add viscosity term at time t
-         do i=1,ngrid
+         do i = 1, ngrid
 
-            ! shift coordinate system
-            xx = x(i,1) - x0
-            yy = x(i,2) - y0
-
-            ! cylindrical radius
-            rc_soft = sqrt(xx**2 + yy**2 + emass**2) 
-            cs = h_over_r * sqrt(mass / rc_soft)
-
-            d = max(unew(ind_cell(i),1),smallr)
-
-            u=0; v=0; w=0
-            u=unew(ind_cell(i),2)/d
-            v=unew(ind_cell(i),3)/d
-#if NDIM > 2               
-            w=unew(ind_cell(i),4)/d
-#endif
-            e_kin = 0.5d0*d*(u**2 + v**2 + w**2)
-            e_nokin = unew(ind_cell(i),ndim+2) - e_kin
-
-            select case (viscosity_kind)
-               case('constant_uniform')
-                  mu_viscosity = mu_viscosity_constant
-               case('alpha')          
-                  mu_viscosity = alpha_viscosity * cs * h_over_r * rc_soft
-            end select
-   
-            u = u + mu_viscosity*laplacian_u_loc(i, 1)*dtnew(ilevel)
-            unew(ind_cell(i), 2) = d*u
-            v = v + mu_viscosity*laplacian_u_loc(i, 2)*dtnew(ilevel)
-            unew(ind_cell(i), 3) = d*v
+            u = 0; v = 0; w = 0
+            ! Momentum
+            u = unew(ind_cell(i), 2)
+            v = unew(ind_cell(i), 3)
 #if NDIM > 2     
-            w = w + mu_viscosity*laplacian_u_loc(i, 3)*dtnew(ilevel)
-            unew(ind_cell(i), 4) = d*w
+            w = unew(ind_cell(i), 4)
 #endif
-            e_kin = 0.5d0*d*(u**2 + v**2 + w**2)
+            e_kin = 0.5d0*(u**2 + v**2 + w**2)
+            e_nokin = unew(ind_cell(i), ndim + 2) - e_kin
+
+            u = u + viscous_term(i, 1)*dtnew(ilevel)
+            unew(ind_cell(i), 2) = u
+            v = v + viscous_term(i, 2)*dtnew(ilevel)
+            unew(ind_cell(i), 3) = v
+#if NDIM > 2
+            w = w + viscous_term(i, 3)*dtnew(ilevel)
+            unew(ind_cell(i), 4) = w
+#endif
+            e_kin = 0.5d0*(u**2 + v**2 + w**2)
             unew(ind_cell(i), ndim + 2) = e_nokin + e_kin
          end do
 
