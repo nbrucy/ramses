@@ -606,30 +606,32 @@ subroutine add_viscosity_source_terms(ilevel)
  
          ! Gather all neighboring velocities
          do idim = 1, ndim
-         id1 = jjj(idim, 1, ind); ig1 = iii(idim, 1, ind)
-         ih1 = ncoarse + (id1 - 1)*ngridmax
-         do i = 1, ngrid
-            if (igridn(i, ig1) > 0) then
-               density_left(i, idim) = uold(igridn(i, ig1) + ih1, 1)
-               vel_left(i, idim, 1:ndim) = uold(igridn(i, ig1) + ih1, 2:ndim + 1)/max(density_left(i, idim), smallr)
-               dx_left(i, idim) = dx_loc
-            else
-               density_left(i, idim) = uold(ind_left(i, idim), 1)
-               vel_left(i, idim, 1:ndim) = uold(ind_left(i, idim), 2:ndim + 1)/max(density_left(i, idim), smallr)
-               dx_left(i, idim) = dx_loc*1.5_dp
-            end if
-         end do
-         id2=jjj(idim,2,ind); ig2=iii(idim,2,ind)
-         ih2=ncoarse+(id2-1)*ngridmax
-         do i=1,ngrid
-            if(igridn(i,ig2)>0)then
-                        vel_right(i,idim,1:ndim)= uold(igridn(i,ig2)+ih2,2:ndim+1)/max(uold(igridn(i,ig2)+ih2,1),smallr)
-            dx_right(i,idim)=dx_loc
-            else
-            vel_right(i,idim,1:ndim)= uold(ind_right(i,idim),2:ndim+1)/max(uold(ind_right(i,idim),1),smallr)
-                        dx_right(i,idim)=dx_loc*1.5_dp
+            id1 = jjj(idim, 1, ind); ig1 = iii(idim, 1, ind)
+            ih1 = ncoarse + (id1 - 1)*ngridmax
+            do i = 1, ngrid
+               if (igridn(i, ig1) > 0) then
+                  density_left(i, idim) = uold(igridn(i, ig1) + ih1, 1)
+                  vel_left(i, idim, 1:ndim) = uold(igridn(i, ig1) + ih1, 2:ndim + 1)/max(density_left(i, idim), smallr)
+                  dx_left(i, idim) = dx_loc
+               else
+                  density_left(i, idim) = uold(ind_left(i, idim), 1)
+                  vel_left(i, idim, 1:ndim) = uold(ind_left(i, idim), 2:ndim + 1)/max(density_left(i, idim), smallr)
+                  dx_left(i, idim) = dx_loc*1.5_dp
                end if
             end do
+            id2=jjj(idim,2,ind); ig2=iii(idim,2,ind)
+            ih2=ncoarse+(id2-1)*ngridmax
+            do i=1,ngrid
+               if(igridn(i,ig2)>0)then
+                  density_right(i,idim)= uold(igridn(i,ig2)+ih2,1)
+                  vel_right(i,idim,1:ndim)= uold(igridn(i,ig2)+ih2,2:ndim+1)/max(density_right(i,idim),smallr)
+                  dx_right(i,idim)=dx_loc
+               else
+                  density_right(i,idim)= uold(ind_right(i,idim),1)
+                  vel_right(i,idim,1:ndim)= uold(ind_right(i,idim),2:ndim+1)/max(density_right(i,idim),smallr)
+                  dx_right(i,idim)=dx_loc*1.5_dp
+                  end if
+               end do
          end do
          ! End loop over dimensions
 
@@ -693,7 +695,6 @@ subroutine add_viscosity_source_terms(ilevel)
                         mu_viscosity_left = mu_viscosity
                         mu_viscosity_right = mu_viscosity
                      case ('alpha')
-                        mu_viscosity = alpha_viscosity*cs*h_over_r*rc_soft
                         mu_viscosity_left = alpha_viscosity*cs_left*h_over_r*rc_soft_left
                         mu_viscosity_right = alpha_viscosity*cs_right*h_over_r*rc_soft_right
                   end select
