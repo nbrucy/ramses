@@ -704,7 +704,7 @@ subroutine add_viscosity_source_terms(ilevel)
                   dvel_right = (vel(jdim) - vel_right(i, idim, jdim))/dx_right(i, idim)
                   eta_left = 0.5*(density_left(i, idim) + density)*mu_viscosity_left
                   eta_right = 0.5*(density_right(i, idim) + density)*mu_viscosity_right
-                  viscous_term(i, jdim) = viscous_term(i, jdim) + (dvel_left*eta_left - dvel_right*eta_right)/dx_loc
+                  viscous_term(i, jdim) = viscous_term(i, jdim) + (dvel_right*eta_right - dvel_left*eta_left)/dx_loc
                end do
             end do
          end do
