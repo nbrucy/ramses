@@ -38,7 +38,7 @@ Table of Contents
 
   dev_docs/developer_guide.md
   dev_docs/docs.md
-  dev_docs/acknowledgements.md
+  dev_docs/contributors.md
 
 .. |github tag| image:: https://img.shields.io/badge/GitHub-black.svg?style=flat&logo=github
     :target: https://github.com/ramses-organisation/ramses
