@@ -36,6 +36,7 @@ Table of Contents
   :caption: Developer Documentation
   :maxdepth: 2
 
+  dev_docs/developer_guide.md
   dev_docs/docs.md
   dev_docs/acknowledgements.md
 
