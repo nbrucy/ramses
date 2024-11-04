@@ -105,7 +105,7 @@ In order to enforce this, the branch is protected (no one should commit directly
 
 ## GitHub Management
 
-All developments related to the RAMSES community are hosted under the organisation is https://github.com/ramses-organisation.
+All developments related to the RAMSES community are hosted under the organisation https://github.com/ramses-organisation.
 The owner of the organisation is Romain Teyssier, but the management of the organisation and the repositories is done by the RAMSES community.
 
 **In order to encourage contributions and to promote a more inclusive and community-driven development, contributors to the code will be listed online** (to reward their effort) and be granted permission based on their level of engagement.
