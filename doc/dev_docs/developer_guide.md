@@ -142,7 +142,7 @@ Any member of the community can demand to demote a user to a lower role. Valid r
 - Repetitive mistakes in the management of the repositories (e.g., deleting important branches, merge without review, ignoring this guide).
 Demotion from the contributor list should only be done only in extreme cases (e.g., harassment, spamming) and will be discussed by the administrators on a case-by-case basis.
 
-Finally, the list of current administrators, maintainers, and contributors should be kept up-to-date in the `doc/dev_docs/contributors.md` file of the ramses-organisation repository. This list should be updated whenever a new user is promoted or demoted and include:
+Finally, the list of current administrators, maintainers, and contributors should be kept up-to-date in the `CONTRIBUTORS.md` file of the ramses-organisation repository. This list should be updated whenever a new user is promoted or demoted and include:
 - Name of the user,
 - Role (administrator, maintainer, contributor),
 - Date of promotion,
