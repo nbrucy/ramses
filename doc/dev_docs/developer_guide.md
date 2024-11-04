@@ -95,7 +95,7 @@ We encourage the use of the GitHub interface to tag the PR with the appropriate 
 
 No pull-request nor commit should be pushed onto the `stable` branch, with the exception of:
 - (automated) backported commits,
-- regular updates of the `stable version.
+- regular updates of the `stable` version.
 In order to enforce this, the branch is protected (no one should commit directly onto it).
 
 **Backported commits** include *small* bugfixes and modification that should be included in the stable version (e.g., update of the contributor list). It excludes any breaking change, new feature, or experimental code. 
