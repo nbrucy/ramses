@@ -27,8 +27,6 @@ At any point, any commit in `stable` should be a subset of the commits in `dev`.
 
 First, developers create their own private fork of the main repository. More information on forks and how to create them on github can be found [here](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo).
 
-Clone repo and Create branch TODO
-
 We provide here some example commands to implement this workflow:
 ```
 # Clone the public version
@@ -76,8 +74,8 @@ We do not enforce a strict commit message format, but we encourage the following
 Once you are ready to submit your changes, you can create a pull request (PR) on the GitHub interface. 
 Any new feature, bug fix, or improvement should be submitted as a PR to the `dev` branch.
 A PR should contain one logical unit of work. If you have multiple features or bug fixes, please submit them as separate PRs.
-More information on how to submit a PR on github, see:
-https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request
+More information on how to submit a PR on github, see [the github doc](
+https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request).
 
 In order to be merged, a PR
 - should be reviewed by at least one developer,
@@ -105,7 +103,7 @@ In order to enforce this, the branch is protected (no one should commit directly
 
 ## GitHub Management
 
-All developments related to the RAMSES community are hosted under the organisation https://github.com/ramses-organisation.
+All developments related to the RAMSES community are hosted under the [Ramses organisation](https://github.com/ramses-organisation).
 The owner of the organisation is Romain Teyssier, but the management of the organisation and the repositories is done by the RAMSES community.
 
 **In order to encourage contributions and to promote a more inclusive and community-driven development, contributors to the code will be listed online** (to reward their effort) and be granted permission based on their level of engagement.
@@ -142,7 +140,7 @@ Any member of the community can demand to demote a user to a lower role. Valid r
 - Repetitive mistakes in the management of the repositories (e.g., deleting important branches, merge without review, ignoring this guide).
 Demotion from the contributor list should only be done only in extreme cases (e.g., harassment, spamming) and will be discussed by the administrators on a case-by-case basis.
 
-Finally, the list of current administrators, maintainers, and contributors should be kept up-to-date in the `CONTRIBUTORS.md` file of the ramses-organisation repository. This list should be updated whenever a new user is promoted or demoted and include:
+Finally, the list of current administrators, maintainers, and contributors should be kept up-to-date in the [`CONTRIBUTORS.md`](./contributors.md) file of the ramses-organisation repository. This list should be updated whenever a new user is promoted or demoted and include:
 - Name of the user,
 - Role (administrator, maintainer, contributor),
 - Date of promotion,
