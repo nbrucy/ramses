@@ -7,7 +7,7 @@ The scope of this guide is technical, and it does not cover the scientific aspec
 
 ## Branching model summary
 
-RAMSES uses two main branches: `dev` and `stable`. `dev` is the development branch where new features are added before being put into production on the `stable` branch. 
+RAMSES uses two main branches: `dev` and `stable`. `dev` is the development branch where new features are added before being put into production on the `stable` branch.
 The `dev` branch is meant for developers, while the `stable` version is meant for users.
 
 **All** new features, bug fixes, and improvements should stem from and be merged into the `dev` version.
@@ -71,7 +71,7 @@ We do not enforce a strict commit message format, but we encourage the following
 
 ### Submitting a pull request
 
-Once you are ready to submit your changes, you can create a pull request (PR) on the GitHub interface. 
+Once you are ready to submit your changes, you can create a pull request (PR) on the GitHub interface.
 Any new feature, bug fix, or improvement should be submitted as a PR to the `dev` branch.
 A PR should contain one logical unit of work. If you have multiple features or bug fixes, please submit them as separate PRs.
 More information on how to submit a PR on github, see [the github doc](
@@ -96,7 +96,7 @@ No pull-request nor commit should be pushed onto the `stable` branch, with the e
 - regular updates of the `stable` version.
 In order to enforce this, the branch is protected (no one should commit directly onto it).
 
-**Backported commits** include *small* bugfixes and modification that should be included in the stable version (e.g., update of the contributor list). It excludes any breaking change, new feature, or experimental code. 
+**Backported commits** include *small* bugfixes and modification that should be included in the stable version (e.g., update of the contributor list). It excludes any breaking change, new feature, or experimental code.
 
 **Updates of the stable version** happen on regular occasions (e.g., every Ramses User Meeting). The `stable` branch will be updated with the latest changes from `dev`. Collegial discussions will be held to decide which features are ready to be included in the `stable` version and which ones should be left out.
 
@@ -109,7 +109,7 @@ The owner of the organisation is Romain Teyssier, but the management of the orga
 **In order to encourage contributions and to promote a more inclusive and community-driven development, contributors to the code will be listed online** (to reward their effort) and be granted permission based on their level of engagement.
 We distinguish three user roles:
 - **Administrators**: Have full access to all repositories and can manage the organisation (`admin` role on GitHub). Their number should be kept to a minimum and they should be trusted members of the community. They are in charge of administrating the GitHub organisation. This includes notably creating/deleting repositories, managing user permissions, configuring default branches and protections on those.
-- **Maintainers**: Have write access to the repositories and can merge pull requests (`maintain` role on GitHub). They are responsible for the day-to-day management of the repositories. This includes notably merging pull requests and closing solved issues. They should be active members of the community with a good understanding of the codebase. 
+- **Maintainers**: Have write access to the repositories and can merge pull requests (`maintain` role on GitHub). They are responsible for the day-to-day management of the repositories. This includes notably merging pull requests and closing solved issues. They should be active members of the community with a good understanding of the codebase.
 - **Contributors**: Can manage issues and pull requests (`triage` role on GitHub). They are in charge of reviewing pull requests, suggest changes and approve pull requests, as well as answering issues. Anyone who has made a significant contribution to RAMSES, including code contribution or community management (e.g. creating GitHub issues or responding to other users). This role rewards active members of the community, and should be used to encourage new contributors, especially early-career researchers.
 
 Promotion to a higher role is done by one of the administrators. The decision should be based on the activity and the quality of the contributions of the user. It is decided by a vote of the community (when promoting to contributor), by maintainers+administrators (when promoting to maintainer) or by administrators (when promoting to administrator).
