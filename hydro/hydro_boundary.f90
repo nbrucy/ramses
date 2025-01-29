@@ -237,3 +237,25 @@ subroutine make_boundary_hydro(ilevel)
 111 format('   Entering make_boundary_hydro for level ',I2)
 
 end subroutine make_boundary_hydro
+
+
+subroutine special_boundary(ilevel)
+   use hydro_parameters
+   use amr_commons
+ 
+   !================================================================
+   !This routine calls for special boundary conditions 
+   !================================================================
+   implicit none
+ 
+   integer::ilevel
+ 
+   select case (special_boundary_kind)
+ 
+   case DEFAULT
+      return
+ 
+   end select
+  
+end subroutine special_boundary  
+

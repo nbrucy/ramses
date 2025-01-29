@@ -34,6 +34,9 @@ recursive subroutine amr_step(ilevel,icount)
 
   if(verbose)write(*,999)icount,ilevel
 
+  if(use_special_boundary) call special_boundary(ilevel)
+
+
   !-------------------------------------------
   ! Make new refinements and update boundaries
   !-------------------------------------------
@@ -474,6 +477,10 @@ recursive subroutine amr_step(ilevel,icount)
   !---------------------------------------
   if((hydro).and.(.not.static_gas))then
                                call timer('hydro - ghostzones','start')
+
+     if(use_special_boundary) call special_boundary(ilevel)
+
+                           
      do ivar=1,nvar_all
         call make_virtual_fine_dp(uold(1,ivar),ilevel)
      end do
