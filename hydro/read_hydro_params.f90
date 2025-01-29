@@ -68,7 +68,8 @@ subroutine read_hydro_params(nml_ok)
   ! Boundary parameters
   namelist/boundary_params/nboundary,bound_type &
        & ,ibound_min,ibound_max,jbound_min,jbound_max &
-       & ,kbound_min,kbound_max &
+       & ,kbound_min,kbound_max & 
+       & ,use_special_boundary, special_boundary_kind &
 #if NENER>0
        & ,prad_bound &
 #endif
