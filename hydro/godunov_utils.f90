@@ -20,6 +20,13 @@ subroutine cmpdt(uu,gg,dx,dt,ncell)
 
   smallp = smallc**2/gamma
 
+  !look for NaNs
+  do k=1,ncell
+     do idim = 1,ndim+2
+        if (isnan(uu(k,idim)))print*, k,idim,uu(k,idim)
+     enddo
+  enddo
+
   ! Convert to primitive variables
   do k = 1,ncell
      uu(k,1)=max(uu(k,1),smallr)

@@ -32,4 +32,9 @@ module poisson_parameters
   !   2 is slower but can give much better convergence in some cases
   integer, parameter :: ncycles_coarse_safe = 1
 
+  !!! RMR - cubic spline kernel instead of softening length
+  logical :: cubic_spline_kernel = .false.  ! whether or not to use a kernel that reduces to a Newtonian potential outside a given radius
+  real(dp):: soft_secondary = 0.
+  !!! RMR
+
 end module poisson_parameters

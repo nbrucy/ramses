@@ -66,6 +66,7 @@ subroutine boundary_disk(ilevel)
    real(dp), dimension(1:nvector, 1:ndim), save::x
    real(dp):: x0, y0, z0, xx, yy, cs, omega, xx_soft, yy_soft, ur
    real(dp):: rc, rc_soft, damping_time_inner_boundary, damping_factor
+   real(dp):: rsoft_cub, fgrav
    real(dp):: mass, emass, r0, d0, density, rin, ekin, eint
    real(dp), dimension(1:nvar) :: u0 = 0.! initial condtions
    real(dp),parameter::pi = acos(-1.0d0)
@@ -159,17 +160,33 @@ subroutine boundary_disk(ilevel)
             ! Reinitialize the density for the internal and external border (cylindrical)
 
             if (rc < r0*inner_boundary .or. rc > r0*outer_boundary) then
-
-
                density = d0*(rc_soft/r0)**(-1/2.)
                ! density
                u0(1) = density
-
-               omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
+               if (cubic_spline_kernel == .true.) then 
+                  if (emass > 0.) then
+                     write(*,*) 'Error: softening AND cubic spline potential; pick one'
+                     call clean_stop
+                  endif
+                  rsoft_cub = r0*inner_boundary !keyword for the cubic spline softening =/= rc_soft ! /!\
+                  if (rc < r0*inner_boundary*0.5) then
+                     fgrav = mass*(32./3.*rc/rsoft_cub**3. -192./5.*rc**3./rsoft_cub**5.+ 32.*rc**4./rsoft_cub**6.)
+                  else if (rc < r0*inner_boundary) then
+                     fgrav = mass*( -1./(15.*rc**2.)  + 64./3.*rc/rsoft_cub**3. -48.*rc**2./rsoft_cub**4. + &
+                          192./5.*rc**3./rsoft_cub**5. -160./15.*rc**4./rsoft_cub**6.) 
+                  else
+                     fgrav = mass / rc**2.
+                  endif
+                  omega = sqrt( max(0., fgrav / rc_soft - (3./2.) * h_over_r**2. * mass / rc_soft**3 ))
+                  if (isnan(omega)) print*, "rc=", rc,"omega=", omega
+               else
+                  omega = sqrt((mass / rc_soft**3 ) * (1. - (3./2.)*h_over_r**2))
+               endif
                cs = h_over_r * sqrt(mass / rc_soft)
 
                ! momentum
                u0(2) = -u0(1)*omega*yy_soft
+               if (isnan(u0(2))) print*, "vx=NaN in BCs, rc=",rc
                u0(3) = u0(1)*omega*xx_soft
 
                ! Also add radial velocity
@@ -193,7 +210,10 @@ subroutine boundary_disk(ilevel)
 
                ! Apply damping
                if (damping .and. rc < r0*inner_boundary .and. rc >= r0*damping_inner_boundary  ) then
-                  damping_time_inner_boundary = damping_time * 2 * pi / sqrt(mass / (r0*inner_boundary)**3 ) 
+                  damping_time_inner_boundary = damping_time * 2 * pi / &! sqrt(mass / (r0*inner_boundary)**3 )
+                       sqrt( mass*( -1./(15.*(r0*inner_boundary)**2.)  + 64./3.*r0*inner_boundary/rsoft_cub**3. &
+                       -48.*(r0*inner_boundary)**2./rsoft_cub**4. + 192./5.*(r0*inner_boundary)**3./rsoft_cub**5.&
+                       -160./15.*(r0*inner_boundary)**4./rsoft_cub**6.) / (r0*inner_boundary) ) !RMR omega=cubic spline f(r=innerBC)
                   damping_factor = max(0., 1. - ((rc/r0 - damping_inner_boundary)/(inner_boundary - damping_inner_boundary))**2)
                   uold(ind_cell(i), 1:ndim + 2) = uold(ind_cell(i), 1:ndim + 2) - (uold(ind_cell(i), 1:ndim + 2) - u0(1:ndim + 2)) * (damping_factor * dtold(ilevel) / damping_time_inner_boundary)
                else   ! No damping for the outer boundary

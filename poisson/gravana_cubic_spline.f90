@@ -21,8 +21,7 @@ subroutine gravana(x,f,dx,ncell)
   !================================================================
   integer::idim,i
   real(dp)::gmass,emass,xmass,ymass,zmass,rr,rx,ry,rz
-  real(dp)::xmass1,ymass1,zmass1,fact1,fact2,emass2
-  real(dp)::gmass2,xmass2,ymass2,zmass2,omega,radius2,rsoft,separation
+  real(dp)::gmass2,xmass2,ymass2,zmass2,omega,radius2,rsoft
   real(dp):: a1,a2,z0,a1_rho,a2_rho,sigma,f_max
 
   select case (gravity_type)
@@ -43,7 +42,7 @@ subroutine gravana(x,f,dx,ncell)
      xmass=gravity_params(3) ! Point mass coordinates
      ymass=gravity_params(4)
      zmass=gravity_params(5)
-     if (cubic_spline_kernel == .true.) then! soft. potential never reduces to newtonian. RMR 29/10/2024
+     if (cubic_spline_kernel == .true.) then ! careful: softened potential never reduces to perfectly newtonian. RMR 29/10/2024
         rsoft = disk_radius*inner_boundary
         do i=1,ncell
            rx=0.0d0; ry=0.0d0; rz=0.0d0
@@ -139,7 +138,6 @@ subroutine gravana(x,f,dx,ncell)
      xmass=gravity_params(3) ! Point mass coordinates
      ymass=gravity_params(4)
      zmass=gravity_params(5)
-     emass2=soft_secondary   ! Softening length secondary
 
      gmass2 = gravity_params(6)  ! GM of the second point mass
      radius2 = gravity_params(7) ! radius of the second point mass
@@ -148,68 +146,25 @@ subroutine gravana(x,f,dx,ncell)
      xmass2 = xmass + radius2 * cos(omega * t)
      ymass2 = ymass + radius2 * sin(omega * t)
      zmass2 = zmass
-     if (cubic_spline_kernel == .true.) then! soft. potential never reduces to newtonian. RMR 29/10/2024
-        rsoft = disk_radius*inner_boundary
-        do i=1,ncell
-           rx=0.0d0; ry=0.0d0; rz=0.0d0
-           rx=x(i,1)-xmass
+
+     do i=1,ncell
+        rx=0.0d0; ry=0.0d0; rz=0.0d0
+        rx=x(i,1)-xmass
 #if NDIM>1
-           ry=x(i,2)-ymass
+        ry=x(i,2)-ymass
 #endif
 #if NDIM>2
-           rz=x(i,3)-zmass
+        rz=x(i,3)-zmass
 #endif
-           rr=sqrt(rx**2+ry**2+rz**2)
-           if ( rr < 0.5d0*rsoft ) then
-              f(i,1)=-gmass*(32./3.*rr/rsoft**3. -192./5.*rr**3./rsoft**5.+ 32.*rr**4./rsoft**6.) * rx/rr
+        rr=sqrt(rx**2+ry**2+rz**2+emass**2)
+        f(i,1)=-gmass*rx/rr**3
 #if NDIM>1
-              f(i,2)=-gmass*(32./3.*rr/rsoft**3. -192./5.*rr**3./rsoft**5.+ 32.*rr**4./rsoft**6.) * ry/rr
+        f(i,2)=-gmass*ry/rr**3
 #endif
 #if NDIM>2
-              f(i,3)=-gmass*(32./3.*rr/rsoft**3. -192./5.*rr**3./rsoft**5.+ 32.*rr**4./rsoft**6.) * rz/rr
+        f(i,3)=-gmass*rz/rr**3
 #endif
-           else if ( rr < rsoft ) then
-              f(i,1)= -gmass*( -1./(15.*rr**2.)  + 64./3.*rr/rsoft**3. -48.*rr**2./rsoft**4. + &
-                   192./5.*rr**3./rsoft**5. -160./15.*rr**4./rsoft**6.) * rx/rr
-#if NDIM>1
-              f(i,2)= -gmass*( -1./(15.*rr**2.)  + 64./3.*rr/rsoft**3. -48.*rr**2./rsoft**4. + &
-                   192./5.*rr**3./rsoft**5. -160./15.*rr**4./rsoft**6.)* ry/rr
-#endif
-#if NDIM>2
-              f(i,3)= -gmass*( -1./(15.*rr**2.)  + 64./3.*rr/rsoft**3. -48.*rr**2./rsoft**4. + &
-                   192./5.*rr**3./rsoft**5. -160./15.*rr**4./rsoft**6.)* rz/rr
-#endif
-           else
-              f(i,1)=-gmass/(rr**2.) * rx/rr
-#if NDIM>1
-              f(i,2)=-gmass/(rr**2.) * ry/rr
-#endif
-#if NDIM>2
-              f(i,3)=-gmass/(rr**2.) * rz/rr
-#endif
-           endif
-        end do
-     else ! softened potential
-        do i=1,ncell
-           rx=0.0d0; ry=0.0d0; rz=0.0d0
-           rx=x(i,1)-xmass
-#if NDIM>1
-           ry=x(i,2)-ymass
-#endif
-#if NDIM>2
-           rz=x(i,3)-zmass
-#endif
-           rr=sqrt(rx**2+ry**2+rz**2+emass**2)
-           f(i,1)=-gmass*rx/rr**3
-#if NDIM>1
-           f(i,2)=-gmass*ry/rr**3
-#endif
-#if NDIM>2
-           f(i,3)=-gmass*rz/rr**3
-#endif
-        enddo
-     endif
-   do i=1,ncell
+
       ! redo for the second mass
       rx=0.0d0; ry=0.0d0; rz=0.0d0
       rx=x(i,1)-xmass2
@@ -219,7 +174,7 @@ subroutine gravana(x,f,dx,ncell)
 #if NDIM>2
       rz=x(i,3)-zmass2
 #endif
-      rr=sqrt(rx**2+ry**2+rz**2+emass2**2)
+      rr=sqrt(rx**2+ry**2+rz**2+emass**2)
       f(i,1)=f(i,1)-gmass2*rx/rr**3
 #if NDIM>1
       f(i,2)=f(i,2)-gmass2*ry/rr**3
@@ -228,114 +183,6 @@ subroutine gravana(x,f,dx,ncell)
       f(i,3)=f(i,3)-gmass2*rz/rr**3
 #endif
    end do
-
-  case(5)
-        ! Proper 2 body problem
-         gmass=gravity_params(1) ! GM
-         emass=dx
-         emass=gravity_params(2) ! Softening length
-         xmass=gravity_params(3) ! center of mass coordinates
-         ymass=gravity_params(4)
-         zmass=gravity_params(5)
-         emass2=soft_secondary   ! Softening length secondary  
-
-         gmass2 = gravity_params(6)  ! GM of the second point mass
-         separation = gravity_params(7) ! separation between the two point mass
-         omega = sqrt((gmass + gmass2) / separation**3) ! Keplerian rotation speed
-
-         fact1 = gmass2 / (gmass + gmass2)
-         fact2 = gmass / (gmass + gmass2)
-
-         xmass1 = xmass - fact1 * separation * cos(omega * t)
-         ymass1 = ymass - fact1 * separation * sin(omega * t)
-         zmass1 = zmass
-
-         xmass2 = xmass + fact2 * separation * cos(omega * t)
-         ymass2 = ymass + fact2 * separation * sin(omega * t)
-         zmass2 = zmass
-
-     if (cubic_spline_kernel == .true.) then! soft. potential never reduces to newtonian. RMR 29/10/2024
-        rsoft = disk_radius*inner_boundary
-        do i=1,ncell
-           rx=0.0d0; ry=0.0d0; rz=0.0d0
-           rx=x(i,1)-xmass1
-#if NDIM>1
-           ry=x(i,2)-ymass1
-#endif
-#if NDIM>2
-           rz=x(i,3)-zmass1
-#endif
-           rr=sqrt(rx**2+ry**2+rz**2)
-           if ( rr < 0.5d0*rsoft ) then
-              f(i,1)=-gmass*(32./3.*rr/rsoft**3. -192./5.*rr**3./rsoft**5.+ 32.*rr**4./rsoft**6.) * rx/rr
-#if NDIM>1
-              f(i,2)=-gmass*(32./3.*rr/rsoft**3. -192./5.*rr**3./rsoft**5.+ 32.*rr**4./rsoft**6.) * ry/rr
-#endif
-#if NDIM>2
-              f(i,3)=-gmass*(32./3.*rr/rsoft**3. -192./5.*rr**3./rsoft**5.+ 32.*rr**4./rsoft**6.) * rz/rr
-#endif
-           else if ( rr < rsoft ) then
-              f(i,1)= -gmass*( -1./(15.*rr**2.)  + 64./3.*rr/rsoft**3. -48.*rr**2./rsoft**4. + &
-                   192./5.*rr**3./rsoft**5. -160./15.*rr**4./rsoft**6.) * rx/rr
-#if NDIM>1
-              f(i,2)= -gmass*( -1./(15.*rr**2.)  + 64./3.*rr/rsoft**3. -48.*rr**2./rsoft**4. + &
-                   192./5.*rr**3./rsoft**5. -160./15.*rr**4./rsoft**6.)* ry/rr
-#endif
-#if NDIM>2
-              f(i,3)= -gmass*( -1./(15.*rr**2.)  + 64./3.*rr/rsoft**3. -48.*rr**2./rsoft**4. + &
-                   192./5.*rr**3./rsoft**5. -160./15.*rr**4./rsoft**6.)* rz/rr
-#endif
-           else
-              f(i,1)=-gmass/(rr**2.) * rx/rr
-#if NDIM>1
-              f(i,2)=-gmass/(rr**2.) * ry/rr
-#endif
-#if NDIM>2
-              f(i,3)=-gmass/(rr**2.) * rz/rr
-#endif
-           endif
-        end do
-
-     else ! softened potential 
-
-         do i=1,ncell
-            rx=0.0d0; ry=0.0d0; rz=0.0d0
-            rx=x(i,1)-xmass1
-#if NDIM>1
-            ry=x(i,2)-ymass1
-#endif
-#if NDIM>2
-            rz=x(i,3)-zmass1
-#endif
-            rr=sqrt(rx**2+ry**2+rz**2+emass**2)
-            f(i,1)=-gmass*rx/rr**3
-#if NDIM>1
-            f(i,2)=-gmass*ry/rr**3
-#endif
-#if NDIM>2
-            f(i,3)=-gmass*rz/rr**3
-#endif
-         enddo
-     endif
-
-     do i=1,ncell ! redo for the second mass
-          rx=0.0d0; ry=0.0d0; rz=0.0d0
-          rx=x(i,1)-xmass2
-#if NDIM>1
-          ry=x(i,2)-ymass2
-#endif
-#if NDIM>2
-          rz=x(i,3)-zmass2
-#endif
-          rr=sqrt(rx**2+ry**2+rz**2+emass2**2)
-          f(i,1)=f(i,1)-gmass2*rx/rr**3
-#if NDIM>1
-          f(i,2)=f(i,2)-gmass2*ry/rr**3
-#endif
-#if NDIM>2
-          f(i,3)=f(i,3)-gmass2*rz/rr**3
-#endif
-     end do
 
   end select
 
