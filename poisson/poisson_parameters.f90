@@ -10,6 +10,14 @@ module poisson_parameters
   ! Gravity parameters
   real(dp),dimension(1:10)::gravity_params=0
 
+  ! Cubic spline kernel softening by RMR
+  logical :: cubic_spline_kernel = .false.  ! whether or not to use a cubic kernel that reduces to a Newtonian potential outside a given radius
+  real(dp):: cubic_kernel_rsoft = 0.0d0  ! softening length for the cubic kernel
+  
+  ! 2 body problem
+  real(dp):: gmass_secondary = 0.
+  real(dp):: soft_secondary = 0.
+
   ! Maximum level for CIC dark matter interpolation
   integer :: cic_levelmax=0
 

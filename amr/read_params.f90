@@ -635,7 +635,9 @@ subroutine read_poisson_params(namelist_unit,nml_ok)
    integer::nml_err
 
    namelist/poisson_params/epsilon,gravity_type,gravity_params &
-   & ,cg_levelmin,cic_levelmax
+   & ,cg_levelmin,cic_levelmax &
+   & ,cubic_spline_kernel,cubic_kernel_rsoft &
+   & ,gmass_secondary,soft_secondary
 
    ! Go to the beginning of the file
    rewind(namelist_unit)
