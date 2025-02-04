@@ -431,7 +431,7 @@ subroutine make_boundary_hydro(ilevel)
 end subroutine make_boundary_hydro
 
 
-subroutine special_boundary
+subroutine special_boundary(ilevel)
    use hydro_parameters
    use amr_commons
  
