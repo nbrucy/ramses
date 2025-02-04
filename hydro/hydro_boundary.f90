@@ -242,6 +242,7 @@ end subroutine make_boundary_hydro
 subroutine special_boundary
    use hydro_parameters
    use amr_commons
+   use alpha_disk_module
  
    !================================================================
    !This routine calls for special boundary conditions 
@@ -251,6 +252,9 @@ subroutine special_boundary
    integer::ilevel
  
    select case (special_boundary_kind)
+
+   case ("alpha_disk")
+      call boundary_alpha_disk(ilevel)
  
    case DEFAULT
       return
