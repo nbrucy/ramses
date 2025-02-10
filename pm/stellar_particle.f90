@@ -134,7 +134,7 @@ subroutine create_stellar(ncreate, nbuf, id_new)
     call sample_powerlaw(mnew_loc, imf_low, imf_high, imf_index, ncreate_loc)
 
     ! Compute lifetime
-    ltnew_loc(1:ncreate_loc) = lt_t0 * exp(lt_a * (log(lt_m0 / mnew_loc))**lt_b)
+    ltnew_loc(1:ncreate_loc) = lt_t0 * exp(lt_a * (log(lt_m0 / mnew_loc(1:ncreate_loc)))**lt_b)
 
     ! Communicate data
 #ifndef WITHOUTMPI
