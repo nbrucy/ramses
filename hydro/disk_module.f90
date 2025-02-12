@@ -5,20 +5,19 @@ module alpha_disk_module
    !================================================================
 
    ! Protostellar disks
-   real(dp) :: disk_radius = 0.25    ! Radius of the disk
+   real(dp) :: disk_radius = 1.    ! Radius of the disk
    real(dp) :: disk_density = 1.0    ! Disk density at the limit of the disk
-   real(dp) :: inner_boundary = 0.5    ! Inner boundary, in unit of disk_radius
+   real(dp) :: inner_boundary = 0.25    ! Inner boundary, in unit of disk_radius
    real(dp) :: outer_boundary = 3    ! Outer boundary, in unit of disk_radius
    real(dp) :: h_over_r = 0.1 ! h/r param in lisa setup
    logical  :: damping= .true. ! Whether to use damping boudary conditions
    real(dp) :: damping_time = 1 ! Damping at inner  boundary, in units of rotation time (2 pi * omega^-1)
-   real(dp) :: damping_inner_boundary = 0.4 ! Inner boundary of the damping region, in unit of disk_radius (should be less than inner_boundary)
+   real(dp) :: damping_inner_boundary = 0.1 ! Inner boundary of the damping region, in unit of disk_radius (should be less than inner_boundary)
    logical  :: disk_local_isothermal = .false. ! Whether to use local isothermal disk
 
-end module alpha_disk_module
+contains
 
 subroutine read_alpha_disk_params()
-   use alpha_disk_module
    implicit none
 
    character(LEN=80)::infile
@@ -26,7 +25,9 @@ subroutine read_alpha_disk_params()
    !--------------------------------------------------
    ! Namelist definitions
    !--------------------------------------------------
-   namelist/disk_params/disk_radius, disk_density, inner_boundary, outer_boundary, h_over_r, damping, damping_time, damping_inner_boundary
+   namelist/disk_params/disk_radius, disk_density, inner_boundary, outer_boundary, h_over_r&
+   & ,damping, damping_time, damping_inner_boundary &
+   & ,disk_local_isothermal
 
    ! Read namelist file
    call getarg(1, infile) ! get the name of the namelist
@@ -42,6 +43,9 @@ subroutine read_alpha_disk_params()
 
 end subroutine read_alpha_disk_params
 
+end module alpha_disk_module
+
+
 !#########################################################
 !#########################################################
 !#########################################################
@@ -51,6 +55,7 @@ subroutine boundary_alpha_disk(ilevel)
    use hydro_commons
    use alpha_disk_module
    use poisson_parameters
+   use gravana_utils
    implicit none
    integer::ilevel
    !----------------------------------------------------------
@@ -58,15 +63,15 @@ subroutine boundary_alpha_disk(ilevel)
    !----------------------------------------------------------
    integer::igrid, ngrid, ncache, i, ind, iskip, ix, iy, iz
    integer::nx_loc, idim
-   real(dp)::dx, dx_loc, scale, u, v, w, A, B, C
+   real(dp)::dx, dx_loc, scale
    real(dp), dimension(1:twotondim, 1:3)::xc
    real(dp), dimension(1:3)::skip_loc
 
    integer, dimension(1:nvector), save::ind_grid, ind_cell
    real(dp), dimension(1:nvector, 1:ndim), save::x
-   real(dp):: x0, y0, z0, xx, yy, cs, omega, xx_soft, yy_soft, ur
-   real(dp):: rc, rc_soft, damping_time_inner_boundary, damping_factor
-   real(dp):: mass, emass, r0, d0, density, rin, ekin, eint
+   real(dp):: x0, y0, xx, yy, cs, omega, xx_softened, yy_softened, ur
+   real(dp):: rc, rc_softened, damping_time_inner_boundary, damping_factor
+   real(dp):: gmass, emass, r0, d0, density, ekin, eint, softened_inner_radius
    real(dp), dimension(1:nvar) :: u0 = 0.! initial condtions
    real(dp),parameter::pi = acos(-1.0d0)
 
@@ -89,7 +94,7 @@ subroutine boundary_alpha_disk(ilevel)
    y0 = gravity_params(4)
 
    ! Central mass
-   mass = gravity_params(1)
+   gmass = gravity_params(1)
    ! Softening coefficient
    emass = gravity_params(2)
 
@@ -152,33 +157,36 @@ subroutine boundary_alpha_disk(ilevel)
 
             ! cylindrical radius
             rc = sqrt(xx**2 + yy**2)
-            rc_soft = sqrt(xx**2 + yy**2 + emass**2)
+            if (cubic_spline_kernel) then
+               rc_softened = sqrt(1d0/cubic_spline(rc, cubic_kernel_rsoft))
+            else
+               rc_softened = sqrt(xx**2 + yy**2 + emass**2)
+            end if
 
             ! softened coordinates
-            xx_soft = xx*(rc_soft/rc)
-            yy_soft = yy*(rc_soft/rc)
+            xx_softened = xx*(rc_softened/rc)
+            yy_softened = yy*(rc_softened/rc)
 
             ! Reinitialize the density for the internal and external border (cylindrical)
 
             if (rc < r0*inner_boundary .or. rc > r0*outer_boundary) then
 
-
-               density = d0*(rc_soft/r0)**(-1/2.)
+               density = d0*(rc_softened/r0)**(-1/2.)
                ! density
                u0(1) = density
 
-               omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
-               cs = h_over_r * sqrt(mass / rc_soft)
+               omega = sqrt((gmass / rc_softened**3 ) * (1 - (3/2.)*h_over_r**2))
+               cs = h_over_r * sqrt(gmass / rc_softened)
 
                ! momentum
-               u0(2) = -u0(1)*omega*yy_soft
-               u0(3) = u0(1)*omega*xx_soft
+               u0(2) = -u0(1)*omega*yy_softened
+               u0(3) = u0(1)*omega*xx_softened
 
                ! Also add radial velocity
-               if (alpha_viscosity > 0) then
+               if (add_viscosity .and. alpha_viscosity > 0) then
                   ur = - (3/2.) * alpha_viscosity * cs * h_over_r
-                  u0(2)  = u0(2) + u0(1)*ur*xx_soft/rc_soft
-                  u0(3) = u0(3) + u0(1)*ur*yy_soft/rc_soft
+                  u0(2)  = u0(2) + u0(1)*ur*xx_softened/rc_softened
+                  u0(3) = u0(3) + u0(1)*ur*yy_softened/rc_softened
                end if
 
                ! internal energy
@@ -191,15 +199,22 @@ subroutine boundary_alpha_disk(ilevel)
                end do
 
                ! energy
-               u0(ndim + 2) = eint + ekin
+               u0(neul) = eint + ekin
 
                ! Apply damping
                if (damping .and. rc < r0*inner_boundary .and. rc >= r0*damping_inner_boundary  ) then
-                  damping_time_inner_boundary = damping_time * 2 * pi / sqrt(mass / (r0*inner_boundary)**3 ) 
+                  if (cubic_spline_kernel) then
+                     softened_inner_radius = sqrt(1d0/cubic_spline(r0*inner_boundary, cubic_kernel_rsoft))
+                  else
+                     softened_inner_radius = sqrt((r0*inner_boundary)**2 + emass**2)
+                  end if
+
+                  damping_time_inner_boundary = damping_time * 2 * pi / sqrt(gmass / softened_inner_radius**3 ) 
                   damping_factor = max(0., 1. - ((rc/r0 - damping_inner_boundary)/(inner_boundary - damping_inner_boundary))**2)
-                  uold(ind_cell(i), 1:ndim + 2) = uold(ind_cell(i), 1:ndim + 2) - (uold(ind_cell(i), 1:ndim + 2) - u0(1:ndim + 2)) * (damping_factor * dtold(ilevel) / damping_time_inner_boundary)
+                  uold(ind_cell(i), 1:neul) = uold(ind_cell(i), 1:neul) - (uold(ind_cell(i), 1:neul) - u0(1:neul)) &
+                                                & * (damping_factor * dtold(ilevel) / damping_time_inner_boundary)
                else   ! No damping for the outer boundary
-                  uold(ind_cell(i), 1:ndim + 2) = u0(1:ndim + 2)
+                  uold(ind_cell(i), 1:neul) = u0(1:neul)
                end if
             end if
 
@@ -221,6 +236,7 @@ end subroutine boundary_alpha_disk
    use hydro_parameters
    use poisson_parameters
    use alpha_disk_module
+   use gravana_utils
  
    implicit none
    integer ::nn                            ! Number of cells
@@ -231,12 +247,17 @@ end subroutine boundary_alpha_disk
    !================================================================
    ! This routine generates an analytical disk potential initial conditions for RAMSES.
    !================================================================
-   real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2
-   integer ::i, idim
-   real(dp):: x0, y0, z0, xx, yy, cs, omega, ur, xx_soft, yy_soft
-   real(dp):: rc, rc_soft
-   real(dp):: mass, emass, r0, cs0, d0, d, rin, ekin, eint
- 
+   integer ::i
+   real(dp):: x0, y0, xx, yy, cs, omega, ur, xx_softened, yy_softened
+   real(dp):: rc, rc_softened, gm_r3
+   real(dp):: gmass, emass, r0, d0, d
+
+   logical,save:: first_call = .true.       ! True if this is the first call to condinit
+
+   if (first_call) then
+      call read_alpha_disk_params()
+      first_call = .false.
+   end if
  
    ! Position of the point mass
    x0 = gravity_params(3)
@@ -244,7 +265,7 @@ end subroutine boundary_alpha_disk
  
    
    ! Central mass
-   mass = gravity_params(1)
+   gmass = gravity_params(1)
    ! Softening coefficient
    emass = gravity_params(2)
  
@@ -263,31 +284,36 @@ end subroutine boundary_alpha_disk
  
       ! cylindrical radius
       rc = sqrt(xx**2 + yy**2)
-      rc_soft = sqrt(xx**2 + yy**2 + emass**2)
+
+      if (cubic_spline_kernel) then
+         rc_softened = sqrt(1d0/cubic_spline(rc, cubic_kernel_rsoft))
+      else
+         rc_softened = sqrt(xx**2 + yy**2 + emass**2)
+      end if
  
       ! softened coordinates
-      xx_soft =  xx * (rc_soft / rc);
-      yy_soft =  yy * (rc_soft / rc);
+      xx_softened =  xx * (rc_softened / rc);
+      yy_softened =  yy * (rc_softened / rc);
  
       ! Here d is the column density - lisa SETUP
-      d = d0 * (rc_soft / r0)**(-1/2.) 
+      d = d0 * (rc_softened / r0)**(-1/2.) 
  
       d = max(d, smallr)
       q(i, 1) = d
  
       ! angular velocity
-      omega = sqrt((mass / rc_soft**3 ) * (1 - (3/2.)*h_over_r**2))
-      cs = h_over_r * sqrt(mass / rc_soft )
+      omega = sqrt((gmass/rc_softened**3) * (1 - (3/2.)*h_over_r**2))
+      cs = h_over_r * sqrt(gmass / rc_softened)
   
-      ! momentum
-      q(i, 2) = - omega * yy_soft
-      q(i, 3) =   omega * xx_soft
+      ! velocity
+      q(i, 2) = - omega * yy_softened
+      q(i, 3) =   omega * xx_softened
  
       ! Also add radial velocity
-      if (alpha_viscosity > 0) then
+      if (add_viscosity .and. alpha_viscosity > 0) then
          ur = - (3/2.) * alpha_viscosity * cs * h_over_r
-         q(i, 2) = q(i, 2) +  ur * xx_soft / rc_soft
-         q(i, 3) = q(i, 3) +  ur * yy_soft / rc_soft
+         q(i, 2) = q(i, 2) +  ur * xx_softened / rc_softened
+         q(i, 3) = q(i, 3) +  ur * yy_softened / rc_softened
       end if
  
       ! pressure

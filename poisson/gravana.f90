@@ -7,28 +7,49 @@ module gravana_utils
 
    contains
 
-   pure function cubic_spline_inner(rr, rsoft)
+   pure function cubic_spline(rr, rsoft)
       use amr_commons
       implicit none
       real(dp), intent(in)::rr, rsoft
-      real(dp)::cubic_spline_inner
+      real(dp)::cubic_spline
       !----------------------------------------------------------------
-      ! This function returns the value of the cubic spline inside 0.5 rsoft
+      ! This function returns the value of the cubic spline kernel
+      ! at a given distance rr and softening length rsoft
+      ! The result is homogeneous to 1/rr^2
       !----------------------------------------------------------------
-      cubic_spline_inner = (32./3.*rr/rsoft**3.-192./5.*rr**3./rsoft**5.+32.*rr**4./rsoft**6.)
-   end function cubic_spline_inner
+      if (rr < 0.5d0*rsoft) then
+         cubic_spline = (32./3.*rr/rsoft**3.-192./5.*rr**3./rsoft**5.+32.*rr**4./rsoft**6.)
+      else if (rr < rsoft) then
+         cubic_spline = (-1./(15.*rr**2.) + 64./3.*rr/rsoft**3.-48.*rr**2./rsoft**4.+ &
+                        192./5.*rr**3./rsoft**5.-160./15.*rr**4./rsoft**6.)
+      else
+         cubic_spline = 1/rr**2
+      end if
+   end function cubic_spline
 
-   pure function cubic_spline_outer(rr, rsoft)
+
+   pure function grav_factor(rx, ry, rz, gmass, emass)
       use amr_commons
+      use poisson_parameters
       implicit none
-      real(dp), intent(in)::rr, rsoft
-      real(dp)::cubic_spline_outer
+      real(dp), intent(in)::rx, ry, rz, gmass, emass
+      real(dp)::rr, rsoft
+      real(dp)::grav_factor
       !----------------------------------------------------------------
-      ! This function returns the value of the cubic spline between 0.5 rsoft and rsoft
+      ! This function returns the gravitational factor GM/r^3,
+      ! depending on the softening strategy
+      ! If cubic_spline_kernel is true, it uses the cubic spline kernel
+      ! Otherwise, it uses the a classical softening length
       !----------------------------------------------------------------
-      cubic_spline_outer = (-1./(15.*rr**2.) + 64./3.*rr/rsoft**3.-48.*rr**2./rsoft**4.+ &
-                           192./5.*rr**3./rsoft**5.-160./15.*rr**4./rsoft**6.)
-   end function cubic_spline_outer
+      if (cubic_spline_kernel) then
+         rr = sqrt(rx**2 + ry**2 + rz**2)
+         rsoft = cubic_kernel_rsoft
+         grav_factor = -gmass*cubic_spline(rr, rsoft)
+      else
+         rr = sqrt(rx**2 + ry**2 + rz**2 + emass**2)
+         grav_factor = -gmass/rr**3
+      end if
+   end function grav_factor
 
 end module gravana_utils
 
@@ -52,13 +73,14 @@ subroutine gravana(x, f, dx, ncell)
    integer::idim, i
    real(dp)::gmass, emass, xmass, ymass, zmass, rr, rx, ry, rz
    real(dp)::xmass1, ymass1, zmass1, fact, fact1, fact2
-   real(dp)::gmass2, xmass2, ymass2, zmass2, emass2, omega, separation, rsoft
-   real(dp):: a1, a2, z0, a1_rho, a2_rho, sigma, f_max
+   real(dp)::gmass2, xmass2, ymass2, zmass2, emass2, omega, separation
+   real(dp):: a1, a2, z0
    real(dp)::scale_l, scale_t, scale_d, scale_v, scale_nH, scale_T2
 
-   ! Constant vector
+   
    select case (gravity_type)
 
+      ! Constant vector
    case (1)
       do idim = 1, ndim
          do i = 1, ncell
@@ -84,20 +106,8 @@ subroutine gravana(x, f, dx, ncell)
 #if NDIM>2
          rz = x(i, 3) - zmass
 #endif
-         if (cubic_spline_kernel) then
-            rr = sqrt(rx**2 + ry**2 + rz**2)
-            rsoft = cubic_kernel_rsoft
-            if (rr < 0.5d0*rsoft) then
-               fact = -gmass*cubic_spline_inner(rr, rsoft)/rr
-            else if (rr < rsoft) then
-               fact = -gmass*cubic_spline_outer(rr, rsoft)/rr
-            else
-               fact = -gmass/rr**3
-            end if
-         else
-            rr = sqrt(rx**2 + ry**2 + rz**2 + emass**2)
-            fact = -gmass/rr**3
-         end if
+         fact = grav_factor(rx, ry, rz, gmass, emass)         
+
          f(i, 1) = fact*rx
 #if NDIM>1
          f(i, 2) = fact*ry
@@ -166,21 +176,7 @@ subroutine gravana(x, f, dx, ncell)
 #if NDIM>2
          rz = x(i, 3) - zmass1
 #endif
-
-         if (cubic_spline_kernel) then
-            rsoft = cubic_kernel_rsoft
-            rr = sqrt(rx**2 + ry**2 + rz**2)
-            if (rr < 0.5d0*rsoft) then
-               fact = -gmass*cubic_spline_inner(rr, rsoft)/rr
-            else if (rr < rsoft) then
-               fact = -gmass*cubic_spline_outer(rr, rsoft)/rr
-            else
-               fact = -gmass/rr**3
-            end if
-         else
-            rr = sqrt(rx**2 + ry**2 + rz**2 + emass**2)
-            fact = -gmass/rr**3
-         end if
+         fact = grav_factor(rx, ry, rz, gmass, emass)
 
          f(i, 1) = -fact*rx
 #if NDIM>1
