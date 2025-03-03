@@ -76,6 +76,13 @@ subroutine init_part
      allocate(itmpp (npartmax))
      allocate(partp (npartmax))
      allocate(move_flag(npartmax))
+     allocate(integrated_acc(npartmax,ndim))
+     allocate(integrated_grav(npartmax,ndim))
+     allocate(vcell(npartmax,ndim))
+
+     integrated_acc = 0
+     integrated_grav = 0
+     vcell = 0
      move_flag = 0
   end if
   allocate(nextp (npartmax))
@@ -211,6 +218,18 @@ subroutine init_part
         partp(1:npart2) = isp
         call convert_global_index_to_local_index(npart2)
         deallocate(isp)
+
+        ! Read tracer arrays
+        allocate(xdp(1:npart2))
+        do idim=1,ndim
+         read(ilun)xdp
+         integrated_acc(1:npart2,idim)=xdp
+        end do
+        do idim=1,ndim
+         read(ilun)xdp
+         integrated_grav(1:npart2,idim)=xdp
+        end do
+        deallocate(xdp)
      end if
      close(ilun)
 

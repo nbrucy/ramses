@@ -68,7 +68,7 @@ subroutine move_gas_tracer(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
   use amr_commons
   use pm_commons
   use poisson_commons
-  use hydro_commons, only: fluxes
+  use hydro_commons, only: fluxes, unew
   use tracer_utils, only: safe_move, relative_level, get_cells_on_face
   implicit none
   integer::ng,np,ilevel
@@ -113,6 +113,8 @@ subroutine move_gas_tracer(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
   real(dp) :: rand, rtmp ! temporary real
   real(dp), dimension(1:nvector) :: outflux, factor
   logical, dimension(1:nvector) :: move
+
+  real(dp) :: new_v, old_v, acc_dt
 
   logical :: ok
 
@@ -404,6 +406,26 @@ subroutine move_gas_tracer(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
         old_xp(ipart, idim) = xp(ind_part(ipart), idim)
      end do
   end do
+
+  ! Compute the integrated values
+  do idim = 1, ndim
+    do ipart = 1, np
+      ! new velocity of the old cell
+      new_v = unew(partp(ipart), 1+idim) / unew(partp(ipart), 1)
+      ! old velocity of the old cell
+      old_v = vcell(ind_part(ipart), idim)
+      ! total acceleration in the old cell
+      acc_dt = (new_v - old_v)
+      integrated_acc(ind_part(ipart), idim) = integrated_acc(ind_part(ipart), idim) + acc_dt
+      ! Store the velocity of the new host cell
+      vcell(ind_part(ipart), idim) = unew(new_partp(ipart), 1+idim) / unew(new_partp(ipart), 1)
+      if(poisson)then
+         ! Gravitational acceleration in the old cell
+         integrated_grav(ind_part(ipart), idim) = integrated_grav(ind_part(ipart), idim) + f(new_partp(ipart), idim) * dtold(ilevel)
+      end if
+    end do
+  end do
+
 
   ! Safely move particles -- taking care of boundaries
   do ipart = 1, np

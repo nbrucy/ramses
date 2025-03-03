@@ -202,6 +202,42 @@ subroutine backup_part(filename, filename_desc)
 
      call generic_dump("partp", ivar, ll, unit_out, dump_info, unit_info)
      deallocate(ll)
+
+     allocate(xdp(1:npart))
+     do idim = 1, ndim
+      ipart = 0
+      do i = 1, npartmax
+         if (levelp(i) > 0) then
+            ipart = ipart+1
+            xdp(ipart) = integrated_acc(i, idim)
+         end if
+      end do
+      call generic_dump("integrated_acc"//dim_keys(idim), ivar, xdp, unit_out, dump_info, unit_info)
+     end do
+     do idim = 1, ndim
+      ipart = 0
+      do i = 1, npartmax
+         if (levelp(i) > 0) then
+            ipart = ipart+1
+            xdp(ipart) = integrated_grav(i, idim)
+         end if
+      end do
+      call generic_dump("integrated_grav"//dim_keys(idim), ivar, xdp, unit_out, dump_info, unit_info)
+     end do
+     do idim = 1, ndim
+      ipart = 0
+      do i = 1, npartmax
+         if (levelp(i) > 0) then
+            ipart = ipart+1
+            xdp(ipart) = vcell(i, idim)
+         end if
+      end do
+      call generic_dump("vcell"//dim_keys(idim), ivar, xdp, unit_out, dump_info, unit_info)
+     end do
+
+
+
+     deallocate(xdp)
   end if
 
   !------------!
