@@ -33,7 +33,7 @@ subroutine init_tracer
         call load_tracers_bin(1)
     else if (trim(tracer_feed_fmt) == 'binary2' .and. MC_tracer) then ! Not tested for classic tracers
         call load_tracers_bin(2)
-    else if (trim(tracer_feed_fmt) == 'inplace' .and. MC_tracer) then ! Not tested for classic tracers
+    else if (trim(tracer_feed_fmt) == 'inplace') then 
         call load_tracers_inplace
     else if (trim(tracer_feed_fmt) == 'ascii') then
         call load_tracers
@@ -288,6 +288,7 @@ subroutine load_tracers_inplace
                 end if
 
                 ! Compute number of tracers to create
+                if(MC_tracer) then
                 d = uold(icell, 1) * vol_loc
                 npart_loc_real = d / tracer_mass
                 npart_loc = int(npart_loc_real)
@@ -299,6 +300,9 @@ subroutine load_tracers_inplace
 
                 if (rand < npart_loc_real-npart_loc) then
                    npart_loc = npart_loc + 1
+                  end if
+               else
+                  npart_loc = 1
                 end if
 
                 ! Get cell position
@@ -319,7 +323,12 @@ subroutine load_tracers_inplace
                    end do
 
                    vp(ipart, :) = 0._dp
+
+                   if(MC_tracer) then 
                    mp(ipart) = tracer_mass
+else
+                     mp(ipart) =  uold(icell, 1) * vol_loc
+                   end if ! MC_tracer
                    levelp(ipart) = ilevel
                    typep(ipart)%family = FAM_TRACER_GAS
                 end do
