@@ -122,6 +122,19 @@ subroutine deallocate_pm
      if(allocated(mp)) deallocate(mp)
      if(allocated(vp)) deallocate(vp)
      if(allocated(xp)) deallocate(xp)
+
+     if (allocated(move_flag)) deallocate(move_flag)
+     if (allocated(ap_grav)) deallocate(ap_grav)
+     if (allocated(vp_grav)) deallocate(vp_grav)
+     if (allocated(vp_prev)) deallocate(vp_prev)
+     if (allocated(vp_init)) deallocate(vp_init)
+
+    if (allocated(itmpp)) deallocate(itmpp)
+    if (allocated(partp)) deallocate(partp)
+    if (allocated(tp)) deallocate(tp)
+    if (allocated(zp)) deallocate(zp)
+    if (allocated(typep)) deallocate(typep)
+
   endif
 
 end subroutine deallocate_pm

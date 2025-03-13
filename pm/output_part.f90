@@ -202,37 +202,48 @@ subroutine backup_part(filename, filename_desc)
 
      call generic_dump("partp", ivar, ll, unit_out, dump_info, unit_info)
      deallocate(ll)
-
+   end if
+   if (tracer) then
      allocate(xdp(1:npart))
      do idim = 1, ndim
       ipart = 0
       do i = 1, npartmax
          if (levelp(i) > 0) then
             ipart = ipart+1
-            xdp(ipart) = integrated_acc(i, idim)
+            xdp(ipart) = ap_grav(i, idim)
          end if
       end do
-      call generic_dump("integrated_acc"//dim_keys(idim), ivar, xdp, unit_out, dump_info, unit_info)
+      call generic_dump("ap_grav"//dim_keys(idim), ivar, xdp, unit_out, dump_info, unit_info)
      end do
      do idim = 1, ndim
       ipart = 0
       do i = 1, npartmax
          if (levelp(i) > 0) then
             ipart = ipart+1
-            xdp(ipart) = integrated_grav(i, idim)
+            xdp(ipart) = vp_grav(i, idim)
          end if
       end do
-      call generic_dump("integrated_grav"//dim_keys(idim), ivar, xdp, unit_out, dump_info, unit_info)
+      call generic_dump("vp_grav"//dim_keys(idim), ivar, xdp, unit_out, dump_info, unit_info)
      end do
      do idim = 1, ndim
       ipart = 0
       do i = 1, npartmax
          if (levelp(i) > 0) then
             ipart = ipart+1
-            xdp(ipart) = vcell(i, idim)
+            xdp(ipart) = vp_prev(i, idim)
          end if
       end do
-      call generic_dump("vcell"//dim_keys(idim), ivar, xdp, unit_out, dump_info, unit_info)
+      call generic_dump("vp_prev"//dim_keys(idim), ivar, xdp, unit_out, dump_info, unit_info)
+     end do
+     do idim = 1, ndim
+      ipart = 0
+      do i = 1, npartmax
+         if (levelp(i) > 0) then
+            ipart = ipart+1
+            xdp(ipart) = vp_init(i, idim)
+         end if
+      end do
+      call generic_dump("vp_init"//dim_keys(idim), ivar, xdp, unit_out, dump_info, unit_info)
      end do
 
 

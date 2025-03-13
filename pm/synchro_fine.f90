@@ -43,7 +43,7 @@ subroutine synchro_fine(ilevel)
               ind_grid(ig)=igrid
            end if
            ! MC TRACER PATCH
-           if (is_not_tracer(typep(ipart))) then
+           if (.not. MC_tracer .or. is_not_tracer(typep(ipart))) then
               local_counter=local_counter+1
               ip=ip+1
               ind_part(ip)=ipart
@@ -530,12 +530,17 @@ subroutine sync(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
      else
         do j=1,np
            new_vp(j,idim)=vp(ind_part(j),idim)+ff(j,idim)*0.5D0*dteff(j)
+           if (is_gas_tracer(typep(ind_part(j)))) then
+              vp_grav(ind_part(j), idim)= vp_grav(ind_part(j), idim) + ff(j,idim)*0.5D0*dteff(j)
+           end if
         end do
      endif
   end do
   do idim=1,ndim
      do j=1,np
-        vp(ind_part(j),idim)=new_vp(j,idim)
+        if (.not. is_gas_tracer(typep(ind_part(j)))) then
+           vp(ind_part(j),idim)=new_vp(j,idim)
+         end if
      end do
   end do
 

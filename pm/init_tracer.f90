@@ -33,7 +33,7 @@ subroutine init_tracer
         call load_tracers_bin(1)
     else if (trim(tracer_feed_fmt) == 'binary2' .and. MC_tracer) then ! Not tested for classic tracers
         call load_tracers_bin(2)
-    else if (trim(tracer_feed_fmt) == 'inplace') then 
+    else if (trim(tracer_feed_fmt) == 'inplace') then
         call load_tracers_inplace
     else if (trim(tracer_feed_fmt) == 'ascii') then
         call load_tracers
@@ -205,7 +205,7 @@ end subroutine load_tracers_bin
 subroutine load_tracers_inplace
     use amr_commons
     use pm_commons
-    use hydro_commons, only : uold
+    use hydro_commons, only : uold, smallr
     use mpi_mod
     implicit none
     integer :: nx_loc, icpu, jgrid, igrid, j, icell, iskip
@@ -289,21 +289,21 @@ subroutine load_tracers_inplace
 
                 ! Compute number of tracers to create
                 if(MC_tracer) then
-                d = uold(icell, 1) * vol_loc
-                npart_loc_real = d / tracer_mass
-                npart_loc = int(npart_loc_real)
+                  d = uold(icell, 1) * vol_loc
+                  npart_loc_real = d / tracer_mass
+                  npart_loc = int(npart_loc_real)
 
-                ! The number of tracer is real, so we have to decide
-                ! whether the number is the floor or ceiling of the
-                ! real number.
-                call ranf(tracer_seed, rand)
+                  ! The number of tracer is real, so we have to decide
+                  ! whether the number is the floor or ceiling of the
+                  ! real number.
+                  call ranf(tracer_seed, rand)
 
-                if (rand < npart_loc_real-npart_loc) then
-                   npart_loc = npart_loc + 1
+                  if (rand < npart_loc_real-npart_loc) then
+                     npart_loc = npart_loc + 1
                   end if
                else
                   npart_loc = 1
-                end if
+               end if
 
                 ! Get cell position
                 xcell(:) = (xg(igrid, :) - skip_loc(:) + dx_cell(ind, :) * dx) * scale
@@ -324,9 +324,10 @@ subroutine load_tracers_inplace
 
                    vp(ipart, :) = 0._dp
 
-                   if(MC_tracer) then 
-                   mp(ipart) = tracer_mass
-else
+                   if(MC_tracer) then
+                     mp(ipart) = tracer_mass
+                   else
+                     vp_init(ipart, :) = uold(icell, 2:ndim+1) / max(uold(icell, 1), smallr)
                      mp(ipart) =  uold(icell, 1) * vol_loc
                    end if ! MC_tracer
                    levelp(ipart) = ilevel

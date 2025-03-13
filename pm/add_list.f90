@@ -55,6 +55,12 @@ subroutine add_free(ind_part,np)
      do j=1,np
         xp(ind_part(j),idim)=0
         vp(ind_part(j),idim)=0
+        if(tracer) then
+         vp_grav(ind_part(j),idim)=0
+         vp_prev(ind_part(j),idim)=0
+         vp_init(ind_part(j),idim)=0
+         ap_grav(ind_part(j),idim)=0
+        end if
      end do
   end do
   do j=1,np
@@ -117,6 +123,12 @@ subroutine add_free_cond(ind_part,ok,np)
         if(ok(j))then
            xp(ind_part(j),idim)=0
            vp(ind_part(j),idim)=0
+           if(tracer) then
+            vp_grav(ind_part(j),idim)=0
+            vp_prev(ind_part(j),idim)=0
+            vp_init(ind_part(j),idim)=0
+            ap_grav(ind_part(j),idim)=0
+           end if
         endif
      end do
   end do

@@ -47,9 +47,10 @@ module pm_commons
   real(dp),allocatable,dimension(:,:)  ::vp       ! Velocities
   real(dp),allocatable,dimension(:)    ::mp       ! Masses
   integer,  allocatable, dimension(:)  :: move_flag ! Move flag (for particles), >0 means don't move!
-  real(dp),allocatable,dimension(:,:)    ::integrated_acc    ! Integrated acceleration (since the tracer spawned)
-  real(dp),allocatable,dimension(:,:)    ::integrated_grav   ! Integrated gravitational force (since the tracer spawned)
-  real(dp),allocatable,dimension(:,:)    ::vcell   ! Velocity of the host cell
+  real(dp),allocatable,dimension(:,:)    ::ap_grav    ! Integrated acceleration (since the tracer spawned)
+  real(dp),allocatable,dimension(:,:)    ::vp_grav   ! Integrated gravitational force (since the tracer spawned)
+  real(dp),allocatable,dimension(:,:)    ::vp_prev   ! Velocity at the previous half-step
+  real(dp),allocatable,dimension(:,:)    ::vp_init   ! Velocity when the particle was created
 
 #ifdef OUTPUT_PARTICLE_POTENTIAL
   real(dp),allocatable,dimension(:)    ::ptcl_phi ! Potential of particle added by AP for output purposes

@@ -706,6 +706,9 @@ subroutine virtual_tree_fine(ilevel)
         particle_data_width=twondim+2
      endif
   endif
+  if(tracer) then
+       particle_data_width=particle_data_width+4*ndim
+  end if
 
 #ifdef OUTPUT_PARTICLE_POTENTIAL
   particle_data_width=particle_data_width+1
@@ -1131,7 +1134,28 @@ subroutine fill_comm(ind_part,ind_com,ind_list,np,ilevel,icpu)
      end do
   end do
 
-  current_property = twondim+1
+  if(tracer) then
+     ! Gather particle tracer arrays
+   do idim=1,ndim
+     do i=1,np
+#ifdef LIGHT_MPI_COMM
+        reception(icpu,ilevel)%pcomm%f8(idim+2*ndim,ind_com(i))=vp_grav(ind_part(i),idim)
+        reception(icpu,ilevel)%pcomm%f8(idim+3*ndim,ind_com(i))=vp_prev(ind_part(i),idim)
+        reception(icpu,ilevel)%pcomm%f8(idim+4*ndim,ind_com(i))=vp_init(ind_part(i),idim)
+        reception(icpu,ilevel)%pcomm%f8(idim+5*ndim,ind_com(i))=ap_grav(ind_part(i),idim)
+#else
+        reception(icpu,ilevel)%up(ind_com(i),idim+2*ndim)=vp_grav(ind_part(i),idim)
+        reception(icpu,ilevel)%up(ind_com(i),idim+3*ndim)=vp_prev(ind_part(i),idim)
+        reception(icpu,ilevel)%up(ind_com(i),idim+4*ndim)=vp_init(ind_part(i),idim)
+        reception(icpu,ilevel)%up(ind_com(i),idim+5*ndim)=ap_grav(ind_part(i),idim)
+#endif
+       end do
+    end do
+      current_property = 6*ndim+1
+   else
+      current_property = twondim+1
+   end if
+
   ! Gather particle mass
   do i=1,np
 #ifdef LIGHT_MPI_COMM
@@ -1287,6 +1311,29 @@ subroutine empty_comm(ind_com,np,ilevel,icpu)
 
   current_property = twondim+1
 
+  if(tracer) then
+   ! Scatter tracer arrays
+   do idim=1,ndim
+     do i=1,np
+#ifdef LIGHT_MPI_COMM
+        vp_grav(ind_part(i),idim)=emission_part(ilevel)%u(idim+2*ndim,offset_np+ind_com(i)-1)
+        vp_prev(ind_part(i),idim)=emission_part(ilevel)%u(idim+3*ndim,offset_np+ind_com(i)-1)
+        vp_init(ind_part(i),idim)=emission_part(ilevel)%u(idim+4*ndim,offset_np+ind_com(i)-1)
+        ap_grav(ind_part(i),idim)=emission_part(ilevel)%u(idim+5*ndim,offset_np+ind_com(i)-1)
+#else
+         vp_grav(ind_part(i),idim)=emission(icpu,ilevel)%up(ind_com(i),idim+2*ndim)
+         vp_prev(ind_part(i),idim)=emission(icpu,ilevel)%up(ind_com(i),idim+3*ndim)
+         vp_init(ind_part(i),idim)=emission(icpu,ilevel)%up(ind_com(i),idim+4*ndim)
+         ap_grav(ind_part(i),idim)=emission(icpu,ilevel)%up(ind_com(i),idim+5*ndim)
+#endif
+      end do
+   end do
+      current_property = 6*ndim+1
+   else
+      current_property = twondim+1
+   end if
+
+
   ! Scatter particle mass
   do i=1,np
 #ifdef LIGHT_MPI_COMM
@@ -1352,6 +1399,8 @@ subroutine empty_comm(ind_com,np,ilevel,icpu)
 #endif
      end do
   end if
+
+  ! TODO: other arrays
 
 end subroutine empty_comm
 !################################################################

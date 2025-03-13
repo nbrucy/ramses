@@ -465,6 +465,18 @@ subroutine move1(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
   do j = 1, np
      classical_tracer(j) = is_gas_tracer(typep(ind_part(j)))
   end do
+
+  ! Store old velocity
+  do idim=1,ndim
+   do j=1,np
+      if (classical_tracer(j)) then
+         vp_prev(ind_part(j),idim)=vp(ind_part(j),idim)
+         new_vp(j,idim)=0.0D0
+      end if
+   end do
+  end do
+
+
   ! Gather 3-force
   ff(1:np,1:ndim)=0.0D0
   if(tracer.and.hydro)then
@@ -472,7 +484,7 @@ subroutine move1(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
         do idim=1,ndim
            do j=1,np
               if (classical_tracer(j)) then
-                 ff(j,idim)=ff(j,idim) + &
+               new_vp(j,idim)=new_vp(j,idim) + &
                       uold(indp(j,ind),idim+1)/max(uold(indp(j,ind),1),smallr)*vol(j,ind)
               end if
            end do
@@ -483,9 +495,7 @@ subroutine move1(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
      do ind=1,twotondim
         do idim=1,ndim
            do j=1,np
-              if (.not. classical_tracer(j)) then
               ff(j,idim)=ff(j,idim)+f(indp(j,ind),idim)*vol(j,ind)
-              end if
            end do
         end do
 #ifdef OUTPUT_PARTICLE_POTENTIAL
@@ -505,7 +515,8 @@ subroutine move1(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
      else
         do j=1,np
            if (classical_tracer(j)) then
-              new_vp(j,idim)=ff(j,idim)
+              ap_grav(ind_part(j), idim)=ff(j,idim)
+              vp_grav(ind_part(j), idim)= vp_grav(ind_part(j), idim) + ff(j,idim)*0.5D0*dtnew(ilevel)
            else
               new_vp(j,idim)=vp(ind_part(j),idim)+ff(j,idim)*0.5D0*dtnew(ilevel)
            end if
