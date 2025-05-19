@@ -235,7 +235,7 @@ recursive subroutine amr_step(ilevel,icount)
                                call timer('poisson','start')
 
      ! Remove gravity source term with half time step and old force
-     if(hydro)then
+     if(hydro .and. .not. no_gravity_kick)then
         call synchro_hydro_fine(ilevel,-0.5*dtnew(ilevel),1)
      endif
 
@@ -267,9 +267,8 @@ recursive subroutine amr_step(ilevel,icount)
 
      if(hydro)then
                                call timer('poisson','start')
-
         ! Add gravity source term with half time step and new force
-        call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel),1)
+        if(.not. no_gravity_kick)call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel),1)
 
         ! Update boundaries
         do ivar=1,nvar_all
@@ -396,8 +395,8 @@ recursive subroutine amr_step(ilevel,icount)
      endif
 
      ! Add gravity source terms to unew
-     if(poisson)then
-        call add_gravity_source_terms(ilevel)
+     if(poisson .and. .not. no_gravity_kick)then
+         call add_gravity_source_terms(ilevel)
      end if
 
      ! Add non conservative pdV terms to unew
@@ -413,7 +412,7 @@ recursive subroutine amr_step(ilevel,icount)
      ! Add gravity source term with half time step and old force
      ! in order to complete the time step
                                call timer('poisson','start')
-     if(poisson)call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel),1)
+     if(poisson .and. .not. no_gravity_kick)call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel),1)
 
 #if USE_TURB==1
      ! Compute turbulent forcing

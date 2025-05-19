@@ -642,7 +642,7 @@ subroutine read_poisson_params(namelist_unit,nml_ok)
    integer::nml_err
 
    namelist/poisson_params/epsilon,gravity_type,gravity_params &
-   & ,cg_levelmin,cic_levelmax
+   & ,cg_levelmin,cic_levelmax,no_gravity_kick
 
    ! Go to the beginning of the file
    rewind(namelist_unit)
