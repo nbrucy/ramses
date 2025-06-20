@@ -340,13 +340,13 @@ recursive subroutine amr_step(ilevel,icount)
         dtnew(ilevel+1)=dtnew(ilevel)/dble(nsubcycle(ilevel))
         call update_time(ilevel)
 #if NDIM==3
-        if(sink)call update_sink(ilevel)
+        if(sink .and. .not. static_sink) call update_sink(ilevel)
 #endif
      end if
   else
      call update_time(ilevel)
 #if NDIM==3
-     if(sink)call update_sink(ilevel)
+     if(sink .and. .not. static_sink) call update_sink(ilevel)
 #endif
   end if
 

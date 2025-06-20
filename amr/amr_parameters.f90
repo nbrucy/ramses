@@ -69,6 +69,8 @@ module amr_parameters
   logical::static_dm=.false.  ! Static mode for dm only activated
   logical::static_gas=.false. ! Static mode for gas only activated
   logical::static_stars=.false.! Static mode for stars only activated
+  logical::static_sink=.false. ! Static mode for sink only activated
+
   logical::tracer  =.false.   ! Tracer particles activated
   logical::MC_tracer = .false.! Use Monte Carlo tracer particle (https://arxiv.org/abs/1810.11401)
   logical::lightcone=.false.  ! Enable lightcone generation

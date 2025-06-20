@@ -32,4 +32,5 @@ More thorough explanations will be given in dedicated sections of the wiki.
 | `static=.false.`            |  `logical`    | Activate full static mode (RT post processing) |
 | `static_dm=.false.`            |  `logical`    | Activate static mode for DM particles only (isolated initial conditions relaxation) |
 | `static_stars=.false.`            |  `logical`    | Activate static mode for star particles only (isolated initial conditions relaxation) |
+| `static_sink=.false.`            |  `logical`    | Activate static mode for sink particles only |
 | `remap_pscalar=ndim+3,ndim+4,...,nvar`            |  `integer array`    | Mapping for the passive scalars and non-thermal pressures. Value indicates in which variable the scalar from the restart should be loaded. [0 = ignore this scalar in the restart output, -N = do not read but initialise ivar=N to 0, N = read and initialise ivar=N from the restart output]. For example `remap_pscalar=-6,0,7,8,9` translates to: do not read first restart var but initialise ivar=6 to 0, skip second restart var, read ivar=[8,9,10] from the restart snapshot and store it in the current ivar=[7,8,9].|
