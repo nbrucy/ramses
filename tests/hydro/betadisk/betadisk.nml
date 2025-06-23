@@ -1,0 +1,87 @@
+
+&RUN_PARAMS
+hydro=.true.
+poisson=.true.
+ncontrol=1
+nrestart=0
+nremap=0
+nsubcycle=10*2
+verbose=.false.
+sink=.true.
+pic=.true.
+clumpfind=.false.
+static_sink=.true.
+/
+
+&SINK_PARAMS
+nsinkmax=2
+create_sinks=.false.
+mass_sink_direct_force=0.
+sink_soft=4. ! 32
+mass_sink_seed=1
+/
+
+&AMR_PARAMS
+levelmin=7
+levelmax=8
+ngridtot=4000000
+nparttot=20000
+nexpand=1
+boxlen=2.
+/
+
+&INIT_PARAMS
+condinit_kind="disk"
+/
+
+&OUTPUT_PARAMS
+noutput=1
+tout=0.05
+/
+
+&POISSON_PARAMS 
+gravity_type=0
+gravity_params=1.,0.0005,1.,1.,1.
+/
+
+&HYDRO_PARAMS
+gamma=1.66666667
+courant_factor=0.8
+slope_type=1
+scheme='muscl'
+riemann='hllc'
+smallr=1.d-5
+rho_floor=.true.
+/
+
+&REFINE_PARAMS
+jeans_refine=20.,40.,2*80.,2*20.,10.
+interpol_var=1
+interpol_type=1
+/
+
+&BOUNDARY_PARAMS ! flowthrough
+nboundary = 6
+ibound_min= 0, 0,-1,+1,-1,-1
+ibound_max= 0, 0,-1,+1,+1,+1
+jbound_min=-1,+1,-1,-1,-1,-1
+jbound_max=-1,+1,+1,+1,+1,+1
+kbound_min= 0, 0, 0, 0,-1,+1
+kbound_max= 0, 0, 0, 0,-1,+1
+bound_type= 2, 2, 2, 2, 2, 2
+special_boundary_kind="disk"
+/
+
+&DISK_PARAMS
+contrast_factor=1000.
+temper_iso=0.04
+temper_expo=0.5 ! 0=isothermal, 0.5=merubate, 1.=Hennebelle
+disk_density=6.35
+disk_beta_cooling=.true.
+disk_beta_cool=10.
+disk_radius=0.25
+radius_min_factor=0.1
+radius_max_factor=3.
+merubate=.true.
+inner_iso_z_flaring=1.
+/
