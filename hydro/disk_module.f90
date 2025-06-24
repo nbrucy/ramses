@@ -5,19 +5,21 @@ module disk_module
     !================================================================
   
     ! Protostellar disks
-    real(dp) :: disk_radius         = 0.25   ! Radius of the disk
-    real(dp) :: disk_density        = 1.0    ! Disk density at the limit of the disk
-    real(dp) :: temper_iso          = 0.1    ! Sound velocity at the limit of the disk
+    real(dp) :: disk_radius         = 0.25   ! Reference radius of the disk
+    real(dp) :: disk_density        = 1.0    ! Disk density at the reference radius
+    real(dp) :: temper_iso          = 0.1    ! Sound velocity at the reference radius
     real(dp) :: temper_expo         = 1.0    ! Exponent used in local isothermal profile
     real(dp) :: radius_min_factor   = 0.1    ! Radius of the inner isothermal zone
     real(dp) :: contrast_factor     = 1000.  ! magnitude between the disk and the rest of the simulation
+    real(dp) :: contrast_radius     = 1.0    ! Where the contrast factor is applied, in units of disk_radius
     real(dp) :: inner_iso_z_flaring = 1.0    ! Flaring of the inner isothermal zone in z to prevent resolution effects
-    real(dp) :: radius_max_factor   = 3    ! Outer limit of the simulation
+    real(dp) :: radius_max_factor   = 3      ! Outer limit of the simulation
     real(dp) :: alpha               = 0
     !real(dp) :: gravity_threshold_factor = 1. ! Cell with a density under gravity_threshold_factor * smallr will not undergo gravity kick
     logical  :: disk_beta_cooling       = .false. ! Disk cooling with cooling timae proportional to angular speed
     real(dp) :: disk_beta_cool           = 10.     ! tcool = disk_beta_cool / omega
     logical  :: merubate           = .false.  ! whether to use Meru & Bate initial setup
+    logical  :: baehr              = .false.  ! whether to use Baehr et al. initial setup
     logical :: disk_local_isothermal = .false. ! Use local isothermal eos (only compatible with disk IC) 
   
 end module disk_module
@@ -32,8 +34,8 @@ subroutine read_disk_params()
     ! Namelist definitions
     !--------------------------------------------------
     namelist/disk_params/disk_radius, disk_density, temper_iso, temper_expo, radius_min_factor &
-    &, contrast_factor, inner_iso_z_flaring, radius_max_factor, alpha &
-    &, merubate, disk_local_isothermal, disk_beta_cooling, disk_beta_cool
+    &, contrast_factor, contrast_radius, inner_iso_z_flaring, radius_max_factor, alpha &
+    &, merubate, baehr, disk_local_isothermal, disk_beta_cooling, disk_beta_cool
 
   
     ! Read namelist file
@@ -44,6 +46,15 @@ subroutine read_disk_params()
     if(myid==1)write(*,*)'You did not set up DISK_PARAMS in the namelist file'
     if(myid==1)write(*,*)'Using default values '
 112 rewind(1)  
+
+   if (merubate .and. baehr) then
+      if (myid == 1) write(*,*) 'You cannot use both Meru & Bate and Baehr et al. initial conditions at the same time.'
+      stop
+   end if
+   if (merubate .and. temper_expo /= 0.5) then
+      if (myid == 1) write(*,*) 'You cannot use Meru & Bate initial conditions with temper_expo /= 0.5.'
+      stop
+   end if
 end subroutine read_disk_params
 
 
@@ -106,8 +117,6 @@ subroutine disk_boundary(ilevel)
     ! Outer limit of the disk
     r0 = disk_radius
   
-
-  
     if(numbtot(1,ilevel)==0)return
   
     ! Mesh size at level ilevel in coarse cell units
@@ -166,15 +175,14 @@ subroutine disk_boundary(ilevel)
              end do
           end do
   
-  
-  
+
           do i=1,ngrid
   
              ! shift coordinate system
              xx = x(i,1) - x0
              yy = x(i,2) - y0
 #if NDIM>2
-            zz = x(i,3) - z0
+             zz = x(i,3) - z0
 #endif
   
              ! cylindrical radius
@@ -191,11 +199,9 @@ subroutine disk_boundary(ilevel)
 #else
              rin = r0*radius_min_factor
 #endif
-     
-             
 
              ! Reinitialize the density for the internal and external border (cylindrical)
-             if (rc < r0*radius_min_factor .or. rc > r0*radius_max_factor .or. abs(zz) > 0.45 * boxlen) then
+             if (rc > r0*radius_max_factor .or. abs(zz) > 0.45 * boxlen) then
   
                 ! sound velocity
                 if (rc_soft > rin) then
@@ -206,13 +212,15 @@ subroutine disk_boundary(ilevel)
 #if NDIM>2
                 if (merubate) then
                     density = d0 * (r0 / rc_soft)**((temper_expo - 5.)/ 2.) * exp((mass/cs**2)*(1./rs_soft - 1./rc_soft))
+                else if (baehr) then
+                     density = d0 * (r0 / rc_soft)**(3) * exp((mass/cs**2)*(1./rs_soft - 1./rc_soft))
                 else
                     density = d0 * (r0 / rc_soft)**(3 - temper_expo/2.) * exp((mass/cs**2)*(1./rs_soft - 1./rc_soft))
                 end if
 #else
                 density  = d0 * (rc_soft / r0)**(-1/2.) 
 #endif
-                if(rc_soft > r0 .or. abs(zz) > 0.5 * r0) then
+                if(rc_soft > r0 * contrast_radius .or. abs(zz) > 0.5 * r0 * contrast_radius) then
                     density = density / contrast_factor
                 end if
                 density = max(density, smallr)
@@ -283,8 +291,8 @@ subroutine disk_boundary(ilevel)
    real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2
    integer::i, idim
    real(dp):: x0, y0, z0, xx, yy, zz=0, cs, omega, ur, xx_soft, yy_soft
-   real(dp):: rc, rc_soft, rs,  rs_soft
-   real(dp):: mass, emass, r0, cs0, d0, d, rin, ekin, eint
+   real(dp):: rc, rc_soft, rs,  rs_soft, H
+   real(dp):: mass, emass, r0, cs0, d0, density, rin, ekin, eint
  
  
    ! Position of the point mass
@@ -345,22 +353,25 @@ subroutine disk_boundary(ilevel)
       ! is inversely proportional to rc
 #if NDIM>2
       if (merubate) then
-         d = d0 * (r0 / rc_soft)**((temper_expo - 5.)/ 2.) * exp((mass/cs**2)*(1./rs_soft - 1./rc_soft))
+         density = d0 * (r0 / rc_soft)**((temper_expo - 5.)/ 2.) * exp((mass/cs**2)*(1./rs_soft - 1./rc_soft))
+      else if (baehr) then
+         H = 0.1 * rc_soft
+         density = d0 * (r0 / rc_soft)**(3) * exp(-0.5 * zz**2 / H**2)
       else
-         d = d0 * (r0 / rc_soft)**(3 - temper_expo/2.) * exp((mass/cs**2)*(1./rs_soft - 1./rc_soft))
+         density = d0 * (r0 / rc_soft)**(3 - temper_expo/2.) * exp((mass/cs**2)*(1./rs_soft - 1./rc_soft))
       end if
 #else
-      ! Here d is the column density
-      d = d0 * (rc_soft / r0)**(-1/2.) 
+      ! Here density is the column density
+      density = d0 * (rc_soft / r0)**(-1/2.) 
 #endif
  
  
-      if(rc_soft > r0 .or. abs(zz) > 0.5 * r0) then
-           d = d / contrast_factor
+      if(rc_soft > r0 * contrast_radius .or. abs(zz) > 0.5 * r0 * contrast_radius) then
+         density = density / contrast_factor
       end if
  
-      d = max(d, smallr)
-      q(i, 1) = d
+      density = max(density, smallr)
+      q(i, 1) = density
  
       ! angular velocity
 #if NDIM>2
