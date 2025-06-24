@@ -23,11 +23,11 @@ mass_sink_seed=1
 
 &AMR_PARAMS
 levelmin=7
-levelmax=8
-ngridtot=4000000
-nparttot=20000
+levelmax=10
+ngridmax=800000 ! 8000000
+npartmax=20000
 nexpand=1
-boxlen=2.
+boxlen=12.
 /
 
 &INIT_PARAMS
@@ -35,13 +35,13 @@ condinit_kind="disk"
 /
 
 &OUTPUT_PARAMS
-noutput=1
-tout=0.05
+tend=20
+delta_tout=0.05
 /
 
 &POISSON_PARAMS 
 gravity_type=0
-gravity_params=1.,0.0005,1.,1.,1.
+gravity_params=1.,0.0005,6.,6.,6.
 /
 
 &HYDRO_PARAMS
@@ -74,14 +74,15 @@ special_boundary_kind="disk"
 
 &DISK_PARAMS
 contrast_factor=1000.
-temper_iso=0.04
-temper_expo=0.5 ! 0=isothermal, 0.5=merubate, 1.=Hennebelle
-disk_density=6.35
+contrast_radius=3.
+temper_iso=0.01
+temper_expo=1 ! 0=isothermal, 0.5=merubate, 1.=Hennebelle
+disk_density=0.09070519419177281
 disk_beta_cooling=.true.
 disk_beta_cool=10.
-disk_radius=0.25
+disk_radius=1.
 radius_min_factor=0.1
-radius_max_factor=3.
-merubate=.true.
+radius_max_factor=5.
+baehr=.true.
 inner_iso_z_flaring=1.
 /
