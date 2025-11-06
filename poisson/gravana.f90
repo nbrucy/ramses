@@ -43,7 +43,7 @@ subroutine gravana(x,f,dx,ncell)
      xmass=gravity_params(3) ! Point mass coordinates
      ymass=gravity_params(4)
      zmass=gravity_params(5)
-     if (cubic_spline_kernel == .true.) then! soft. potential never reduces to newtonian. RMR 29/10/2024
+     if (cubic_spline_kernel) then! soft. potential never reduces to newtonian. RMR 29/10/2024
         rsoft = disk_radius*inner_boundary
         do i=1,ncell
            rx=0.0d0; ry=0.0d0; rz=0.0d0
@@ -148,7 +148,7 @@ subroutine gravana(x,f,dx,ncell)
      xmass2 = xmass + radius2 * cos(omega * t)
      ymass2 = ymass + radius2 * sin(omega * t)
      zmass2 = zmass
-     if (cubic_spline_kernel == .true.) then! soft. potential never reduces to newtonian. RMR 29/10/2024
+     if (cubic_spline_kernel) then! soft. potential never reduces to newtonian. RMR 29/10/2024
         rsoft = disk_radius*inner_boundary
         do i=1,ncell
            rx=0.0d0; ry=0.0d0; rz=0.0d0
@@ -254,7 +254,7 @@ subroutine gravana(x,f,dx,ncell)
          ymass2 = ymass + fact2 * separation * sin(omega * t)
          zmass2 = zmass
 
-     if (cubic_spline_kernel == .true.) then! soft. potential never reduces to newtonian. RMR 29/10/2024
+     if (cubic_spline_kernel) then! soft. potential never reduces to newtonian. RMR 29/10/2024
         rsoft = disk_radius*inner_boundary
         do i=1,ncell
            rx=0.0d0; ry=0.0d0; rz=0.0d0

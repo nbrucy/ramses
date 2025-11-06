@@ -163,12 +163,12 @@ subroutine boundary_disk(ilevel)
                density = d0*(rc_soft/r0)**(-1/2.)
                ! density
                u0(1) = density
-               if (cubic_spline_kernel == .true.) then 
+               if (cubic_spline_kernel) then 
                   if (emass > 0.) then
                      write(*,*) 'Error: softening AND cubic spline potential; pick one'
                      call clean_stop
                   endif
-                  rsoft_cub = r0*inner_boundary !keyword for the cubic spline softening =/= rc_soft ! /!\
+                  rsoft_cub = r0*inner_boundary !keyword for the cubic spline softening =/= rc_soft
                   if (rc < r0*inner_boundary*0.5) then
                      fgrav = mass*(32./3.*rc/rsoft_cub**3. -192./5.*rc**3./rsoft_cub**5.+ 32.*rc**4./rsoft_cub**6.)
                   else if (rc < r0*inner_boundary) then

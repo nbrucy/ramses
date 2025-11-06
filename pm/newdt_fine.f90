@@ -2,7 +2,8 @@ subroutine newdt_fine(ilevel)
   use pm_commons
   use amr_commons
   use hydro_commons
-  use poisson_commons, ONLY: gravity_type
+  use poisson_commons
+  use disk_module
 #ifdef RT
   use rt_parameters, ONLY: rt_advect, rt_nsubcycle
 #endif
@@ -24,6 +25,8 @@ subroutine newdt_fine(ilevel)
   ! 4- maximum step time for ATON
   ! This routine also computes the particle kinetic energy.
   !-----------------------------------------------------------
+  integer::i,ind,iskip, iskip_son
+  integer::ncache,ngrid
   integer::igrid,jgrid,ipart,jpart
   integer::npart1,ip,isink,idim
   integer,dimension(1:nvector),save::ind_part
@@ -37,7 +40,15 @@ subroutine newdt_fine(ilevel)
 #ifdef RT
   real(dp)::dt_rt
 #endif
-
+  integer ,dimension(1:nvector),save::ind_grid,ind_cell
+  real(dp):: dt_visc, dt_visc_prueba, mu_viscosity
+  real(dp):: x0, y0, z0, xx, yy, xx1, yy1, xx2, yy2, cs, gmass, gmass2, emass
+  real(dp):: fact1, fact2, xmass1, ymass1, zmass1, xmass2, ymass2, zmass2, separation, omega
+  real(dp):: rc_soft, rm1, rm2, rm1_soft, rm2_soft, rm, rc
+  real(dp),dimension(1:nvector,1:ndim),save::x,dd,dg
+  real(dp),dimension(1:twotondim,1:3)::xc
+  real(dp),dimension(1:3)::skip_loc
+  
   logical :: ok
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
@@ -114,6 +125,144 @@ subroutine newdt_fine(ilevel)
      dtnew(ilevel) = min(dtnew(ilevel), turb_dt)
   end if
 #endif
+
+  ! Maximum time step from viscosity  
+  dx=0.5d0**ilevel 
+  nx_loc=dble(icoarse_max-icoarse_min+1)
+  scale=boxlen/nx_loc
+  dx_loc=dx*scale
+  
+  select case (viscosity_kind)
+     case('constant_uniform')
+        mu_viscosity = mu_viscosity_constant
+        dt_visc = (dx_loc**2.0)/(4*mu_viscosity)
+     case('alpha') 
+        ! First mass
+        gmass = gravity_params(1)
+        ! Softening coefficient
+        emass = gravity_params(2)
+
+        ! Position of the CoM
+        x0 = gravity_params(3)
+        y0 = gravity_params(4)
+        z0 = gravity_params(5)
+  
+        gmass2 = 0.  ! If gravity_type = 5 (binary), the correct mass is defined.
+ 
+        xmass1 = x0
+        ymass1 = y0 
+        zmass1 = z0
+  
+        xmass2 = 0.
+        ymass2 = 0.  ! If gravity_type = 5 (binary), the correct position is defined.
+        zmass2 = 0.
+  
+        if (gravity_type == 5) then
+           gmass2 = gravity_params(6)  ! GM of the second point mass
+           separation = gravity_params(7) ! separation between the two point mass
+           omega = sqrt((gmass + gmass2) / separation**3) ! Keplerian rotation speed
+  
+           fact1 = gmass2 / (gmass + gmass2)
+           fact2 = gmass / (gmass + gmass2)
+  
+           xmass1 = x0 - fact1 * separation * cos(omega * t)
+           ymass1 = y0 - fact1 * separation * sin(omega * t)
+           zmass1 = z0
+  
+           xmass2 = x0 + fact2 * separation * cos(omega * t)
+           ymass2 = y0 + fact2 * separation * sin(omega * t)
+           zmass2 = z0
+        end if
+ 
+
+        dt_visc = 0.0
+        ! Loop over myid grids by vector sweeps
+        ncache=active(ilevel)%ngrid
+        do igrid=1,ncache,nvector
+           ! Gather nvector grids
+           ngrid=MIN(nvector,ncache-igrid+1)
+           do i=1,ngrid
+              ind_grid(i)=active(ilevel)%igrid(igrid+i-1)
+           end do
+           ! Compute father cell index
+           do i=1,ngrid
+              ind_cell(i)=father(ind_grid(i))
+           end do
+
+
+        
+           do ind=1,twotondim
+     
+              mu_viscosity = mu_viscosity_constant !!! CORREGIR	
+              ! Gather cell centre positions
+              do idim=1,ndim
+                 do i=1,ngrid
+                    x(i,idim)=xg(ind_grid(i),idim)+xc(ind,idim)
+                 end do
+              end do
+
+              ! Rescale position from code units to user units
+              do idim = 1, ndim
+                 do i = 1, ngrid
+                    x(i, idim) = (x(i, idim) - skip_loc(idim))*scale
+                 end do
+              end do
+         
+              do i = 1,ngrid
+           
+                 ! shift coordinate system
+                 xx = x(i,1) - x0
+                 yy = x(i,2) - y0
+
+                 ! cylindrical radius
+                 rc = sqrt(xx**2 + yy**2)
+              
+                 !omega
+              
+                 !omega = sqrt((gmass + gmass2) / separation**3) 
+                 !omega = sqrt(((gmass +gmass2)/ rc**3 ) 
+                 omega = sqrt(((gmass +gmass2)/ rc**3 ) * (1 - (1.)*h_over_r**2))
+              
+                 ! shift coordinate system for M1
+                 xx1 = x(i,1) - xmass1
+                 yy1 = x(i,2) - ymass1
+            
+                 ! shift coordinate system for M2
+                 xx2 = x(i,1) - xmass2
+                 yy2 = x(i,2) - ymass2
+            
+                 ! cylindrical radii
+            
+                 rm1 = sqrt(xx1**2 + yy1**2)
+                 rm2 = sqrt(xx2**2 + yy2**2)  
+                 rm1_soft = sqrt(xx1**2 + yy1**2 + emass**2)
+                 rm2_soft = sqrt(xx2**2 + yy2**2 + emass**2)  
+            
+            
+                 ! Calculate viscosity
+            
+                 cs = h_over_r * sqrt( (gmass/rm1_soft) + (gmass2/rm2_soft) )         
+
+            
+                 dt_visc_prueba = ((dx_loc**2.0)*omega)/(4*alpha_viscosity*(cs**2.0))   
+            
+                 if((dt_visc_prueba<dt_visc).OR.(dt_visc == 0.0))then
+                    dt_visc = dt_visc_prueba
+                 end if    
+        
+        
+             end do
+          end do
+       end do
+  
+  end select
+ 
+
+
+  if(dt_visc>0d0)then
+     dtnew(ilevel)=MIN(dtnew(ilevel),dt_visc)
+  end if
+
 
   if(pic) then
 

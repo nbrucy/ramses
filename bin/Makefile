@@ -6,7 +6,7 @@
 # Do we want a debug build? 1=Yes, 0=No
 DEBUG = 0
 # Compiler flavor: GNU or INTEL
-COMPILER = INTEL
+COMPILER = GNU
 # Size of vector cache
 NVECTOR = 32
 # Number of dimensions
