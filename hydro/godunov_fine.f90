@@ -493,21 +493,20 @@ subroutine add_viscosity_source_terms(ilevel)
 
    
    implicit none
-   integer::ilevel,levelmax
+   integer::ilevel
    !--------------------------------------------------------------------------
    ! This routine adds to unew the viscosity terms
    ! Only the momentum and the
    ! total energy are modified in array unew.
    !--------------------------------------------------------------------------
-   integer::i,ind,iskip,nx_loc,ix,iy,iz, j, ind2, ind_cell_son, iskip_son
+   integer::i,ind,iskip,nx_loc,ix,iy,iz, j, iskip_son
    integer::ncache,igrid,ngrid,idim,id1,ig1,ih1,id2,ig2,ih2,jdim
    integer,dimension(1:3,1:2,1:8)::iii,jjj
    integer,dimension(1:8)::i3l,j3l, k3l, i3r, j3r, k3r, i3c, j3c, k3c
    real(kind=8)::scale,dx,dx_loc
    real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2
-   logical ,dimension(1:nvector),save::ok
  
-   integer ,dimension(1:nvector),save::ind_grid,ind_cell, ind_part, ind_cellbuffer
+   integer ,dimension(1:nvector),save::ind_grid,ind_cell
    integer ,dimension(1:nvector,0:twondim),save::igridn
    integer ,dimension(1:nvector,1:ndim),save::ind_left,ind_right
    real(dp),dimension(1:nvector,1:ndim,1:ndim),save::vel_left,vel_right
@@ -518,38 +517,34 @@ subroutine add_viscosity_source_terms(ilevel)
    integer ,dimension(1:nvector,1:threetondim),save::nbors_father_cells
    real(dp),dimension(1:nvector,1:ndim),save::den_left,den_right
    real(dp),dimension(1:nvector,1:ndim),save::dx_left,dx_right
-   !real(dp),dimension(1:nvector,1:ndim),save::laplacian_u_loc
    real(dp),dimension(1:nvector,1:ndim),save::laplacian_du_loc
    real(dp) :: mu_viscosity 
    real(dp), dimension(1:ndim) :: vel
    real(dp) :: den
-   real(dp) :: dvel_left, dvel_right ! velocity derivative left and right
    real(dp) :: den_dvel_left, den_dvel_right ! density times velocity derivative left and right
-   real(dp) :: dxleft, dxright, dxf
-   real(dp) :: d=0,u=0,v=0,w=0,du=0,dv=0,dw=0,e_kin=0,e_nokin=0,e_other=0,e_int=0
+   real(dp) :: dxf
+   real(dp) :: d=0,u=0,v=0,w=0,du=0,dv=0,dw=0,e_kin=0,e_nokin=0
 #ifdef SOLVERMHD
    real(dp) :: A,B,C
 #endif
 
-   real(dp),dimension(1:nvector,1:ndim),save::x,dd,dg
+   real(dp),dimension(1:nvector,1:ndim),save::x
    real(dp),dimension(1:twotondim,1:3)::xc
    real(dp),dimension(1:3)::skip_loc
 
    real(dp):: x0, y0, z0, xx, yy, xx1, yy1, xx2, yy2, cs, H, gmass, gmass2, emass
    real(dp):: fact1, fact2, xmass1, ymass1, zmass1, xmass2, ymass2, zmass2, separation, omega
-   real(dp):: rc_soft, rm1, rm2, rm1_soft, rm2_soft, rc, d_IC, pu_IC, pv_IC, pw_IC, ur, omega0, v1r, nu_estimate
-   real(dp),dimension(1:2):: rm1_soft_left, rm1_soft_right, rm2_soft_left, rm2_soft_right
+   real(dp):: rc_soft, rm1, rm2, rm1_soft, rm2_soft, rc
+   real(dp),dimension(1:2):: rm1_soft_left, rm1_soft_right
    real(dp),dimension(1:2):: H_left, H_right, cs_left, cs_right, mu_viscosity_left, mu_viscosity_right
-   logical::error
    
    integer ,dimension(1:nvector,0:twondim         ),save::ibuffer_father
    real(dp),dimension(1:nvector,0:twondim  ,1:nvar),save::u1
    real(dp),dimension(1:nvector,1:twotondim,1:nvar),save::u2
    real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:nvar),save::uloc
-   !real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2),save::dx_diag
    real(dp),dimension(1:nvector,iu1:iu2,ju1:ju2,ku1:ku2,1:ndim),save::x_diag
 
-   integer::i0,j0,k0,i1,j1,k1,i2,j2,k2,i3,j3,k3,nb_noneigh,nexist,nbuffer,ind_son,ind_father,ivar
+   integer::i1,j1,k1,i2,j2,k2,i3,j3,k3,nexist,nbuffer,ind_son,ind_father,ivar
    integer,dimension(1:nvector),save::igrid_nbor,ind_buffer,ind_exist,ind_nexist
    integer::i1min,i1max,j1min,j1max,k1min,k1max
    integer::i2min,i2max,j2min,j2max,k2min,k2max
@@ -767,17 +762,7 @@ subroutine add_viscosity_source_terms(ilevel)
                !do i=1,nexist
                do i=1,ngrid
                   x_diag(i,i3,j3,k3,idim) = (xg(igrid_nbor(i),idim)+xc(ind_son,idim)-skip_loc(idim))*scale
-                  !x_diag(ind_exist(i),i3,j3,k3,idim) = (xg(igrid_nbor(ind_exist(i)),idim)+xc(ind_son,idim)-skip_loc(idim))*scale
-                  !x_diag(ind_exist(i),i3,j3,k3,idim) = (xg(igrid_nbor(ind_exist(i)),idim))*scale
-                  !print *, 'in nexist:', (x_diag(ind_exist(i),i3,j3,k3,idim)-x0), idim
                end do
-               
-               !do i=1,nbuffer
-                  !x_diag(ind_nexist(i),i3,j3,k3,idim) = (xg(nbors_father_cells(ind_nexist(i),ind_father),idim)+xc(ind_father,idim)-skip_loc(idim))*scale
-               !   x_diag(ind_nexist(i),i3,j3,k3,idim) = (xg(igrid_nbor(ind_nexist(i)),idim)+xc(ind_son,idim)-skip_loc(idim))*scale  
-                  !x_diag(ind_nexist(i),i3,j3,k3,idim) = (xg(igrid_nbor(ind_nexist(i)),idim))*scale  
-                  !print *, 'in nbuffer:', (x_diag(ind_exist(i),i3,j3,k3,idim)-x0), idim
-               !end do
             end do
                        
          end do
@@ -853,11 +838,7 @@ subroutine add_viscosity_source_terms(ilevel)
          end do
 
          do i = 1,ngrid
-         
-         
-
-         
-
+   
             den_left(i,1)= max(uloc(i,i3l(ind),j3c(ind),1,1),smallr)
             den_left(i,2)= max(uloc(i,i3c(ind),j3l(ind),1,1),smallr)
             vel_left(i,1,1:ndim)= uloc(i,i3l(ind),j3c(ind),1,2:ndim+1)/max(uloc(i,i3l(ind),j3c(ind),1,1),smallr)
@@ -882,18 +863,14 @@ subroutine add_viscosity_source_terms(ilevel)
             vel_diag(i,2,1,1:ndim) = uloc(i,i3r(ind),j3l(ind),1,2:ndim+1)/max(uloc(i,i3r(ind),j3l(ind),1,1),smallr)
             vel_diag(i,2,2,1:ndim)= uloc(i,i3r(ind),j3r(ind),1,2:ndim+1)/max(uloc(i,i3r(ind),j3r(ind),1,1),smallr) 
  
-                    
-   
             dx_diag(i,1,1) = dx_loc*2.0_dp
             dx_diag(i,2,1) = dx_loc*2.0_dp
             dx_diag(i,1,2) = dx_loc*2.0_dp
             dx_diag(i,2,2) = dx_loc*2.0_dp
-            
-         
                   
          end do
+
 ! Compute the laplacian (I haven't programed the structure for averaging viscosities with neighbors, I hope to do that once the laplacian is working properly)
-          
          laplacian_du_loc(1:ngrid,1:ndim)=0.0d0
          do i = 1,ngrid          
             
@@ -905,12 +882,11 @@ subroutine add_viscosity_source_terms(ilevel)
             den = max(uold(ind_cell(i),1), smallr) ! density of the cell
             vel(1:ndim) = uold(ind_cell(i), 2:ndim+1) / max(uold(ind_cell(i),1), smallr) ! velocity of the cell
  
-           !Viscosity of the cell
+           ! Viscosity of the cell
             select case (viscosity_kind)
                case('constant_uniform')
 
                   mu_viscosity = mu_viscosity_constant
-                  
                   mu_viscosity_left(1) = mu_viscosity_constant
                   mu_viscosity_left(2) = mu_viscosity_constant
                   mu_viscosity_right(1) = mu_viscosity_constant
@@ -939,47 +915,21 @@ subroutine add_viscosity_source_terms(ilevel)
                   rm1_soft_left(2) = sqrt(xx1**2 + (yy1-dx_left(i,2))**2 + emass**2)
                   rm1_soft_right(1) = sqrt((xx1+dx_left(i,1))**2 + yy1**2 + emass**2)
                   rm1_soft_right(2) = sqrt(xx1**2 + (yy1+dx_left(i,2))**2 + emass**2)
-                  
-                  rm2_soft_left(1) = sqrt((xx2-dx_left(i,1))**2 + yy2**2 + emass**2)
-                  rm2_soft_left(2) = sqrt(xx2**2 + (yy2-dx_left(i,2))**2 + emass**2)
-                  rm2_soft_right(1) = sqrt((xx2+dx_left(i,1))**2 + yy2**2 + emass**2)
-                  rm2_soft_right(2) = sqrt(xx2**2 + (yy2+dx_left(i,2))**2 + emass**2)
-                  
-                   
           
                   ! Calculate viscosity
-            
-                  cs = h_over_r * sqrt( (gmass/rm1_soft) + (gmass2/rm2_soft) )
-                  
-                  cs_left(1) = h_over_r * sqrt( (gmass/rm1_soft_left(1)) + (gmass2/rm2_soft_left(1)) ) 
-                  cs_left(2) = h_over_r * sqrt( (gmass/rm1_soft_left(2)) + (gmass2/rm2_soft_left(2)) )
-                  cs_right(1) = h_over_r * sqrt( (gmass/rm1_soft_right(1)) + (gmass2/rm2_soft_right(1)) )
-                  cs_right(2) = h_over_r * sqrt( (gmass/rm1_soft_right(2)) + (gmass2/rm2_soft_right(2)) )
-                  
-                  H = cs/sqrt( (gmass/(rm1_soft**3)) + (gmass2/(rm2_soft**3)) ) 
-                  
-                  H_left(1) = cs_left(1)/sqrt( (gmass/(rm1_soft_left(1)**3)) + (gmass2/(rm2_soft_left(1)**3)) ) 
-                  H_left(2) = cs_left(2)/sqrt( (gmass/(rm1_soft_left(2)**3)) + (gmass2/(rm2_soft_left(2)**3)) ) 
-                  H_right(1) = cs_right(1)/sqrt( (gmass/(rm1_soft_right(1)**3)) + (gmass2/(rm2_soft_right(1)**3)) ) 
-                  H_right(2) = cs_right(2)/sqrt( (gmass/(rm1_soft_right(2)**3)) + (gmass2/(rm2_soft_right(2)**3)) ) 
-                  
-                  
-                  if (gravity_type == 2) then
-                     cs = h_over_r * sqrt( (gmass/rm1_soft) )
-                  
-                     cs_left(1) = h_over_r * sqrt( (gmass/rm1_soft_left(1)) ) 
-                     cs_left(2) = h_over_r * sqrt( (gmass/rm1_soft_left(2)) )
-                     cs_right(1) = h_over_r * sqrt( (gmass/rm1_soft_right(1)) )
-                     cs_right(2) = h_over_r * sqrt( (gmass/rm1_soft_right(2)) )
-                  
-                     H = cs/sqrt( (gmass/(rm1_soft**3)) ) 
-                  
-                     H_left(1) = cs_left(1)/sqrt( (gmass/(rm1_soft_left(1)**3)) ) 
-                     H_left(2) = cs_left(2)/sqrt( (gmass/(rm1_soft_left(2)**3)) ) 
-                     H_right(1) = cs_right(1)/sqrt( (gmass/(rm1_soft_right(1)**3)) ) 
-                     H_right(2) = cs_right(2)/sqrt( (gmass/(rm1_soft_right(2)**3)) ) 
+                  cs = h_over_r * sqrt( (gmass/rm1_soft) )
                
-                  end if
+                  cs_left(1) = h_over_r * sqrt( (gmass/rm1_soft_left(1)) ) 
+                  cs_left(2) = h_over_r * sqrt( (gmass/rm1_soft_left(2)) )
+                  cs_right(1) = h_over_r * sqrt( (gmass/rm1_soft_right(1)) )
+                  cs_right(2) = h_over_r * sqrt( (gmass/rm1_soft_right(2)) )
+               
+                  H = cs/sqrt( (gmass/(rm1_soft**3)) ) 
+               
+                  H_left(1) = cs_left(1)/sqrt( (gmass/(rm1_soft_left(1)**3)) ) 
+                  H_left(2) = cs_left(2)/sqrt( (gmass/(rm1_soft_left(2)**3)) ) 
+                  H_right(1) = cs_right(1)/sqrt( (gmass/(rm1_soft_right(1)**3)) ) 
+                  H_right(2) = cs_right(2)/sqrt( (gmass/(rm1_soft_right(2)**3)) ) 
 
                   mu_viscosity = alpha_viscosity * cs * H
                   
@@ -987,13 +937,10 @@ subroutine add_viscosity_source_terms(ilevel)
                   mu_viscosity_left(2) = alpha_viscosity * cs_left(2) * H_left(2)
                   mu_viscosity_right(1) = alpha_viscosity * cs_right(1) * H_right(1)
                   mu_viscosity_right(2) = alpha_viscosity * cs_right(2) * H_right(2)
-
-                  
-
             end select         
 
          
-            !Add non crossed terms (d_i (sigma nu d_i v_j ))
+            ! Add non crossed terms (d_i (sigma nu d_i v_j ))
             do jdim=1,ndim ! component of the laplacian and the velocity
                do idim=1,ndim ! direction for derivatives                 
 
@@ -1002,33 +949,23 @@ subroutine add_viscosity_source_terms(ilevel)
                   rc = sqrt(xx**2 + yy**2)  
                   rc_soft = sqrt(xx**2 + yy**2 + emass**2)
 
-                  
                   den_dvel_left  =  ( (den+den_left(i,idim))/2.0 ) * (mu_viscosity+mu_viscosity_left(idim))/2.0 * ( ( vel(jdim) - vel_left(i,idim,jdim) )/dx_left(i,idim) )!*(1/2.0)
                   den_dvel_right =  ( (den+den_right(i,idim))/2.0) * (mu_viscosity+mu_viscosity_right(idim))/2.0 * ( (vel_right(i,idim,jdim)-vel(jdim) )/  dx_right(i,idim))!*(1/2.0) 
                   
-       
                   dxf = (dx_left(i,idim)+dx_right(i,idim))/2.0
   
                   laplacian_du_loc(i,jdim) = laplacian_du_loc(i,jdim) + (den_dvel_right - den_dvel_left) /  dxf
 
-
-                   !This is the previous laplacian of u
-                   
-                  !dvel_left  = (vel(jdim) - vel_left(i,idim,jdim)) /  dx_left(i,idim)  ! derivative at the boundary
-                  !dvel_right = (vel_right(i,idim,jdim) - vel(jdim)) /  dx_right(i,idim) 
-                  
-                  !laplacian_du_loc(i,jdim) = laplacian_du_loc(i,jdim) + (den_dvel_right - den_dvel_left) /  dx_loc
-                  !laplacian_u_loc(i,jdim) = laplacian_u_loc(i,jdim) + (vel_left(i,idim,jdim) + vel_right(i,idim,jdim)  - 2 * vel(jdim)) / dx_loc**2 ! for unigrid only
                end do
             end do
 
-         !Add crossed terms to the laplacian
+         ! Add crossed terms to the laplacian
          
          
             den = max(uold(ind_cell(i),1), smallr) ! density of the cell
             vel(1:ndim) = uold(ind_cell(i), 2:ndim+1) / max(uold(ind_cell(i),1), smallr) ! velocity of the cell
                   
-            !Crossed terms d_y (sigma nu d_x v_i )
+            ! Crossed terms d_y (sigma nu d_x v_i )
             
             do idim=1,ndim
             
@@ -1046,13 +983,8 @@ subroutine add_viscosity_source_terms(ilevel)
                laplacian_du_loc(i,3-idim) = laplacian_du_loc(i,3-idim) + ((-1.0)**(idim))*(den_dvel_right - den_dvel_left) / dxf
   
             end do      
-             
-   
-       !     laplacian_du_loc(i,2) = laplacian_du_loc(i,2) - (den_dvel_right - den_dvel_left) /  dx_loc
- 
-            !Crossed terms d_x (sigma nu d_y v_i )
-            
-            
+              
+            ! Crossed terms d_x (sigma nu d_y v_i )          
             do idim=1,ndim
             
                vproml1 = (vel(idim)+vel_left(i,1,idim)+vel_left(i,2,idim)+vel_diag(i,1,1,idim))/4.0   
@@ -1070,18 +1002,11 @@ subroutine add_viscosity_source_terms(ilevel)
    
                laplacian_du_loc(i,3-idim) = laplacian_du_loc(i,3-idim) + ((-1.0)**(idim-1))*(den_dvel_right - den_dvel_left) /  dxf
     
-                     
-            !laplacian_u_loc(i,jdim) = laplacian_u_loc(i,jdim) + (vel_left(i,idim,jdim) + vel_right(i,idim,jdim)  - 2 * vel(jdim)) / dx_loc**2 ! for unigrid only
             end do
-   
-         end do         
-         do i = 1,ngrid 
-           !    laplacian_du_loc(i,1) = laplacian_du_loc(i,1) - (den_dvel_right - den_dvel_left) /  dx_loc
-        
+         end do   
 
-         ! Add viscosity term at time t
-         
-         
+         do i = 1,ngrid         
+         ! Add viscosity term at time t  
             d = max(unew(ind_cell(i),1),smallr)
             u=0.0d0; v=0.0d0; w=0.0d0
             u=unew(ind_cell(i),2)/d
@@ -1113,14 +1038,6 @@ subroutine add_viscosity_source_terms(ilevel)
             
             e_kin = 0.5d0*d*(u**2 + v**2 + w**2)
             unew(ind_cell(i), ndim + 2) = e_nokin + e_kin
-
-            select case (viscosity_kind)
-               case('constant_uniform')
-                  ur = - (3/2.) * mu_viscosity_constant/rm1_soft
-               case('alpha')      
-                  ur = - (3/2.) * alpha_viscosity * cs * h_over_r
-            end select
-      
          end do
 
       end do
