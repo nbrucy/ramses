@@ -85,6 +85,7 @@ subroutine adaptive_loop
      if(verbose)write(*,*)'Entering amr_step_coarse'
 
      epot_tot=0.0D0  ! Reset total potential energy
+     epot_tot_part=0.0D0 ! Reset total particle potential energy
      ekin_tot=0.0D0  ! Reset total kinetic energy
      mass_tot=0.0D0  ! Reset total mass
      eint_tot=0.0D0  ! Reset total internal energy

@@ -99,7 +99,7 @@ subroutine update_time(ilevel)
            ! Output mass and energy conservation to screen
            !----------------------------------------------
            if(cooling.or.pressure_fix)then
-              write(*,778)nstep_coarse,mcons,econs,epot_tot,ekin_tot,eint_tot
+              write(*,778)nstep_coarse,mcons,econs,epot_tot,ekin_tot,eint_tot,epot_tot_part
            else
               write(*,777)nstep_coarse,mcons,econs,epot_tot,ekin_tot
            end if
@@ -118,6 +118,19 @@ subroutine update_time(ilevel)
         end if
         output_done=.false.
      end if
+
+     if(ilevel==levelmin .and. myid==1) then
+      write(*,998) deltaE_Cooling, deltaE_Feedback_SN, deltaE_Gravity_gas, deltaE_SF, deltaE_Flux, deltaE_Gravity_part, deltaE_Flux_part
+  end if
+
+      deltaE_Cooling=0.0d0
+      deltaE_Flux=0.0d0
+      deltaE_Gravity_gas=0.0d0
+      deltaE_Gravity_part=0.0d0
+      deltaE_SF=0.0d0
+      deltaE_Feedback_SN=0.0d0
+      deltaE_Flux_part=0.d0
+
 
      !---------------
      ! Exit program
@@ -197,13 +210,17 @@ subroutine update_time(ilevel)
   end if
 #endif
 
-777 format(' Main step=',i7,' mcons=',1pe9.2,' econs=',1pe9.2, &
-         & ' epot=',1pe9.2,' ekin=',1pe9.2)
-778 format(' Main step=',i7,' mcons=',1pe9.2,' econs=',1pe9.2, &
-         & ' epot=',1pe9.2,' ekin=',1pe9.2,' eint=',1pe9.2)
+777 format(' Main step=',i7,' mcons=',1pe12.5,' econs=',1pe12.5, &
+         & ' epot=',1pe12.5,' ekin=',1pe12.5)
+778 format(' Main step=',i7,' mcons=',1pe12.5,' econs=',1pe12.5, &
+         & ' epot=',1pe12.5,' ekin=',1pe12.5,' eint=',1pe12.5, ' epot_part=',1pe12.5)
 888 format(' Fine step=',i7,' t=',1pe12.5,' dt=',1pe10.3, &
          & ' a=',1pe10.3,' mem=',0pF4.1,'% ',0pF4.1,'%')
 999 format(' Level ',I2,' has ',I10,' grids (',3(I8,','),')')
+
+998 format(' DeltaE_Cooling = ', 1pe12.5, ' DeltaE_Feedback = ', 1pe12.5, &
+& ' DeltaE_Gravity_gas = ' , 1pe12.5,  ' DeltaE_SF = ' , 1pe12.5,  ' DeltaE_Flux = ' , 1pe12.5,  ' DeltaE_Gravity_part = ' , 1pe12.5, ' DeltaE_Flux_part = ',  1pe12.5)
+
 
 end subroutine update_time
 
