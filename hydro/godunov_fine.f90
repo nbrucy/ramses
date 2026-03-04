@@ -840,7 +840,7 @@ subroutine gather_stencil_unigrid(nbors_father_cells,uloc,gloc,req_loc,peq_loc,o
         end if
 
         ! Gather gravitational acceleration
-        if(poisson)then
+        if(poisson .and. .not. no_gravity_kick)then
            do idim=1,ndim
               do i=1,ncache
                  gloc(i,i3,j3,k3,idim)=f(ind_cell(i),idim)

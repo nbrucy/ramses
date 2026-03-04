@@ -641,7 +641,7 @@ subroutine godfine1(ind_grid,ncache,ilevel)
         end do
 
         ! Gather gravitational acceleration
-        if(poisson)then
+        if(poisson .and. .not. no_gravity_kick)then
            do idim=1,ndim
               do i=1,nexist
                  gloc(ind_exist(i),i3,j3,k3,idim)=f(ind_cell(i),idim)
