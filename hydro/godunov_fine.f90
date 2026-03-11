@@ -769,11 +769,11 @@ subroutine add_viscosity_source_terms(ilevel)
 
 
             ! first derivative on the cell faces
-            den_dvel_left  =  ((den + den_left(i,idim)) / 2.0 ) * (nu_viscosity + nu_viscosity_left(idim)) / 2.0 * ((vel(jdim) - vel_left ) / dx_loc )
-            den_dvel_right =  ((den + den_right(i,idim)) / 2.0) * (nu_viscosity + nu_viscosity_right(idim)) / 2.0 * ((vel_right - vel(jdim) ) /  dx_loc)
+            den_dvel_left  =  ((den + den_left(i,idim)) / 2.0 ) * (nu_viscosity + nu_viscosity_left(idim)) / 2.0 * ((vel(jdim) - vel_left ) / (2* dx_loc))
+            den_dvel_right =  ((den + den_right(i,idim)) / 2.0) * (nu_viscosity + nu_viscosity_right(idim)) / 2.0 * ((vel_right - vel(jdim) ) /  (2* dx_loc))
 
             ! second derivative at the cell center
-            viscosity_term(i, jdim) = viscosity_term(i, jdim) +  (den_dvel_right - den_dvel_left) / dx_loc
+            viscosity_term(i, jdim) = viscosity_term(i, jdim) +  (den_dvel_right - den_dvel_left) / (2* dx_loc)
           end do
         end do
 
@@ -801,12 +801,12 @@ subroutine add_viscosity_source_terms(ilevel)
                 v_iright_jbottom = (vel_neigh(i,   e(1, jdim),   e(2, jdim),   e(3, jdim), idim) + vel_neigh(i,   e(1, idim) + e(1, jdim),   e(2, idim) + e(2, jdim),   e(3, idim) + e(3, jdim), idim))/4.0
               end if
               ! First derivative of the velocity at the left and right faces in the direction jdim
-              ! The derivative on the left is computed as the difference between the top-left and bottom-left values divided by the distance between them, which is dx_loc
-              den_dvel_left = ((den + den_left(i, idim))/2.0)*(nu_viscosity + nu_viscosity_left(idim))/2.0*((v_ileft_jbottom - v_ileft_jtop)/dx_loc)
-              den_dvel_right = ((den + den_right(i, idim))/2.0)*(nu_viscosity + nu_viscosity_right(idim))/2.0*((v_iright_jbottom - v_iright_jtop)/dx_loc)
+              ! The derivative on the left is computed as the difference between the top-left and bottom-left values divided by the distance between them
+              den_dvel_left = ((den + den_left(i, idim))/2.0)*(nu_viscosity + nu_viscosity_left(idim))/2.0*((v_ileft_jbottom - v_ileft_jtop)/(2* dx_loc))
+              den_dvel_right = ((den + den_right(i, idim))/2.0)*(nu_viscosity + nu_viscosity_right(idim))/2.0*((v_iright_jbottom - v_iright_jtop)/(2* dx_loc))
 
               ! Second derivative at the cell center
-              viscosity_term(i, jdim) = viscosity_term(i, jdim) + (den_dvel_right - den_dvel_left) / dx_loc
+              viscosity_term(i, jdim) = viscosity_term(i, jdim) + (den_dvel_right - den_dvel_left) / (2* dx_loc)
           end do
         end do
 
@@ -830,11 +830,11 @@ subroutine add_viscosity_source_terms(ilevel)
               end if
 
               ! rho nu  d_j v_j
-              den_dvel_left = ((den + den_left(i, idim))/2.0)*(nu_viscosity + nu_viscosity_left(idim))/2.0*((v_ileft_jbottom - v_ileft_jtop)/dx_loc)
-              den_dvel_right = ((den + den_right(i, idim))/2.0)*(nu_viscosity + nu_viscosity_right(idim))/2.0*((v_iright_jbottom - v_iright_jtop)/dx_loc)
+              den_dvel_left = ((den + den_left(i, idim))/2.0)*(nu_viscosity + nu_viscosity_left(idim))/2.0*((v_ileft_jbottom - v_ileft_jtop)/(2* dx_loc))
+              den_dvel_right = ((den + den_right(i, idim))/2.0)*(nu_viscosity + nu_viscosity_right(idim))/2.0*((v_iright_jbottom - v_iright_jtop)/(2* dx_loc))
 
               !  - (2/ndim) d_i rho nu d_j v_j
-              viscosity_term(i, idim) = viscosity_term(i, idim) - (2.0/ndim)*(den_dvel_right - den_dvel_left) / dx_loc
+              viscosity_term(i, idim) = viscosity_term(i, idim) - (2.0/ndim)*(den_dvel_right - den_dvel_left) / (2* dx_loc)
           end do
         end do
 
