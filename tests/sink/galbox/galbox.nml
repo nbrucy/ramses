@@ -1,0 +1,155 @@
+&RUN_PARAMS
+hydro=.true.
+nrestart=0
+nremap=50
+nsubcycle=1,1,1,1
+rt=.true.
+poisson=.true.
+pic=.true.
+sink=.true.
+clumpfind=.true.
+stellar=.true.
+/
+
+&INIT_PARAMS
+condinit_kind='galbox'
+/
+
+&GALBOX_PARAMS
+turb=7       ! in km/s
+dens0=10      ! in H_cc
+height0=150  ! in pc
+bx=0.3d0     ! in units of WNM B, 0.5 = 3 micro Gauss ?
+by=0         ! in units of WNM B
+bz=0         ! in units of WNM B
+/
+
+&AMR_PARAMS
+levelmin=6
+levelmax=7
+ngridmax=2000000
+npartmax=1000000
+nexpand=20*6
+boxlen=1000
+/
+
+&REFINE_PARAMS
+!--- prevent refinement at the z-boundary
+x_refine=20*500.  ! center of refined region
+y_refine=20*500.
+z_refine=20*500.
+r_refine=20*1000. ! diameter of refined region
+b_refine=20*0.95  ! ratio Z/X of refined region
+exp_refine=20*10  ! exponent of the norm, 
+!---
+m_refine=1,1,1d10,1d10,1d10,1d10,1d10,1d10,1d10,1d10
+sink_refine=.false.
+interpol_type=0
+interpol_var=1
+jeans_refine=10,10
+/
+
+&BOUNDARY_PARAMS
+!use_boundary_frig=.true.
+no_inflow=.true.
+/
+
+&OUTPUT_PARAMS
+noutput=1
+tout=0.12426394105724184 ! 10 Myr
+/
+
+&UNITS_PARAMS
+units_density = 2.3247434d-24 ! mu * 1.66e-24, where mu = 1.4
+units_time = 2.5395079d15 ! 1/sqrt(G * units_density)
+units_length = 3.08568d18 ! 1 pc in cm
+/
+
+&POISSON_PARAMS
+gravity_type=-1 !-1 = self-gravity + vertical galactic potential
+gravity_params=1.42d-3, 5.49d-4, 0.18d3 ! a1, a2, z0
+/
+
+&HYDRO_PARAMS
+pressure_fix=.true.
+gamma=1.6666667
+courant_factor=0.5
+slope_type=1
+riemann='hlld'
+riemann2d='hlld'
+smallr=1d-4
+!rho_floor=.true.
+allow_switch_solver=.true.
+allow_switch_solver2D=.true.
+switch_solv_B=100
+switch_solv_dens=3
+/
+
+&RT_PARAMS
+isH2=.true.
+!h2_frig=.true.
+rt_sink=.true.
+X=0.76d0
+Y=0.24d0
+rt_output_coolstats=.true.
+rt_flux_scheme='glf'
+rt_smooth=.true.
+rt_courant_factor=0.8           ! courant number for RT timesteps
+rt_c_fraction=1d-4            ! fraction of actual lightspeed set to RT lightspeed
+rt_otsa=.false.                                                                 ! no OTSA
+/
+
+&RT_GROUPS                      ! Photon group properties (BB at 10^5 K)
+groupL0 = 11.2,  13.60, 24.59, 54.42,
+groupL1 = 13.60, 24.59, 54.42, 0.0,
+group_csn(1,:)= 2.1d-19,     0.0,         0., 0.
+group_cse(1,:)= 2.1d-19,     0.0,         0., 0.
+group_csn(2,:)= 5.0d-18, 3.6d-18, 7.6280E-22, 0.
+group_cse(2,:)= 5.3d-18, 3.4d-18, 1.1054E-21, 0.
+group_csn(3,:)= 2.9d-18, 8.3d-19, 6.1154E-18, 0.
+group_cse(3,:)= 2.8d-18, 7.9d-19, 5.9879E-18, 0.
+group_csn(4,:)= 4.1d-19, 1.0d-19, 1.5058E-18, 1.3239E-18
+group_cse(4,:)= 4.1d-19, 1.0d-19, 1.4969E-18, 1.3173E-18
+group_egy = 12.34, 17.55, 29.33, 58.63
+kappaAbs=865.
+/
+
+&CLUMPFIND_PARAMS
+/
+
+&SINK_PARAMS
+create_sinks=.true.
+nsinkmax=20000
+d_sink=1d2
+accretion_scheme='threshold'
+mass_sink_seed=1.0
+c_acc=0.02
+nlevelmax_sink=7
+/
+
+&STELLAR_PARAMS
+sn_feedback_sink=.true.
+!stellar_strategy='local'
+nstellarmax=20000
+imf_index=-2.35
+imf_low=8.
+imf_high=120.
+stellar_msink_th=120.
+lt_a=0.23840797
+lt_b=2.20522946
+lt_m0=148.158972
+lt_t0=3.26515722
+hii_t=4.0 ! Myr
+Vsat=200.
+Tsat=1e6
+Vdisp=1.
+/
+
+
+&COOLING_PARAMS
+isothermal=.false.
+cooling=.true.
+z_ave=1.0
+T2max=5d6
+/
+
