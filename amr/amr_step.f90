@@ -38,13 +38,6 @@ recursive subroutine amr_step(ilevel,icount)
 
   if(verbose)write(*,999)icount,ilevel
 
-  etot_nonpot = 0
-  do ilevel_ener=levelmin,nlevelmax
-   etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-  end do 
-  if(myid ==1) write(*,*)  "BEG_AMRSTEP ilevel", ilevel, " etot_nonpot ", etot_nonpot 
-
-
   !-------------------------------------------
   ! Make new refinements and update boundaries
   !-------------------------------------------
@@ -98,11 +91,11 @@ recursive subroutine amr_step(ilevel,icount)
   end if
 
 
-  etot_nonpot = 0
-  do ilevel_ener=levelmin,nlevelmax
-  etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-  end do 
-  if(myid ==1) write(*,*)  "aft refine 1 ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+!   etot_nonpot = 0
+!   do ilevel_ener=levelmin,nlevelmax
+!   etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+!   end do 
+!   if(myid ==1) write(*,*)  "aft refine 1 ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
 
 
@@ -229,11 +222,11 @@ recursive subroutine amr_step(ilevel,icount)
      endif
   end if
 
-  etot_nonpot = 0
-  do ilevel_ener=levelmin,nlevelmax
-   etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-  end do 
-  if(myid ==1) write(*,*)  "BEF FEEDBACK ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+!   etot_nonpot = 0
+!   do ilevel_ener=levelmin,nlevelmax
+!    etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+!   end do 
+!   if(myid ==1) write(*,*)  "BEF FEEDBACK ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
   !-----------------------------------------------------------
   ! Put here all stuffs that are done only at coarse time step
@@ -269,11 +262,11 @@ recursive subroutine amr_step(ilevel,icount)
      call make_sn_stellar
   endif
 
-  etot_nonpot = 0
-  do ilevel_ener=levelmin,nlevelmax
-   etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-  end do 
-  if(myid ==1) write(*,*)  "AFT FEEDBACK ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+!   etot_nonpot = 0
+!   do ilevel_ener=levelmin,nlevelmax
+!    etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+!   end do 
+!   if(myid ==1) write(*,*)  "AFT FEEDBACK ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
   !--------------------
   ! Poisson source term
@@ -297,6 +290,14 @@ recursive subroutine amr_step(ilevel,icount)
   ! Sort particles between ilevel and ilevel+1
   !-------------------------------------------
   if(pic)then
+
+   etot_before = compute_kinetic_energy_part(ilevel)
+
+  etot_before = 0
+  do ilevel_ener=levelmin,nlevelmax
+      etot_before = etot_before + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+  end do 
+
      ! Remove particles to finer levels
                                call timer('particles','start')
      call kill_tree_fine(ilevel)
@@ -308,14 +309,15 @@ recursive subroutine amr_step(ilevel,icount)
   end do 
   if(myid ==1) write(*,*)  "AFT kill Tree fine ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
-
-
-   etot_before = compute_kinetic_energy_part(ilevel)                  
      ! Update boundary conditions for remaining particles
      call virtual_tree_fine(ilevel)
-   etot_after = compute_kinetic_energy_part(ilevel)      
-   deltaE_Flux_part = deltaE_Flux_part + etot_after - etot_before
 
+  etot_after= 0
+  do ilevel_ener=levelmin,nlevelmax
+      etot_after = etot_after + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+  end do 
+
+  deltaE_Flux_part = deltaE_Flux_part + etot_after - etot_before
 
   etot_nonpot = 0
   do ilevel_ener=levelmin,nlevelmax
@@ -341,16 +343,16 @@ recursive subroutine amr_step(ilevel,icount)
         call synchro_hydro_fine(ilevel,-0.5*dtnew(ilevel),1)
         etot_after = compute_total_energy(ilevel, .false.)
         deltaE_Gravity_gas = deltaE_Gravity_gas + etot_after - etot_before
-        if(myid == 1) write(*,*) "RMVGRAV ilevel", ilevel, " etot_before ", etot_before,  " etot_after ", etot_after, " deltaE_Gravity_gas ", deltaE_Gravity_gas 
+      !   if(myid == 1) write(*,*) "RMVGRAV ilevel", ilevel, " etot_before ", etot_before,  " etot_after ", etot_after, " deltaE_Gravity_gas ", deltaE_Gravity_gas 
 
 
      endif
 
-     etot_nonpot = 0
-     do ilevel_ener=levelmin,nlevelmax
-      etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-     end do 
-     if(myid ==1) write(*,*)  "aft GRAVITY rmv ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+   !   etot_nonpot = 0
+   !   do ilevel_ener=levelmin,nlevelmax
+   !    etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+   !   end do 
+   !   if(myid ==1) write(*,*)  "aft GRAVITY rmv ilevel", ilevel, " etot_nonpot ", etot_nonpot 
    
 
 
@@ -371,11 +373,11 @@ recursive subroutine amr_step(ilevel,icount)
      call force_fine(ilevel,icount)
 
 
-     etot_nonpot = 0
-     do ilevel_ener=levelmin,nlevelmax
-      etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-     end do 
-     if(myid ==1) write(*,*)  "Bef GRAVITY part ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+   !   etot_nonpot = 0
+   !   do ilevel_ener=levelmin,nlevelmax
+   !    etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+   !   end do 
+   !   if(myid ==1) write(*,*)  "Bef GRAVITY part ilevel", ilevel, " etot_nonpot ", etot_nonpot 
    
 
      ! Synchronize remaining particles for gravity
@@ -396,11 +398,11 @@ recursive subroutine amr_step(ilevel,icount)
 
 
 
-     etot_nonpot = 0
-     do ilevel_ener=levelmin,nlevelmax
-      etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-     end do 
-     if(myid ==1) write(*,*)  "Bef GRAVITY RADD ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+   !   etot_nonpot = 0
+   !   do ilevel_ener=levelmin,nlevelmax
+   !    etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+   !   end do 
+   !   if(myid ==1) write(*,*)  "Bef GRAVITY RADD ilevel", ilevel, " etot_nonpot ", etot_nonpot 
    
 
      if(hydro)then
@@ -411,7 +413,7 @@ recursive subroutine amr_step(ilevel,icount)
         call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel),1)
         etot_after = compute_total_energy(ilevel, .false.)
         deltaE_Gravity_gas = deltaE_Gravity_gas + etot_after - etot_before
-        if(myid == 1) write(*,*) "RADDG ilevel", ilevel, " etot_before ", etot_before,  " etot_after ", etot_after, " deltaE_Gravity_gas ", deltaE_Gravity_gas 
+      !   if(myid == 1) write(*,*) "RADDG ilevel", ilevel, " etot_before ", etot_before,  " etot_after ", etot_after, " deltaE_Gravity_gas ", deltaE_Gravity_gas 
 
 
         ! Update boundaries
@@ -429,11 +431,11 @@ recursive subroutine amr_step(ilevel,icount)
   end if
 
 
-  etot_nonpot = 0
-  do ilevel_ener=levelmin,nlevelmax
-   etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-  end do 
-  if(myid ==1) write(*,*)  "AFT GRAVITY RADD ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+!   etot_nonpot = 0
+!   do ilevel_ener=levelmin,nlevelmax
+!    etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+!   end do 
+!   if(myid ==1) write(*,*)  "AFT GRAVITY RADD ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
 
 #ifdef RT
@@ -464,11 +466,11 @@ recursive subroutine amr_step(ilevel,icount)
      dtnew(ilevel)=MIN(dtnew(ilevel-1)/real(nsubcycle(ilevel-1)),dtnew(ilevel))
   end if
 
-  etot_nonpot = 0
-  do ilevel_ener=levelmin,nlevelmax
-     etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-  end do 
-  if(myid ==1) write(*,*)  "BEF set_unew ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+!   etot_nonpot = 0
+!   do ilevel_ener=levelmin,nlevelmax
+!      etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+!   end do 
+!   if(myid ==1) write(*,*)  "BEF set_unew ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
 
   ! Set unew equal to uold
@@ -482,11 +484,11 @@ recursive subroutine amr_step(ilevel,icount)
 #endif
 
 
-   etot_nonpot = 0
-   do ilevel_ener=levelmin,nlevelmax
-      etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .true.) + compute_kinetic_energy_part(ilevel_ener)
-   end do 
-   if(myid ==1) write(*,*)  "BEF REC ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+   ! etot_nonpot = 0
+   ! do ilevel_ener=levelmin,nlevelmax
+   !    etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .true.) + compute_kinetic_energy_part(ilevel_ener)
+   ! end do 
+   ! if(myid ==1) write(*,*)  "BEF REC ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
   !---------------------------
   ! Recursive call to amr_step
@@ -533,11 +535,11 @@ recursive subroutine amr_step(ilevel,icount)
       deltaE_Feedback_SN = deltaE_Feedback_SN + etot_after - etot_before
 #endif
 
-   etot_nonpot = 0
-   do ilevel_ener=levelmin,nlevelmax
-      etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-   end do 
-   if(myid ==1) write(*,*)  "AFT ThFeed ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+   ! etot_nonpot = 0
+   ! do ilevel_ener=levelmin,nlevelmax
+   !    etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+   ! end do 
+   ! if(myid ==1) write(*,*)  "AFT ThFeed ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
 
   ! Density threshold or Bondi accretion onto sink particle
@@ -552,11 +554,11 @@ recursive subroutine amr_step(ilevel,icount)
   !-----------
   if((hydro).and.(.not.static_gas))then
 
-   etot_nonpot = 0
-   do ilevel_ener=levelmin,nlevelmax
-      etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-   end do 
-   if(myid ==1) write(*,*)  "BEF GODUNOV ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+   ! etot_nonpot = 0
+   ! do ilevel_ener=levelmin,nlevelmax
+   !    etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+   ! end do 
+   ! if(myid ==1) write(*,*)  "BEF GODUNOV ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
 
      etot_before = compute_total_energy(ilevel, .true.)
@@ -591,11 +593,11 @@ recursive subroutine amr_step(ilevel,icount)
         call make_virtual_reverse_dp(divu(1),ilevel)
      endif
 
-     etot_nonpot = 0
-     do ilevel_ener=levelmin,nlevelmax
-        etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .true.) + compute_kinetic_energy_part(ilevel_ener)
-     end do 
-     if(myid ==1) write(*,*)  "AFT GODUNOV ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+   !   etot_nonpot = 0
+   !   do ilevel_ener=levelmin,nlevelmax
+   !      etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .true.) + compute_kinetic_energy_part(ilevel_ener)
+   !   end do 
+   !   if(myid ==1) write(*,*)  "AFT GODUNOV ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
 
      etot_before = compute_total_energy(ilevel, .true.)
@@ -606,7 +608,7 @@ recursive subroutine amr_step(ilevel,icount)
 
      etot_after = compute_total_energy(ilevel, .true.)
      deltaE_Gravity_gas = deltaE_Gravity_gas + etot_after - etot_before
-     if(myid == 1) write(*,*) "GST ilevel", ilevel, " etot_before ", etot_before,  " etot_after ", etot_after, " deltaE_Gravity_gas ", deltaE_Gravity_gas 
+   !   if(myid == 1) write(*,*) "GST ilevel", ilevel, " etot_before ", etot_before,  " etot_after ", etot_after, " deltaE_Gravity_gas ", deltaE_Gravity_gas 
 
 
      ! Add non conservative pdV terms to unew
@@ -616,22 +618,22 @@ recursive subroutine amr_step(ilevel,icount)
      endif
 
 
-     etot_nonpot = 0
-     do ilevel_ener=levelmin,nlevelmax
-        etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .true.) + compute_kinetic_energy_part(ilevel_ener)
-     end do 
-     if(myid ==1) write(*,*)  "Bef set_uold ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+   !   etot_nonpot = 0
+   !   do ilevel_ener=levelmin,nlevelmax
+   !      etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .true.) + compute_kinetic_energy_part(ilevel_ener)
+   !   end do 
+   !   if(myid ==1) write(*,*)  "Bef set_uold ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
 
      ! Set uold equal to unew
                                call timer('hydro - set uold','start')
      call set_uold(ilevel)
 
-     etot_nonpot = 0
-     do ilevel_ener=levelmin,nlevelmax
-        etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-     end do 
-     if(myid ==1) write(*,*)  "Aft set_uold ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+   !   etot_nonpot = 0
+   !   do ilevel_ener=levelmin,nlevelmax
+   !      etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+   !   end do 
+   !   if(myid ==1) write(*,*)  "Aft set_uold ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
 
 
@@ -642,7 +644,7 @@ recursive subroutine amr_step(ilevel,icount)
      if(poisson)call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel),1)
      etot_after = compute_total_energy(ilevel, .false.)
      deltaE_Gravity_gas = deltaE_Gravity_gas + etot_after - etot_before
-     if(myid == 1) write(*,*) "CTMSTP ilevel", ilevel, " etot_before ", etot_before,  " etot_after ", etot_after, " deltaE_Gravity_gas ", deltaE_Gravity_gas 
+   !   if(myid == 1) write(*,*) "CTMSTP ilevel", ilevel, " etot_before ", etot_before,  " etot_after ", etot_after, " deltaE_Gravity_gas ", deltaE_Gravity_gas 
 
 
 #if USE_TURB==1
@@ -661,11 +663,11 @@ recursive subroutine amr_step(ilevel,icount)
   endif
 
 
-  etot_nonpot = 0
-  do ilevel_ener=levelmin,nlevelmax
-     etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-  end do 
-  if(myid ==1) write(*,*)  "Bef cooling ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+!   etot_nonpot = 0
+!   do ilevel_ener=levelmin,nlevelmax
+!      etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+!   end do 
+!   if(myid ==1) write(*,*)  "Bef cooling ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
 
 
@@ -705,20 +707,13 @@ recursive subroutine amr_step(ilevel,icount)
    deltaE_Cooling = deltaE_Cooling + etot_after - etot_before
 
 
-   etot_nonpot = 0
-   do ilevel_ener=levelmin,nlevelmax
-      etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-   end do 
-   if(myid ==1) write(*,*)  "Aft cooling ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+   ! etot_nonpot = 0
+   ! do ilevel_ener=levelmin,nlevelmax
+   !    etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+   ! end do 
+   ! if(myid ==1) write(*,*)  "Aft cooling ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
 
-   etot_nonpot = 0
-   do ilevel_ener=levelmin,nlevelmax
-      etot_nonpot = etot_nonpot + compute_kinetic_energy_part(ilevel_ener)
-   end do 
-   if(myid ==1) write(*,*)  "Bef move fine ilevel", ilevel, " etot_part ", etot_nonpot 
- 
- 
  
   !---------------
   ! Move particles
@@ -736,19 +731,12 @@ recursive subroutine amr_step(ilevel,icount)
    deltaE_Gravity_part = deltaE_Gravity_part + etot_after - etot_before
   end if
 
-  etot_nonpot = 0
-  do ilevel_ener=levelmin,nlevelmax
-     etot_nonpot = etot_nonpot + compute_kinetic_energy_part(ilevel_ener)
-  end do 
-  if(myid ==1) write(*,*)  "Aft move fine ilevel", ilevel, " etot_part ", etot_nonpot 
 
-
-
-  etot_nonpot = 0
-  do ilevel_ener=levelmin,nlevelmax
-     etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-  end do 
-  if(myid ==1) write(*,*)  "Aft move fine ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+!   etot_nonpot = 0
+!   do ilevel_ener=levelmin,nlevelmax
+!      etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+!   end do 
+!   if(myid ==1) write(*,*)  "Aft move fine ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
 
   !----------------------------------
@@ -764,11 +752,11 @@ recursive subroutine amr_step(ilevel,icount)
 #endif
 
 
-etot_nonpot = 0
-do ilevel_ener=levelmin,nlevelmax
-   etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-end do 
-if(myid ==1) write(*,*)  "Aft SF ilevel", ilevel, " etot_nonpot ", etot_nonpot 
+! etot_nonpot = 0
+! do ilevel_ener=levelmin,nlevelmax
+!    etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+! end do 
+! if(myid ==1) write(*,*)  "Aft SF ilevel", ilevel, " etot_nonpot ", etot_nonpot 
 
   !---------------------------------------
   ! Update physical and virtual boundaries
@@ -800,11 +788,38 @@ if(myid ==1) write(*,*)  "Aft SF ilevel", ilevel, " etot_nonpot ", etot_nonpot
                                call timer('flag','start')
   if(.not.static.or.(nstep_coarse_old.eq.nstep_coarse.and.restart_remap)) call flag_fine(ilevel,icount)
 
+
+etot_nonpot = 0
+do ilevel_ener=levelmin,nlevelmax
+   etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+end do 
+if(myid ==1) write(*,*)  "before merge tree fine", ilevel, " etot_nonpot ", etot_nonpot 
+
   !----------------------------
   ! Merge finer level particles
   !----------------------------
+
+  etot_before = 0
+  do ilevel_ener=levelmin,nlevelmax
+      etot_before = etot_before + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+  end do 
+
                                call timer('particles','start')
   if(pic)call merge_tree_fine(ilevel)
+
+  etot_after= 0
+  do ilevel_ener=levelmin,nlevelmax
+      etot_after = etot_after + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+  end do 
+
+  deltaE_Flux_part = deltaE_Flux_part + etot_after - etot_before
+
+  etot_nonpot = 0
+do ilevel_ener=levelmin,nlevelmax
+   etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
+end do 
+if(myid ==1) write(*,*)  "after merge tree fine", ilevel, " etot_nonpot ", etot_nonpot 
+
 
   !---------------
   ! Radiation step

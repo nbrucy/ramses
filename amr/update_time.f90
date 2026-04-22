@@ -114,14 +114,14 @@ subroutine update_time(ilevel)
               write(*,888)nstep,t,dt,aexp,&
                    & real(100.0D0*dble(used_mem_tot)/dble(ngridmax+1))
            endif
+
+           write(*,998) deltaE_Cooling, deltaE_Feedback_SN, deltaE_Gravity_gas, deltaE_SF, deltaE_Flux, deltaE_Gravity_part, deltaE_Flux_part
+
            itest=1
         end if
         output_done=.false.
      end if
 
-     if(ilevel==levelmin .and. myid==1) then
-      write(*,998) deltaE_Cooling, deltaE_Feedback_SN, deltaE_Gravity_gas, deltaE_SF, deltaE_Flux, deltaE_Gravity_part, deltaE_Flux_part
-  end if
 
       deltaE_Cooling=0.0d0
       deltaE_Flux=0.0d0
