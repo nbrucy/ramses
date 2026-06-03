@@ -255,10 +255,11 @@ do igrid=1,ncache,nvector
         end do
     end do
 
-    ! Loo
-
-
-end function
+    ! Loop over grid with leaf cell
+    do i=1,nleaf
+       ekin_turb_loc = ekin_turb_loc + 0.5*mass_velocity_variance(i)
+    end do
+end do
 
 #ifndef WITHOUTMPI
     call MPI_ALLREDUCE(ekin_turb_loc,ekin_turb,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
