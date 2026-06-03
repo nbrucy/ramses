@@ -87,6 +87,7 @@ subroutine adaptive_loop
      epot_tot=0.0D0  ! Reset total potential energy
      epot_tot_part=0.0D0 ! Reset total particle potential energy
      ekin_tot=0.0D0  ! Reset total kinetic energy
+     ekin_tot_part=0.0D0 ! Reset total particle kinetic energy
      mass_tot=0.0D0  ! Reset total mass
      eint_tot=0.0D0  ! Reset total internal energy
 #ifdef SOLVERmhd

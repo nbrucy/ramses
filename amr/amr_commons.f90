@@ -17,6 +17,7 @@ module amr_commons
   real(dp)::eint_tot=0.0D0                      ! Total internal energy
   real(dp)::epot_tot=0.0D0                      ! Total potential energy
   real(dp)::epot_tot_part=0.0D0                 ! Total potential energy of particles
+  real(dp)::ekin_tot_part=0.0D0                 ! Total kinetic energy of particles
 
   real(dp)::epot_tot_old=0.0D0                  ! Old potential energy
   real(dp)::epot_tot_int=0.0D0                  ! Time integrated potential

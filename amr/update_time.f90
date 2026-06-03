@@ -3,6 +3,7 @@ subroutine update_time(ilevel)
   use pm_commons
   use hydro_commons
   use cooling_module
+  use deltaE_module
 #if USE_TURB==1
   use turb_commons
 #endif
@@ -32,7 +33,7 @@ subroutine update_time(ilevel)
   ! The turbulence forcing is evolved.
   !--------------------------------------------------------------------------------
 
-  real(dp)::dt,econs,mcons
+  real(dp)::dt,econs,mcons, ekin_turb
 #ifdef SOLVERmhd
   real(dp)::sqrt_aexp_prev
 #endif
@@ -84,6 +85,13 @@ subroutine update_time(ilevel)
              &(-(epot_tot-epot_tot_int-einit)+ekin_tot)
      end if
 
+     ekin_tot_part = 0.0D0
+     ekin_turb = 0.0D0
+     do i=levelmin,nlevelmax
+      ekin_tot_part=ekin_tot_part+compute_kinetic_energy_part(i)
+      ekin_turb=ekin_turb+compute_turbulent_energy(i)
+     end do
+
      if(mod(nstep_coarse,ncontrol)==0.or.output_done)then
         if(myid==1)then
 
@@ -99,7 +107,7 @@ subroutine update_time(ilevel)
            ! Output mass and energy conservation to screen
            !----------------------------------------------
            if(cooling.or.pressure_fix)then
-              write(*,778)nstep_coarse,mcons,econs,epot_tot,ekin_tot,eint_tot,epot_tot_part
+              write(*,778)nstep_coarse,mcons,econs,epot_tot,ekin_tot,eint_tot,epot_tot_part,ekin_tot_part, ekin_turb
            else
               write(*,777)nstep_coarse,mcons,econs,epot_tot,ekin_tot
            end if
@@ -213,7 +221,7 @@ subroutine update_time(ilevel)
 777 format(' Main step=',i7,' mcons=',1pe12.5,' econs=',1pe12.5, &
          & ' epot=',1pe12.5,' ekin=',1pe12.5)
 778 format(' Main step=',i7,' mcons=',1pe12.5,' econs=',1pe12.5, &
-         & ' epot=',1pe12.5,' ekin=',1pe12.5,' eint=',1pe12.5, ' epot_part=',1pe12.5)
+         & ' epot=',1pe12.5,' ekin=',1pe12.5,' eint=',1pe12.5, ' epot_part=',1pe12.5, ' ekin_part=',1pe12.5, ' ekin_turb=',1pe12.5)
 888 format(' Fine step=',i7,' t=',1pe12.5,' dt=',1pe10.3, &
          & ' a=',1pe10.3,' mem=',0pF4.1,'% ',0pF4.1,'%')
 999 format(' Level ',I2,' has ',I10,' grids (',3(I8,','),')')
