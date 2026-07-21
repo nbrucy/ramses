@@ -42,6 +42,8 @@ subroutine update_time(ilevel)
 #endif
   integer::i,itest
 
+  real(dp), dimension(1:nb_energy_kind) :: energies, energies_level
+
   ! Local constants
   dt=dtnew(ilevel)
   itest=0
@@ -85,11 +87,10 @@ subroutine update_time(ilevel)
              &(-(epot_tot-epot_tot_int-einit)+ekin_tot)
      end if
 
-     ekin_tot_part = 0.0D0
-     ekin_turb = 0.0D0
+     energies = 0.0_dp
      do i=levelmin,nlevelmax
-      ekin_tot_part=ekin_tot_part+compute_kinetic_energy_part(i)
-      ekin_turb=ekin_turb+compute_turbulent_energy(i)
+       call compute_energies(i, .false., energies_level)
+       energies = energies + energies_level
      end do
 
      if(mod(nstep_coarse,ncontrol)==0.or.output_done)then
@@ -106,8 +107,12 @@ subroutine update_time(ilevel)
            !----------------------------------------------
            ! Output mass and energy conservation to screen
            !----------------------------------------------
+
+           call print_energies(energies)
+           call deltaE%print_processes()
+
            if(cooling.or.pressure_fix)then
-              write(*,778)nstep_coarse,mcons,econs,epot_tot,ekin_tot,eint_tot,epot_tot_part,ekin_tot_part, ekin_turb
+              write(*,778)nstep_coarse,mcons,econs,epot_tot,ekin_tot,eint_tot
            else
               write(*,777)nstep_coarse,mcons,econs,epot_tot,ekin_tot
            end if
@@ -123,23 +128,12 @@ subroutine update_time(ilevel)
                    & real(100.0D0*dble(used_mem_tot)/dble(ngridmax+1))
            endif
 
-           write(*,998) deltaE_Cooling, deltaE_Feedback_SN, deltaE_Gravity_gas, deltaE_SF, deltaE_Flux, deltaE_Gravity_part, deltaE_Flux_part
-
            itest=1
         end if
         output_done=.false.
      end if
 
-
-      deltaE_Cooling=0.0d0
-      deltaE_Flux=0.0d0
-      deltaE_Gravity_gas=0.0d0
-      deltaE_Gravity_part=0.0d0
-      deltaE_SF=0.0d0
-      deltaE_Feedback_SN=0.0d0
-      deltaE_Flux_part=0.d0
-
-
+     call deltaE%initialize_processes()
      !---------------
      ! Exit program
      !---------------
@@ -218,16 +212,14 @@ subroutine update_time(ilevel)
   end if
 #endif
 
+
 777 format(' Main step=',i7,' mcons=',1pe12.5,' econs=',1pe12.5, &
          & ' epot=',1pe12.5,' ekin=',1pe12.5)
 778 format(' Main step=',i7,' mcons=',1pe12.5,' econs=',1pe12.5, &
-         & ' epot=',1pe12.5,' ekin=',1pe12.5,' eint=',1pe12.5, ' epot_part=',1pe12.5, ' ekin_part=',1pe12.5, ' ekin_turb=',1pe12.5)
+         & ' epot=',1pe12.5,' ekin=',1pe12.5,' eint=',1pe12.5)
 888 format(' Fine step=',i7,' t=',1pe12.5,' dt=',1pe10.3, &
          & ' a=',1pe10.3,' mem=',0pF4.1,'% ',0pF4.1,'%')
 999 format(' Level ',I2,' has ',I10,' grids (',3(I8,','),')')
-
-998 format(' DeltaE_Cooling = ', 1pe12.5, ' DeltaE_Feedback = ', 1pe12.5, &
-& ' DeltaE_Gravity_gas = ' , 1pe12.5,  ' DeltaE_SF = ' , 1pe12.5,  ' DeltaE_Flux = ' , 1pe12.5,  ' DeltaE_Gravity_part = ' , 1pe12.5, ' DeltaE_Flux_part = ',  1pe12.5)
 
 
 end subroutine update_time
