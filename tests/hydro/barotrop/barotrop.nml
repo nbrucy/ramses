@@ -5,7 +5,7 @@ It consists of a collapsing uniform sphere with central overdensity.
 hydro=.true.
 poisson=.true.
 nsubcycle=20*1
-ncontrol=50
+ncontrol=1
 /
 
 &AMR_PARAMS

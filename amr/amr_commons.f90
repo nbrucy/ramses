@@ -184,14 +184,5 @@ module amr_commons
   real(dp)::units_time=1.0d0     ! [seconds]
   real(dp)::units_length=1.0d0   ! [cm]
 
-  ! DeltaE parameters
-  real(dp)::deltaE_Cooling=0.0d0
-  real(dp)::deltaE_Flux=0.0d0
-  real(dp)::deltaE_Gravity_gas=0.0d0
-  real(dp)::deltaE_Gravity_part=0.0d0
-  real(dp)::deltaE_SF=0.0d0
-  real(dp)::deltaE_Feedback_SN=0.0d0
-  real(dp)::deltaE_Flux_part=0.0d0
-
 
 end module amr_commons
