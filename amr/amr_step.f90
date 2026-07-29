@@ -130,11 +130,11 @@ recursive subroutine amr_step(ilevel,icount)
                                call timer('particles','start')
 
       
-  call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1)
+  !call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1)
                              
   if(pic)call make_tree_fine(ilevel)
 
-  call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2)
+  !call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2)
 
 
 
@@ -234,10 +234,6 @@ recursive subroutine amr_step(ilevel,icount)
 
   endif
 
-!   etot_nonpot = 0
-!   do ilevel_ener=levelmin,nlevelmax
-!    etot_nonpot = etot_nonpot + compute_total_energy(ilevel_ener, .false.) + compute_kinetic_energy_part(ilevel_ener)
-!   end do 
 
   !--------------------
   ! Poisson source term
@@ -348,10 +344,6 @@ recursive subroutine amr_step(ilevel,icount)
 #endif
      end if
   end if
-
-
-
-
 
 #ifdef RT
   ! Turn on RT in case of rt_stars and first stars just created:
@@ -486,25 +478,23 @@ recursive subroutine amr_step(ilevel,icount)
      if(poisson)then
       call add_gravity_source_terms(ilevel)
     end if
-
      call compute_transfer(ilevel, ilevel, .true., deltaE%gravity_gas, 2)     
 
 
      ! Add non conservative pdV terms to unew
      ! for thermal and/or non-thermal energies
      if(pressure_fix.OR.nener>0)then
-        call compute_transfer(ilevel, ilevel, .true., deltaE%corrections, 1)     
         call add_pdv_source_terms(ilevel)
-        call compute_transfer(ilevel, ilevel, .true., deltaE%corrections, 2)     
-
      endif
 
 
 
      ! Set uold equal to unew
                                call timer('hydro - set uold','start')
-     call set_uold(ilevel)
 
+     call compute_transfer(ilevel, ilevel, .true., deltaE%corrections, 1)     
+     call set_uold(ilevel)
+     call compute_transfer(ilevel, ilevel, .false., deltaE%corrections, 2)   ! correction = pressure fix
 
 
      ! Add gravity source term with half time step and old force
@@ -520,8 +510,11 @@ recursive subroutine amr_step(ilevel,icount)
      ! Compute turbulent forcing
                                call timer('turb','start')
      if (turb .AND. turb_type/=3) then
+      call compute_transfer(ilevel, ilevel, .false., deltaE%turb_driving, 1) 
         ! Euler step, adding turbulent acceleration
-        call synchro_hydro_fine(ilevel,dtnew(ilevel),2)
+      write(*,*) "Syncho TURB!!!!!"
+      call synchro_hydro_fine(ilevel,dtnew(ilevel),2)
+      call compute_transfer(ilevel, ilevel, .false., deltaE%turb_driving, 2) 
      end if
 #endif
 
@@ -569,10 +562,6 @@ recursive subroutine amr_step(ilevel,icount)
    call compute_transfer(ilevel, ilevel, .false., deltaE%cooling, 2)    
 
 
-
-
-
- 
   !---------------
   ! Move particles
   !---------------
