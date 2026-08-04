@@ -4,6 +4,8 @@ recursive subroutine amr_step(ilevel,icount)
   use hydro_commons
   use poisson_commons
   use tracer_utils, only: reset_tracer_move_flag
+  use deltaE_module
+
 #ifdef RT
   use rt_hydro_commons
   use SED_module
@@ -29,6 +31,7 @@ recursive subroutine amr_step(ilevel,icount)
   integer::i,idim,ivar
   logical::ok_defrag,output_now_all
   logical,save::first_step=.true.
+  integer:: ilevel_ener
 
   if(numbtot(1,ilevel)==0)return
 
@@ -119,13 +122,26 @@ recursive subroutine amr_step(ilevel,icount)
   !-----------------
 #if NDIM==3
                                call timer('sinks','start')
-  if(sink)call update_cloud(ilevel)
+         
+  if(sink) then 
+   call compute_transfer(levelmin, nlevelmax, .false., deltaE%star_formation, 1)
+   call update_cloud(ilevel)
+   call compute_transfer(levelmin, nlevelmax, .false., deltaE%star_formation, 2)
+  end if
 #endif
   !-----------------
   ! Particle leakage
   !-----------------
                                call timer('particles','start')
+
+      
+  call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1)
+                             
   if(pic)call make_tree_fine(ilevel)
+
+  call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2)
+
+
 
   !------------------------
   ! Output results to files
@@ -192,13 +208,21 @@ recursive subroutine amr_step(ilevel,icount)
   ! Put here all stuffs that are done only at coarse time step
   !-----------------------------------------------------------
   if(ilevel==levelmin)then
+
      !----------------------------------------------------
      ! Kinetic feedback from giant molecular clouds
      !----------------------------------------------------
-                               call timer('feedback','start')
+
+     call compute_transfer(levelmin, nlevelmax, .false., deltaE%feedback, 1)
+
+     call timer('feedback','start')
      if(hydro.and.star.and.eta_sn>0.and.f_w>0)call kinetic_feedback
 
+     call compute_transfer(levelmin, nlevelmax, .false., deltaE%feedback, 2)
+
+
   endif
+
 
   !----------------------------------------------------
   ! Feedback on sink particles
@@ -207,8 +231,14 @@ recursive subroutine amr_step(ilevel,icount)
      call make_stellar_from_sinks
   endif
   if (sn_feedback_sink) then
+     call compute_transfer(levelmin, nlevelmax, .false., deltaE%feedback, 1)
+
      call make_sn_stellar
+
+     call compute_transfer(levelmin, nlevelmax, .false., deltaE%feedback, 2)
+
   endif
+
 
   !--------------------
   ! Poisson source term
@@ -225,11 +255,21 @@ recursive subroutine amr_step(ilevel,icount)
   ! Sort particles between ilevel and ilevel+1
   !-------------------------------------------
   if(pic)then
+   
+     call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1)
+
+
      ! Remove particles to finer levels
                                call timer('particles','start')
      call kill_tree_fine(ilevel)
+
      ! Update boundary conditions for remaining particles
      call virtual_tree_fine(ilevel)
+
+     call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2)
+
+
+
   end if
 
   !---------------
@@ -240,8 +280,15 @@ recursive subroutine amr_step(ilevel,icount)
 
      ! Remove gravity source term with half time step and old force
      if(hydro)then
+   
+        call compute_transfer(ilevel, ilevel, .false., deltaE%gravity_gas, 1)
+
         call synchro_hydro_fine(ilevel,-0.5*dtnew(ilevel),1)
+        
+        call compute_transfer(ilevel, ilevel, .false., deltaE%gravity_gas, 2)
+
      endif
+
 
      ! Compute gravitational potential
      if(ilevel>levelmin)then
@@ -259,21 +306,35 @@ recursive subroutine amr_step(ilevel,icount)
      ! Compute gravitational acceleration
      call force_fine(ilevel,icount)
 
+
+
      ! Synchronize remaining particles for gravity
      if(pic)then
-                               call timer('particles','start')
+        call timer('particles','start')
+   
+        call compute_transfer(ilevel, ilevel, .false., deltaE%gravity_part, 1)            
         if(static_dm.or.static_stars)then
            call synchro_fine_static(ilevel)
         else
            call synchro_fine(ilevel)
         end if
+        call compute_transfer(ilevel, ilevel, .false., deltaE%gravity_part, 2)     
+   
+
      end if
 
-     if(hydro)then
-                               call timer('poisson','start')
 
+
+
+     if(hydro)then
+        call timer('poisson','start')
+   
+        call compute_transfer(ilevel, ilevel, .false., deltaE%gravity_gas, 1)     
         ! Add gravity source term with half time step and new force
         call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel),1)
+        call compute_transfer(ilevel, ilevel, .false., deltaE%gravity_gas, 2)     
+
+
 
         ! Update boundaries
         do ivar=1,nvar_all
@@ -317,6 +378,8 @@ recursive subroutine amr_step(ilevel,icount)
      dtnew(ilevel)=MIN(dtnew(ilevel-1)/real(nsubcycle(ilevel-1)),dtnew(ilevel))
   end if
 
+
+
   ! Set unew equal to uold
                                call timer('hydro - set unew','start')
   if(hydro)call set_unew(ilevel)
@@ -326,6 +389,8 @@ recursive subroutine amr_step(ilevel,icount)
                                call timer('radiative transfer','start')
   if(rt)call rt_set_unew(ilevel)
 #endif
+
+
 
   !---------------------------
   ! Recursive call to amr_step
@@ -354,11 +419,18 @@ recursive subroutine amr_step(ilevel,icount)
 #endif
   end if
 
+
+ 
   ! Thermal feedback from stars
 #if NDIM==3
                                call timer('feedback','start')
-  if(hydro.and.star.and.eta_sn>0)call thermal_feedback(ilevel)
+
+      call compute_transfer(ilevel, ilevel, .true., deltaE%feedback, 1)     
+      if(hydro.and.star.and.eta_sn>0)call thermal_feedback(ilevel)
+      call compute_transfer(ilevel, ilevel, .true., deltaE%feedback, 2)     
 #endif
+
+
 
   ! Density threshold or Bondi accretion onto sink particle
 #if NDIM==3
@@ -372,7 +444,9 @@ recursive subroutine amr_step(ilevel,icount)
   !-----------
   if((hydro).and.(.not.static_gas))then
 
-     ! Hyperbolic solver
+
+    call compute_transfer(ilevel, ilevel, .true., deltaE%flux_gas, 1)     
+        ! Hyperbolic solver
                                call timer('hydro - godunov','start')
      call godunov_fine(ilevel)
 
@@ -381,6 +455,9 @@ recursive subroutine amr_step(ilevel,icount)
      do ivar=1,nvar_all
         call make_virtual_reverse_dp(unew(1,ivar),ilevel)
      end do
+
+     call compute_transfer(ilevel, ilevel, .true., deltaE%flux_gas, 2)     
+
      ! MC Tracer
      ! Communicate fluxes accross boundaries
      if(MC_tracer)then
@@ -399,10 +476,15 @@ recursive subroutine amr_step(ilevel,icount)
         call make_virtual_reverse_dp(divu(1),ilevel)
      endif
 
-     ! Add gravity source terms to unew
+
+
+     call compute_transfer(ilevel, ilevel, .true., deltaE%gravity_gas, 1)     
+   ! Add gravity source terms to unew
      if(poisson)then
-        call add_gravity_source_terms(ilevel)
-     end if
+      call add_gravity_source_terms(ilevel)
+    end if
+     call compute_transfer(ilevel, ilevel, .true., deltaE%gravity_gas, 2)     
+
 
      ! Add non conservative pdV terms to unew
      ! for thermal and/or non-thermal energies
@@ -410,33 +492,51 @@ recursive subroutine amr_step(ilevel,icount)
         call add_pdv_source_terms(ilevel)
      endif
 
+
+
      ! Set uold equal to unew
                                call timer('hydro - set uold','start')
+
+     call compute_transfer(ilevel, ilevel, .true., deltaE%corrections, 1)     
      call set_uold(ilevel)
+     call compute_transfer(ilevel, ilevel, .false., deltaE%corrections, 2)   ! correction = pressure fix
+
 
      ! Add gravity source term with half time step and old force
      ! in order to complete the time step
                                call timer('poisson','start')
+
+     call compute_transfer(ilevel, ilevel, .false., deltaE%gravity_gas, 1)     
      if(poisson)call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel),1)
+     call compute_transfer(ilevel, ilevel, .false., deltaE%gravity_gas, 2)     
+
 
 #if USE_TURB==1
      ! Compute turbulent forcing
                                call timer('turb','start')
      if (turb .AND. turb_type/=3) then
+      call compute_transfer(ilevel, ilevel, .false., deltaE%turb_driving, 1) 
         ! Euler step, adding turbulent acceleration
-        call synchro_hydro_fine(ilevel,dtnew(ilevel),2)
+      write(*,*) "Syncho TURB!!!!!"
+      call synchro_hydro_fine(ilevel,dtnew(ilevel),2)
+      call compute_transfer(ilevel, ilevel, .false., deltaE%turb_driving, 2) 
      end if
 #endif
 
      ! Restriction operator
                                call timer('hydro upload fine','start')
+     call compute_transfer(ilevel, ilevel, .false., deltaE%corrections, 1)     
      call upload_fine(ilevel)
-
+     call compute_transfer(ilevel, ilevel, .false., deltaE%corrections, 2)     
   endif
+
+
+
 
   !---------------------
   ! Do RT/Chemistry step
   !---------------------
+  call compute_transfer(ilevel, ilevel, .false., deltaE%cooling, 1)    
 #ifdef RT
   if(rt .and. rt_advect) then
                                call timer('radiative transfer','start')
@@ -464,26 +564,39 @@ recursive subroutine amr_step(ilevel,icount)
     if(neq_chem.or.cooling.or.T2_star>0.0.or.barotropic_eos)call cooling_fine(ilevel)
   endif
 #endif
+   call compute_transfer(ilevel, ilevel, .false., deltaE%cooling, 2)    
+
 
   !---------------
   ! Move particles
   !---------------
   if(pic)then
+      call compute_transfer(ilevel, ilevel, .false., deltaE%gravity_part, 1)    
+
                                call timer('particles','start')
      if(static_dm.or.static_stars)then
         call move_fine_static(ilevel) ! Only remaining particles
      else
         call move_fine(ilevel) ! Only remaining particles
      end if
+     call compute_transfer(ilevel, ilevel, .false., deltaE%gravity_part, 2)    
   end if
+
+
+
+
 
   !----------------------------------
   ! Star formation in leaf cells only
   !----------------------------------
 #if NDIM==3
                                call timer('feedback','start')
+  call compute_transfer(ilevel, ilevel, .false., deltaE%star_formation, 1) 
+
   if(hydro.and.star.and.(.not.static_gas))call star_formation(ilevel)
-#endif
+  call compute_transfer(ilevel, ilevel, .false., deltaE%star_formation, 2) 
+#endif 
+
   !---------------------------------------
   ! Update physical and virtual boundaries
   !---------------------------------------
@@ -502,8 +615,11 @@ recursive subroutine amr_step(ilevel,icount)
   ! Magnetic diffusion step
   if((hydro).and.(.not.static_gas))then
      if(eta_mag>0d0.and.ilevel==levelmin)then
+      call compute_transfer(levelmin, nlevelmax, .false., deltaE%magnetic_diffusion, 1) 
+
                                call timer('mhd - diffusion','start')
         call diffusion
+      call compute_transfer(levelmin, nlevelmax, .false., deltaE%magnetic_diffusion, 2) 
      endif
   end if
 #endif
@@ -514,11 +630,19 @@ recursive subroutine amr_step(ilevel,icount)
                                call timer('flag','start')
   if(.not.static.or.(nstep_coarse_old.eq.nstep_coarse.and.restart_remap)) call flag_fine(ilevel,icount)
 
+
   !----------------------------
   ! Merge finer level particles
   !----------------------------
+
+  call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1) 
+
                                call timer('particles','start')
   if(pic)call merge_tree_fine(ilevel)
+
+  call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2) 
+
+
 
   !---------------
   ! Radiation step
@@ -546,7 +670,9 @@ recursive subroutine amr_step(ilevel,icount)
      ! Sink production
      !---------------
 #if NDIM==3
+     call compute_transfer(ilevel, ilevel, .false., deltaE%star_formation, 1) 
      if(ilevel==levelmin)call create_sink
+     call compute_transfer(ilevel, ilevel, .false., deltaE%star_formation, 2) 
 #endif
   end if
 
@@ -564,6 +690,7 @@ recursive subroutine amr_step(ilevel,icount)
      ! Decrease the move flag by 1
      call reset_tracer_move_flag(ilevel)
   end if
+
 
 999 format(' Entering amr_step(',i1,') for level',i2)
 

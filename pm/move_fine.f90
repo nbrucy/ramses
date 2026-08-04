@@ -477,6 +477,12 @@ subroutine move1(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
      end do
   endif
   if(poisson)then
+#ifdef OUTPUT_PARTICLE_POTENTIAL
+      do j=1,np
+         ptcl_phi(ind_part(j)) = 0.0d0
+      end do
+#endif
+
      do ind=1,twotondim
         do idim=1,ndim
            do j=1,np
@@ -487,7 +493,7 @@ subroutine move1(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
         end do
 #ifdef OUTPUT_PARTICLE_POTENTIAL
         do j=1,np
-           ptcl_phi(ind_part(j)) = phi(indp(j,ind))
+           ptcl_phi(ind_part(j)) = ptcl_phi(ind_part(j)) + phi(indp(j, ind))*vol(j,ind)
         end do
 #endif
      end do

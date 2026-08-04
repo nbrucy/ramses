@@ -4,6 +4,7 @@ subroutine read_params
   use mpi_mod
   use buildinfo
   use iso_fortran_env, ONLY: output_unit !standard output
+  use deltaE_module
   implicit none
   !--------------------------------------------------
   ! Local variables
@@ -134,6 +135,7 @@ subroutine read_params
   call read_lightcone_params(1,nml_ok)
   call read_tracer_params(1,nml_ok)
   call read_poisson_params(1,nml_ok)
+  call read_deltaE_params(1,nml_ok)
 
   call read_hydro_params(nml_ok)
 #ifdef RT

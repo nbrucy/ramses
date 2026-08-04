@@ -47,6 +47,8 @@ NPSCAL = 0
 # Light MPI communicator structure (for > 10k MPI processes)
 LIGHT_MPI_COMM = 0
 
+
+
 # Compute NVAR
 NHYDRO = 2+$(NDIM)
 ifeq ($(SOLVER),mhd)
@@ -67,7 +69,7 @@ GITREPO = $(shell git config --get remote.$(GITREMOTE).url)
 BUILDDATE = $(shell date +"%D-%T")
 BUILDCOMMAND =${MAKE} ${MAKEFLAGS}
 DEFINES = -DNVECTOR=$(NVECTOR) -DNDIM=$(NDIM) -DNPRE=$(NPRE) -DNENER=$(NENER) \
-          -DNVAR=$(NVAR) -DNHYDRO=$(NHYDRO) -DSOLVER$(SOLVER)
+          -DNVAR=$(NVAR) -DNHYDRO=$(NHYDRO) -DSOLVER$(SOLVER) -DOUTPUT_PARTICLE_POTENTIAL=1
 ifeq ($(ATON),1)
    DEFINES += -DATON
 endif
@@ -203,7 +205,7 @@ endif
 MODOBJ += poisson_commons.o hydro_parameters.o hydro_commons.o \
           cooling_module.o bisection.o sparse_mat.o clfind_commons.o \
           gadgetreadfile.o write_makefile.o write_patch.o write_gitinfo.o \
-          sink_sn_feedback.o dice_commons.o
+          deltaE_module.o sink_sn_feedback.o dice_commons.o
 ifeq ($(RT),1)
    MODOBJ += rt_parameters.o rt_hydro_commons.o coolrates_module.o \
              rt_spectra.o rt_cooling_module.o rt_flux_module.o

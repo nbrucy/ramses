@@ -281,7 +281,7 @@ subroutine multigrid_fine(ilevel,icount)
 
    end do main_iteration_loop
 
-   if(myid==1) print '(A,I5,A,I5,A,1pE10.3)','   ==> Level=',ilevel, ' Step=', &
+   if(myid==1 .and. verbose) print '(A,I5,A,I5,A,1pE10.3)','   ==> Level=',ilevel, ' Step=', &
             iter,' Error=',err
    if(myid==1 .and. iter==MAXITER) print *,'WARN: Fine multigrid &
       &Poisson failed to converge...'

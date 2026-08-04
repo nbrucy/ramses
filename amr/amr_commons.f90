@@ -16,6 +16,9 @@ module amr_commons
   real(dp)::ekin_tot=0.0D0                      ! Total kinetic energy
   real(dp)::eint_tot=0.0D0                      ! Total internal energy
   real(dp)::epot_tot=0.0D0                      ! Total potential energy
+  real(dp)::epot_tot_part=0.0D0                 ! Total potential energy of particles
+  real(dp)::ekin_tot_part=0.0D0                 ! Total kinetic energy of particles
+
   real(dp)::epot_tot_old=0.0D0                  ! Old potential energy
   real(dp)::epot_tot_int=0.0D0                  ! Time integrated potential
   real(dp)::einit=0.0D0                         ! Initial total energy
@@ -180,5 +183,6 @@ module amr_commons
   real(dp)::units_density=1.0d0  ! [g/cm^3]
   real(dp)::units_time=1.0d0     ! [seconds]
   real(dp)::units_length=1.0d0   ! [cm]
+
 
 end module amr_commons
