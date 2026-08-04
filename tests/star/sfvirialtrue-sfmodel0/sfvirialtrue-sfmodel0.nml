@@ -8,7 +8,7 @@ sink=.false.
 clumpfind=.false.
 nrestart=0
 nremap=10
-nsubcycle=10*2
+nsubcycle=10*1
 ncontrol=1
 /
 
@@ -27,8 +27,8 @@ initfile(1)='./dwarf_galaxy/'
 &AMR_PARAMS
 boxlen=50                 ! 50 kpc
 levelmin=7                ! 50 kpc / 2^7  = 390 pc resolution
-levelmax=11               ! 50 kpc / 2^11 =  25 pc resolution
-ngridmax=200000
+levelmax=8               ! 50 kpc / 2^11 =  25 pc resolution
+ngridmax=2000000
 npartmax=1000000
 /
 
@@ -84,7 +84,7 @@ t_sne=3.                        ! Stellar particle age at which to go SN, in Myr
 gamma=1.4
 courant_factor=0.8
 slope_type=1
-pressure_fix=.true.
+pressure_fix=.false.
 beta_fix=0.5
 riemann='hllc'
 /
@@ -139,9 +139,6 @@ ic_mag_scale_H=1.0            ! Toroidal magnetic field scaleheight
 ic_mag_scale_B=0.0            ! Foreground toroidal magnetic field value
 /
 
-! Feedback
-T2_min=0                    ! if feedback can heat the gas to this temperature then deposit it; here deposits at every fine step
-epsilon_kin=1.              ! momentum feedback efficiency
-kin_mass_loading=100.       ! mass loading factor of momentum feedback
-cone_opening=90.            ! opening angle of the cone in which momentum feedback is deposited (180. means full sphere)
+&DELTAE_PARAMS
+deltaE_debug=.false.
 /

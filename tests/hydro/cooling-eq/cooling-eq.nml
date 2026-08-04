@@ -6,7 +6,7 @@ cooling (and heating due to the UVB) in each cell.
 &RUN_PARAMS
 hydro=.true.
 static_gas=.true.
-ncontrol=50000
+ncontrol=1
 /
 
 &AMR_PARAMS
@@ -48,4 +48,8 @@ units_length=3.0857d18    ! 1 pc
 cooling=.true.
 z_ave=0.1
 haardt_madau=.true.
+/
+
+&DELTAE_PARAMS
+deltaE_debug=.false.
 /

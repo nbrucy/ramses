@@ -6,7 +6,7 @@ cooling in each cell.
 &RUN_PARAMS
 hydro=.true.
 static_gas=.true.
-ncontrol=50000
+ncontrol=1
 /
 
 &AMR_PARAMS

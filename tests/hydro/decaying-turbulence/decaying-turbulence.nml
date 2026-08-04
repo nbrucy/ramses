@@ -18,7 +18,7 @@ scheme='muscl'
 slope_type=1
 riemann='hllc'
 pressure_fix=.true.
-beta_fix=0.5
+beta_fix=0.2
 /
 
 &INIT_PARAMS
@@ -55,4 +55,5 @@ barotropic_eos=.true.
 barotropic_eos_form='isothermal'
 T_eos=10
 mu_gas=2.37
+cooling=.true.
 /

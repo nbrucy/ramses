@@ -37,7 +37,7 @@ p_region=0.030361026190591216
 
 &OUTPUT_PARAMS
 noutput=1
-tout=0.25
+tout=1
 /
 
 &UNITS_PARAMS
@@ -63,4 +63,8 @@ turb_T=0.29241000937376255
 turb_Ndt=100       ! Number of timesteps per autocorr. time
 turb_rms=5.094074502271999      ! rms turbulent forcing acceleration
 turb_min_rho=2.5470372511355715d-6 ! Minimum density for turbulence
+/
+
+&DELTAE_PARAMS
+deltaE_debug=.false.
 /
