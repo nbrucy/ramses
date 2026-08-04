@@ -122,7 +122,12 @@ recursive subroutine amr_step(ilevel,icount)
   !-----------------
 #if NDIM==3
                                call timer('sinks','start')
-  if(sink)call update_cloud(ilevel)
+         
+  if(sink) then 
+   call compute_transfer(levelmin, nlevelmax, .false., deltaE%star_formation, 1)
+   call update_cloud(ilevel)
+   call compute_transfer(levelmin, nlevelmax, .false., deltaE%star_formation, 2)
+  end if
 #endif
   !-----------------
   ! Particle leakage
@@ -130,11 +135,11 @@ recursive subroutine amr_step(ilevel,icount)
                                call timer('particles','start')
 
       
-  !call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1)
+  call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1)
                              
   if(pic)call make_tree_fine(ilevel)
 
-  !call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2)
+  call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2)
 
 
 
