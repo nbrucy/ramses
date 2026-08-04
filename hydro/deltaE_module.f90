@@ -339,7 +339,7 @@ contains
             end do
 #if NENER>0
             do ivar=1,nener
-              ekin_leaf=ekin_leaf+uu(ind_cell,nhydro+ivar)
+              ekin_leaf = ekin_leaf + uu(i, nhydro + ivar)
             end do
 #endif
 #ifdef SOLVERmhd
