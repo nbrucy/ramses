@@ -1,6 +1,7 @@
 subroutine read_hydro_params(nml_ok)
   use amr_commons
   use hydro_commons
+  use cooling_module, only:X,Y
   use mpi_mod
   implicit none
   logical::nml_ok
@@ -52,6 +53,8 @@ subroutine read_hydro_params(nml_ok)
   ! Refinement parameters
   namelist/refine_params/x_refine,y_refine,z_refine,r_refine &
        & ,a_refine,b_refine,exp_refine,jeans_refine,mass_cut_refine &
+       & ,collapse_jeans_refine,collapse_jeans_Tfloor &
+       & ,collapse_jeans_rho_low,collapse_jeans_rho_high &
        & ,m_refine,mass_sph,err_grad_d,err_grad_p,err_grad_u &
        & ,floor_d,floor_u,floor_p,ivar_refine,var_cut_refine &
 #ifdef SOLVERmhd
@@ -84,7 +87,7 @@ subroutine read_hydro_params(nml_ok)
   namelist/cooling_params/cooling,metal,isothermal,haardt_madau,J21 &
        & ,barotropic_eos,barotropic_eos_form,polytrope_rho,polytrope_index,T_eos,mu_gas &
        & ,a_spec,self_shielding,z_ave,z_reion,ind_rsink,T2max,neq_chem &
-       & ,cooling_ism
+       & ,cooling_ism,X,Y
 
   ! Star formation parameters
   namelist/sf_params/m_star,n_star,T2_star,g_star,del_star &
