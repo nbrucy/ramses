@@ -53,15 +53,13 @@ contains
     ! Read namelist
     read(namelist_unit,NML=deltaE_params,IOSTAT=nml_err)
 
-    if(nml_err<0)then
-      if(nml_err>0)then
-        if(myid==1)write(*,*)'Error reading namelist &DELTAE_PARAMS. Check formatting.'
-        nml_ok=.false.
-      end if
+    if(nml_err>0)then
+      if(myid==1)write(*,*)'Error reading namelist &DELTAE_PARAMS. Check formatting.'
+      nml_ok=.false.
     end if
 
     if(deltaE_enable .and. ncontrol > 1) then
-      if(myid==1)write(*,*)'Warning, deltaE not comptatible with ncontrol > 1. Setting ncontrol to 1.'
+      if(myid==1)write(*,*)'Warning, deltaE not compatible with ncontrol > 1. Setting ncontrol to 1.'
       ncontrol = 1
     end if
 
