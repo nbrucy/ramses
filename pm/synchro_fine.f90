@@ -16,8 +16,6 @@ subroutine synchro_fine(ilevel)
   integer::igrid,jgrid,ipart,jpart
   integer::ig,ip,npart1,isink,local_counter
   integer,dimension(1:nvector),save::ind_grid,ind_part,ind_grid_part
-  real(dp) :: epot_loc_part, epot_all_part
-  epot_loc_part = 0.0d0
 
 
   if(numbtot(1,ilevel)==0)return
@@ -52,7 +50,7 @@ subroutine synchro_fine(ilevel)
               ind_part(ip)=ipart
               ind_grid_part(ip)=ig
               if(ip==nvector)then
-                 call sync(ind_grid,ind_part,ind_grid_part,ig,ip,ilevel,epot_loc_part)
+                 call sync(ind_grid,ind_part,ind_grid_part,ig,ip,ilevel)
                  local_counter=0
                  ip=0
                  ig=0
@@ -71,7 +69,7 @@ subroutine synchro_fine(ilevel)
      end if
   end do
   ! End loop over grids
-  if(ip>0)call sync(ind_grid,ind_part,ind_grid_part,ig,ip,ilevel,epot_loc_part)
+  if(ip>0)call sync(ind_grid,ind_part,ind_grid_part,ig,ip,ilevel)
 
   !sink cloud particles are used to average the grav. acceleration
   if(sink)then
@@ -88,13 +86,6 @@ subroutine synchro_fine(ilevel)
         end if
      end do
   endif
-
-#ifndef WITHOUTMPI
-      call MPI_ALLREDUCE(epot_loc_part,epot_all_part,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
-      epot_loc_part=epot_all_part
-#endif
-      epot_tot_part=epot_tot_part+epot_loc_part
-
 
 111 format('   Entering synchro_fine for level ',I2)
 
@@ -121,9 +112,6 @@ subroutine synchro_fine_static(ilevel)
   integer::igrid,jgrid,ipart,jpart
   integer::ig,ip,next_part,npart1,npart2,isink
   integer,dimension(1:nvector),save::ind_grid,ind_part,ind_grid_part
-  real(dp) :: epot_loc_part, epot_all_part
-
-  epot_loc_part = 0.0d0
 
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
@@ -198,7 +186,7 @@ subroutine synchro_fine_static(ilevel)
               endif
            endif
            if(ip==nvector)then
-              call sync(ind_grid,ind_part,ind_grid_part,ig,ip,ilevel,epot_loc_part)
+              call sync(ind_grid,ind_part,ind_grid_part,ig,ip,ilevel)
               ip=0
               ig=0
            end if
@@ -208,7 +196,7 @@ subroutine synchro_fine_static(ilevel)
      end if
   end do
   ! End loop over grids
-  if(ip>0)call sync(ind_grid,ind_part,ind_grid_part,ig,ip,ilevel,epot_loc_part)
+  if(ip>0)call sync(ind_grid,ind_part,ind_grid_part,ig,ip,ilevel)
 
   !sink cloud particles are used to average the grav. acceleration
   if(sink)then
@@ -226,16 +214,6 @@ subroutine synchro_fine_static(ilevel)
      end do
   endif
 
-#ifndef WITHOUTMPI
-      call MPI_ALLREDUCE(epot_loc_part,epot_all_part,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
-      epot_loc_part=epot_all_part
-#endif
-      epot_tot_part=epot_tot_part+epot_loc_part
-
-   if (myid == 1) then
-      write(*,*) "ilevel ", ilevel, "rank ", myid, "epot_loc_part", epot_loc_part
-   end if
-
 
 111 format('   Entering synchro_fine for level ',I2)
 
@@ -244,7 +222,7 @@ end subroutine synchro_fine_static
 !####################################################################
 !####################################################################
 !####################################################################
-subroutine sync(ind_grid,ind_part,ind_grid_part,ng,np,ilevel,epot_loc_part)
+subroutine sync(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
   use amr_commons
   use pm_commons
   use poisson_commons
@@ -252,7 +230,6 @@ subroutine sync(ind_grid,ind_part,ind_grid_part,ng,np,ilevel,epot_loc_part)
   integer::ng,np,ilevel
   integer,dimension(1:nvector)::ind_grid
   integer,dimension(1:nvector)::ind_grid_part,ind_part
-  real(dp) :: epot_loc_part
   !
   !
   !
@@ -512,9 +489,6 @@ subroutine sync(ind_grid,ind_part,ind_grid_part,ng,np,ilevel,epot_loc_part)
         do j=1,np
            ff(j,idim)=ff(j,idim)+f(indp(j,ind),idim)*vol(j,ind)
          end do
-     end do
-     do j=1,np
-         epot_loc_part = epot_loc_part + 0.5*mp(ind_part(j))*phi(indp(j,ind))*vol(j,ind)
      end do
   end do
 
