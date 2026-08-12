@@ -33,7 +33,7 @@ subroutine update_time(ilevel)
   ! The turbulence forcing is evolved.
   !--------------------------------------------------------------------------------
 
-  real(dp)::dt,econs,mcons, ekin_turb
+  real(dp)::dt,econs,mcons
 #ifdef SOLVERmhd
   real(dp)::sqrt_aexp_prev
 #endif
@@ -87,13 +87,16 @@ subroutine update_time(ilevel)
              &(-(epot_tot-epot_tot_int-einit)+ekin_tot)
      end if
 
-     energies = 0.0_dp
-     do i=levelmin,nlevelmax
-       call compute_energies(i, .false., energies_level)
-       energies = energies + energies_level
-     end do
-
      if(mod(nstep_coarse,ncontrol)==0.or.output_done)then
+
+         if (deltaE_enable) then 
+            energies = 0.0_dp
+            do i=levelmin,nlevelmax
+               call compute_energies(i, .false., energies_level)
+               energies = energies + energies_level
+            end do
+         end if
+
         if(myid==1)then
 
            !-------------------------------
@@ -108,8 +111,11 @@ subroutine update_time(ilevel)
            ! Output mass and energy conservation to screen
            !----------------------------------------------
 
-           call print_energies(energies)
-           call deltaE%print_processes()
+           if (deltaE_enable) then 
+               call print_energies(energies)
+               call deltaE%print_processes()
+               call deltaE%initialize_processes()
+           end if
 
            if(cooling.or.pressure_fix)then
               write(*,778)nstep_coarse,mcons,econs,epot_tot,ekin_tot,eint_tot
@@ -133,7 +139,6 @@ subroutine update_time(ilevel)
         output_done=.false.
      end if
 
-     call deltaE%initialize_processes()
      !---------------
      ! Exit program
      !---------------

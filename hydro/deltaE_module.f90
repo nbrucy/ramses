@@ -7,8 +7,9 @@ module deltaE_module
 
   ! DeltaE params
   logical::deltaE_enable=.true. ! Whether to enable deltaE output
-  logical::deltaE_correct_pressure_fix=.true. ! Whether to compute to be "pressure_fix" aware when computing energy
+  logical::deltaE_correct_pressure_fix=.true. ! Whether to be "pressure_fix" aware when computing energy
   logical::deltaE_debug=.false. ! print intermediate energies
+  logical::deltaE_force_all_levels=.false. ! Force computation on all levels for all processes
 
   ! Arrays
   integer, parameter :: nb_energy_kind = 13
@@ -36,7 +37,17 @@ module deltaE_module
     procedure :: print_processes
   end type
 
-  type(processes) :: deltaE
+  type(processes) :: deltaE = processes( &
+    process(0.0d0, "flux_gas"), &
+    process(0.0d0, "flux_part"), &
+    process(0.0d0, "cooling"), &
+    process(0.0d0, "gravity_gas"), &
+    process(0.0d0, "gravity_part"), &
+    process(0.0d0, "star_formation"), &
+    process(0.0d0, "feedback"), &
+    process(0.0d0, "turb_driving"), &
+    process(0.0d0, "magnetic_diffusion"), &
+    process(0.0d0, "corrections"))
 
 contains
 
@@ -46,7 +57,7 @@ contains
     logical,intent(inout)::nml_ok
     integer::nml_err
    
-    namelist/deltaE_params/deltaE_correct_pressure_fix,deltaE_debug,deltaE_enable
+    namelist/deltaE_params/deltaE_correct_pressure_fix,deltaE_debug,deltaE_enable,deltaE_force_all_levels
    ! Go to the beginning of the file
     rewind(namelist_unit)
 
@@ -58,13 +69,8 @@ contains
       nml_ok=.false.
     end if
 
-    if(deltaE_enable .and. ncontrol > 1) then
-      if(myid==1)write(*,*)'Warning, deltaE not compatible with ncontrol > 1. Setting ncontrol to 1.'
-      ncontrol = 1
-    end if
-
-
     call deltaE%initialize_processes
+
   end subroutine read_deltaE_params
 
   subroutine initialize_processes(this)
@@ -73,25 +79,15 @@ contains
     class(processes), intent(inout) :: this
    
     this%flux_gas%v = 0.0d0
-    this%flux_gas%name = "flux_gas"
     this%flux_part%v = 0.0d0
-    this%flux_part%name = "flux_part"
     this%cooling%v = 0.0d0
-    this%cooling%name = "cooling"
     this%gravity_gas%v = 0.0d0
-    this%gravity_gas%name = "gravity_gas"
     this%gravity_part%v = 0.0d0
-    this%gravity_part%name = "gravity_part"
     this%star_formation%v = 0.0d0
-    this%star_formation%name = "star_formation"
     this%feedback%v = 0.0d0
-    this%feedback%name = "feedback"
     this%turb_driving%v = 0.0d0
-    this%turb_driving%name = "turb_driving"
     this%magnetic_diffusion%v = 0.0d0
-    this%magnetic_diffusion%name = "magnetic_diffusion"
     this%corrections%v = 0d0
-    this%corrections%name = "corrections"
 
   end subroutine
 
@@ -156,6 +152,7 @@ contains
 
     implicit none
     integer, intent(in):: levelstart, levelend
+    integer :: act_levelstart, act_levelend
     logical, intent(in):: use_unew
     type(process), intent(inout) :: deltaE_process
     integer, intent(in) :: step
@@ -165,13 +162,21 @@ contains
     real(dp), dimension(1:nb_energy_kind), save :: energy_before
     real(dp), dimension(1:nb_energy_kind) ::energy_level, energy_after
 
+    if (deltaE_force_all_levels) then
+      act_levelstart = levelmin
+      act_levelend = nlevelmax
+    else 
+      act_levelstart = levelstart
+      act_levelend = levelend
+    end if
+
     if (step == 1) then
       energy_before = 0.0d0
     else
       energy_after = 0.0d0
     end if
 
-    do ilevel = levelstart, levelend
+    do ilevel = act_levelstart, act_levelend
       call compute_energies(ilevel, use_unew, energy_level)
       if (step == 1) then
         energy_before = energy_before + energy_level
@@ -179,14 +184,9 @@ contains
         energy_after = energy_after + energy_level
       end if
     end do
-    if (step == 2) then
 
-      ! Rescale potential energy 
-      ! energy_after(iepot) = 2*energy_after(iepot); energy_before(iepot) = 2*energy_before(iepot)
-      ! energy_after(iepot_gas) = 2*energy_after(iepot_gas); energy_before(iepot_gas) = 2*energy_before(iepot_gas)
-      ! energy_after(iepot_part) = 2*energy_after(iepot_part); energy_before(iepot_part) = 2*energy_before(iepot_part)
-      ! energy_after(iepot_part_dm) = 2*energy_after(iepot_part_dm); energy_before(iepot_part_dm) = 2*energy_before(iepot_part_dm)
-      ! energy_after(iepot_part_star) = 2*energy_after(iepot_part_star); energy_before(iepot_part_star) = 2*energy_before(iepot_part_star)
+
+    if (step == 2) then
 
       if (isnan(energy_after(iepot_part)) .or. isnan(energy_before(iepot_part))) then
         if (myid == 1) write(*,*) "DeltaE Warning: nan epot found in ", deltaE_process%name
@@ -194,6 +194,15 @@ contains
         energy_before(iepot_part) = 0.0d0
         energy_after(iepot) = energy_after(iepot_gas) 
         energy_before(iepot) = energy_before(iepot_gas) 
+      end if
+
+
+      if (isnan(energy_after(iepot_gas)) .or. isnan(energy_before(iepot_gas))) then
+        if (myid == 1) write(*,*) "DeltaE Warning: nan epot found in ", deltaE_process%name
+        energy_after(iepot_gas) = 0.0d0
+        energy_before(iepot_gas) = 0.0d0
+        energy_after(iepot) = energy_after(iepot_part) 
+        energy_before(iepot) = energy_before(iepot_part) 
       end if
 
       deltaE_process%v = deltaE_process%v + energy_after - energy_before
@@ -294,7 +303,7 @@ contains
 
         if (poisson) then 
           do i = 1, nleaf
-            epot_leaf = 0.5*vol*uu(i, 1)*phi(ind_leaf(i))
+            epot_leaf = 0.5*vol*uu(i, 1)*phi_old(ind_leaf(i))
             epot_loc = epot_loc + epot_leaf
           end do
         end if
@@ -330,7 +339,7 @@ contains
         end do
 #endif
 
-        if(pressure_fix .and. deltaE_correct_pressure_fix)then ! TODO add a parameter to switch this correction on/off
+        if(pressure_fix .and. deltaE_correct_pressure_fix)then
           ! Correct internal energy if too small
           do i=1, nleaf
             ekin_leaf = 0.
@@ -344,7 +353,7 @@ contains
 #endif
 #ifdef SOLVERmhd
             do ivar = 1, ndim
-              ekin_leaf = 0.125d0*(uu(i, neul + ivar) + uu(i, nvar + ivar))**2
+              ekin_leaf = ekin_leaf + 0.125d0*(uu(i, neul + ivar) + uu(i, nvar + ivar))**2
             end do
 #endif
 
@@ -531,9 +540,9 @@ contains
     integer :: igrid, jgrid
 
     ! Particle variable
-    integer::ipart, jpart, next_part, ig, ip, npart1, local_counter
+    integer::ipart, jpart, next_part, ip, npart1, local_counter
 
-    integer, dimension(1:nvector), save::ind_grid, ind_part, ind_grid_part
+    integer, dimension(1:nvector), save:: ind_part
 
     logical :: ok
 
@@ -555,40 +564,24 @@ contains
     epot_families_loc = 0.d0
 
     if (pic) then
-
-      ! Update particles position and velocity
-      ig = 0
       ip = 0
       ! Loop over particles that are not tracers
       do jgrid = 1, active(ilevel)%ngrid
         igrid = active(ilevel)%igrid(jgrid)
         npart1 = numbp(igrid)  ! Number of particles in the grid
         if (npart1 > 0) then
-          ig = ig + 1
-          ind_grid(ig) = igrid
           ipart = headp(igrid)
-          local_counter = 0
           ! Loop over particles
           do jpart = 1, npart1
             ! Save next particle  <---- Very important !!!
             next_part = nextp(ipart)
-            ! Classical particles
-            if (ig == 0) then
-              ig = 1
-              ind_grid(ig) = igrid
-            end if
             ! Skip tracers
             if (.not. is_tracer(typep(ipart))) then
-              local_counter = local_counter + 1
               ip = ip + 1
               ind_part(ip) = ipart
-              ind_grid_part(ip) = ig
               if (ip == nvector) then
-                call ekin_part_helper(ind_part, ekin_part_loc, ekin_families_loc, epot_part_loc, epot_families_loc,  ip, ilevel)
-                !call epot_part_helper(ind_grid, ind_part, ind_grid_part, epot_part_loc, epot_families_loc, ig, ip, ilevel)
-                local_counter = 0
+                call ekin_part_helper(ind_part, ekin_part_loc, ekin_families_loc, epot_part_loc, epot_families_loc, ip, ilevel)
                 ip = 0
-                ig = 0
               end if
             end if
 
@@ -596,15 +589,11 @@ contains
           end do
           ! End loop over particles
           ! If there was no particle in the grid, remove the grid from the buffer
-          if (local_counter == 0 .and. ig > 0) then
-            ig = ig - 1
-          end if
         end if
       end do
       ! End loop over grids
       if (ip > 0) then
         call ekin_part_helper(ind_part, ekin_part_loc, ekin_families_loc, epot_part_loc, epot_families_loc,  ip, ilevel)
-       ! call epot_part_helper(ind_grid, ind_part, ind_grid_part, epot_part_loc, epot_families_loc, ig, ip, ilevel)
       end if
 
 #ifndef WITHOUTMPI
