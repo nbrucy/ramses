@@ -96,6 +96,8 @@ recursive subroutine amr_step(ilevel,icount)
   ok_defrag=.false.
   if(levelmin.lt.nlevelmax)then
      if(ilevel==levelmin)then
+        if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1)
+
         if(nremap>0)then
            ! Skip first load balance because it has been performed before file dump
            if(nrestart>0.and.first_step)then
@@ -114,8 +116,10 @@ recursive subroutine amr_step(ilevel,icount)
               endif
            end if
         end if
-     endif
+        if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2)
+     end if
   end if
+
 
   !-----------------
   ! Update sink cloud particle properties
@@ -133,15 +137,12 @@ recursive subroutine amr_step(ilevel,icount)
   ! Particle leakage
   !-----------------
                                call timer('particles','start')
-
-      
-  !if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1)
-                             
-  if(pic)call make_tree_fine(ilevel)
-
-  !if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2)
-
-
+                         
+  if(pic) then 
+    if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1)
+    call make_tree_fine(ilevel)
+    if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2)
+  end if
 
   !------------------------
   ! Output results to files
@@ -256,17 +257,21 @@ recursive subroutine amr_step(ilevel,icount)
   !-------------------------------------------
   if(pic)then
    
-     !if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1)
+      if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1)
 
-
-     ! Remove particles to finer levels
+     ! Remove particles to finer levels: hands particles that sit in refined regions down to ilevel+1, so the finer level owns them for its sub-steps.
                                call timer('particles','start')
      call kill_tree_fine(ilevel)
 
-     ! Update boundary conditions for remaining particles
+     if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2)
+
+
+     if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1)
+
+     ! Update boundary conditions for remaining particles: sends particles that have left this MPI domain to their new process, and receives incoming ones.
      call virtual_tree_fine(ilevel)
 
-     !if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2)
+     if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2)
 
 
 
@@ -427,9 +432,9 @@ recursive subroutine amr_step(ilevel,icount)
 #if NDIM==3
                                call timer('feedback','start')
 
-      if(deltaE_enable) call compute_transfer(ilevel, ilevel, .true., deltaE%feedback, 1)     
+      if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .true., deltaE%feedback, 1)     
       if(hydro.and.star.and.eta_sn>0)call thermal_feedback(ilevel)
-      if(deltaE_enable) call compute_transfer(ilevel, ilevel, .true., deltaE%feedback, 2)     
+      if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .true., deltaE%feedback, 2)     
 #endif
 
 
@@ -438,9 +443,9 @@ recursive subroutine amr_step(ilevel,icount)
 #if NDIM==3
   if(sink.and.hydro)then
                                call timer('sinks','start')
-     if(deltaE_enable) call compute_transfer(ilevel, ilevel, .true., deltaE%star_formation, 1)     
+     if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .true., deltaE%star_formation, 1)     
      call grow_sink(ilevel,.false.)
-     if(deltaE_enable) call compute_transfer(ilevel, ilevel, .true., deltaE%star_formation, 2)     
+     if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .true., deltaE%star_formation, 2)     
   end if
 #endif
   !-----------
@@ -576,15 +581,15 @@ recursive subroutine amr_step(ilevel,icount)
   ! Move particles
   !---------------
   if(pic)then
-      if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1)    
+      if(deltaE_enable) call compute_transfer(ilevel, ilevel, .false., deltaE%flux_part, 1)    
 
                                call timer('particles','start')
      if(static_dm.or.static_stars)then
-        call move_fine_static(ilevel) ! Only remaining particles
+        call move_fine_static(ilevel) ! Only remaining particles: (that is not lying in refined region)
      else
         call move_fine(ilevel) ! Only remaining particles
      end if
-     if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2)    
+     if(deltaE_enable) call compute_transfer(ilevel, ilevel, .false., deltaE%flux_part, 2)    
   end if
 
 
@@ -640,12 +645,12 @@ recursive subroutine amr_step(ilevel,icount)
   ! Merge finer level particles
   !----------------------------
 
-  !if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1) 
 
                                call timer('particles','start')
-  if(pic)call merge_tree_fine(ilevel)
 
-  !if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2) 
+  if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 1) 
+  if(pic)call merge_tree_fine(ilevel)
+  if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, .false., deltaE%flux_part, 2) 
 
 
 
@@ -700,6 +705,7 @@ recursive subroutine amr_step(ilevel,icount)
 
 
 999 format(' Entering amr_step(',i1,') for level',i2)
+
 
 end subroutine amr_step
 

@@ -628,6 +628,7 @@ end subroutine kill_tree
 subroutine merge_tree_fine(ilevel)
   use pm_commons
   use amr_commons
+  use deltaE_module
   implicit none
   integer::ilevel
   !----------------------------------------------------------------------
@@ -714,6 +715,30 @@ subroutine merge_tree_fine(ilevel)
      ! End loop over grids
   end do
   ! End loop over cpus
+
+  
+  if (deltaE_enable) then
+   ! Reset all linked lists at level ilevel+1
+   ! NOT COMPATIBLE WITH MC TRACERS
+     do i=1,active(ilevel+1)%ngrid
+        headp(active(ilevel+1)%igrid(i))=0
+        tailp(active(ilevel+1)%igrid(i))=0
+        numbp(active(ilevel+1)%igrid(i))=0
+     end do
+     do icpu=1,ncpu
+        do i=1,reception(icpu,ilevel+1)%ngrid
+#ifdef LIGHT_MPI_COMM
+           headp(reception(icpu,ilevel+1)%pcomm%igrid(i))=0
+           tailp(reception(icpu,ilevel+1)%pcomm%igrid(i))=0
+           numbp(reception(icpu,ilevel+1)%pcomm%igrid(i))=0
+#else 
+           headp(reception(icpu,ilevel+1)%igrid(i))=0
+           tailp(reception(icpu,ilevel+1)%igrid(i))=0
+           numbp(reception(icpu,ilevel+1)%igrid(i))=0
+#endif
+        end do
+     end do
+ end if
 
 111 format('   Entering merge_tree_fine for level ',I2)
 

@@ -212,8 +212,6 @@ contains
         call print_energies(energy_before)
         write(*,*) "DeltaE debug after ", deltaE_process%name
         call print_energies(energy_after)
-        write(*,*) "Changes for ", deltaE_process%name
-        call print_energies(energy_after - energy_before)
       end if
     end if
 
@@ -544,8 +542,6 @@ contains
 
     integer, dimension(1:nvector), save:: ind_part
 
-    logical :: ok
-
     ! MPI variables
 #ifndef WITHOUTMPI
     integer::info
@@ -588,7 +584,6 @@ contains
             ipart = next_part  ! Go to next particle
           end do
           ! End loop over particles
-          ! If there was no particle in the grid, remove the grid from the buffer
         end if
       end do
       ! End loop over grids
