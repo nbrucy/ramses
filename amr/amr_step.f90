@@ -345,13 +345,14 @@ recursive subroutine amr_step(ilevel,icount)
         call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel),1)
         if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE%gravity_gas, 2)     
 
-
-
         ! Update boundaries
+        if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE%corrections, 1) 
         do ivar=1,nvar_all
            call make_virtual_fine_dp(uold(1,ivar),ilevel)
         end do
         if(simple_boundary)call make_boundary_hydro(ilevel)
+        if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE%corrections, 2) 
+
 
         ! Compute Bondi-Hoyle accretion parameters
 #if NDIM==3
@@ -616,6 +617,17 @@ recursive subroutine amr_step(ilevel,icount)
   !----------------------------------
 #if NDIM==3
                                call timer('feedback','start')
+
+  if (deltaE_enable .and. hydro .and.star) then 
+      ! Star formation communicates ghost, but we don't want to attribute the update to it
+      call compute_transfer(ilevel, ilevel, deltaE%corrections, 1) 
+      do ivar=1,4
+         call make_virtual_fine_dp(uold(1,ivar),ilevel)
+      end do
+      call compute_transfer(ilevel, ilevel, deltaE%corrections, 2) 
+
+  end if
+
   if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE%star_formation, 1) 
 
   if(hydro.and.star.and.(.not.static_gas))call star_formation(ilevel)
