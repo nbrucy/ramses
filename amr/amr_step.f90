@@ -345,8 +345,6 @@ recursive subroutine amr_step(ilevel,icount)
         call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel),1)
         if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE%gravity_gas, 2)     
 
-
-
         ! Update boundaries
         if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE%corrections, 1) 
         do ivar=1,nvar_all
@@ -617,7 +615,7 @@ recursive subroutine amr_step(ilevel,icount)
 #if NDIM==3
                                call timer('feedback','start')
 
-  if (deltaE_enable) then 
+  if (deltaE_enable .and. hydro .and.star) then 
       ! Star formation communicates ghost, but we don't want to attribute the update to it
       call compute_transfer(ilevel, ilevel, deltaE%corrections, 1) 
       do ivar=1,4
