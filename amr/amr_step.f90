@@ -410,6 +410,11 @@ recursive subroutine amr_step(ilevel,icount)
         call add_pdv_source_terms(ilevel)
      endif
 
+     ! Add viscous source terms to unew
+     if(add_viscosity)then
+        call add_viscous_stress_terms(ilevel)
+     endif
+
      ! Set uold equal to unew
                                call timer('hydro - set uold','start')
      call set_uold(ilevel)
@@ -590,7 +595,6 @@ subroutine rt_step(ilevel)
   use rt_hydro_commons
   use UV_module
   use SED_module,     only: star_RT_feedback
-  use mpi_mod
   implicit none
   integer, intent(in) :: ilevel
 
