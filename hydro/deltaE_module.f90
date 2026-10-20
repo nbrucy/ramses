@@ -467,9 +467,8 @@ contains
 
   recursive subroutine compute_eturb_aux(ilevel, ngrid, ind_grid, mass_total, momentum_total, eturb)
     ! For a batch of at most nvector grids at level ilevel: returns their total mass and
-    ! momentum, and adds the fluctuation energy of their cells around the oct mean to
-    ! eturb(ilevecompute_ekin_turb_all_levelsf refined cells are handled by recursive calls on
-    ! vectors of at most nvector grids.
+    ! momentum, and adds the fluctuation energy of their cells around the grid mean to
+    ! eturb. Refined cells are handled by recursive calls on vectors of at most nvector grids.
     use amr_commons
     use hydro_commons
     implicit none
