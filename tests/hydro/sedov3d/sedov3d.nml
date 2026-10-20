@@ -9,26 +9,26 @@ verbose=.false.
 /
 
 &AMR_PARAMS
-levelmin=4
-levelmax=7
+levelmin=6
+levelmax=8
 ngridtot=40000
 nexpand=0
 boxlen=0.5
 /
 
 &INIT_PARAMS
-nregion=2
+nregion=1
 region_type(1)='square'
-region_type(2)='point'
+region_type(2)='square'
 x_center=0.5,0.0
-y_center=0.5,0.0
+y_center=0.25,0.75
 z_center=0.5,0.0
 length_x=10.0,1.0
-length_y=10.0,1.0
+length_y=5.0,5.0
 length_z=10.0,1.0
 exp_region=10.0,10.0
-d_region=1.0,0.0
-u_region=0.0,0.0
+d_region=1.0,2.0
+u_region=100.0,-100.0
 v_region=0.0,0.0
 w_region=0.0,0.0
 p_region=1e-5,0.4

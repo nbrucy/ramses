@@ -17,6 +17,7 @@ subroutine synchro_fine(ilevel)
   integer::ig,ip,npart1,isink,local_counter
   integer,dimension(1:nvector),save::ind_grid,ind_part,ind_grid_part
 
+
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
 
@@ -212,6 +213,7 @@ subroutine synchro_fine_static(ilevel)
         end if
      end do
   endif
+
 
 111 format('   Entering synchro_fine for level ',I2)
 
@@ -486,7 +488,7 @@ subroutine sync(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
      do idim=1,ndim
         do j=1,np
            ff(j,idim)=ff(j,idim)+f(indp(j,ind),idim)*vol(j,ind)
-        end do
+         end do
      end do
   end do
 

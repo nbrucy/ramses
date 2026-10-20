@@ -3,6 +3,7 @@ subroutine update_time(ilevel)
   use pm_commons
   use hydro_commons
   use cooling_module
+  use deltaE_module
 #if USE_TURB==1
   use turb_commons
 #endif
@@ -40,6 +41,8 @@ subroutine update_time(ilevel)
   real(kind=dp) :: cur_turb_rms
 #endif
   integer::i,itest
+
+  real(dp), dimension(1:nb_energy_kind) :: energies, energies_level
 
   ! Local constants
   dt=dtnew(ilevel)
@@ -85,6 +88,15 @@ subroutine update_time(ilevel)
      end if
 
      if(mod(nstep_coarse,ncontrol)==0.or.output_done)then
+
+         if (deltaE_enable) then 
+            energies = 0.0_dp
+            do i=levelmin,nlevelmax
+               call compute_energies(i, energies_level, i == levelmin)
+               energies = energies + energies_level
+            end do
+         end if
+
         if(myid==1)then
 
            !-------------------------------
@@ -98,6 +110,12 @@ subroutine update_time(ilevel)
            !----------------------------------------------
            ! Output mass and energy conservation to screen
            !----------------------------------------------
+
+           if (deltaE_enable) then 
+               call print_energies(energies)
+               call print_processes()
+           end if
+
            if(cooling.or.pressure_fix)then
               write(*,778)nstep_coarse,mcons,econs,epot_tot,ekin_tot,eint_tot
            else
@@ -114,8 +132,10 @@ subroutine update_time(ilevel)
               write(*,888)nstep,t,dt,aexp,&
                    & real(100.0D0*dble(used_mem_tot)/dble(ngridmax+1))
            endif
+
            itest=1
         end if
+        if(deltaE_enable) call reset_processes()
         output_done=.false.
      end if
 
@@ -197,13 +217,15 @@ subroutine update_time(ilevel)
   end if
 #endif
 
-777 format(' Main step=',i7,' mcons=',1pe9.2,' econs=',1pe9.2, &
-         & ' epot=',1pe9.2,' ekin=',1pe9.2)
-778 format(' Main step=',i7,' mcons=',1pe9.2,' econs=',1pe9.2, &
-         & ' epot=',1pe9.2,' ekin=',1pe9.2,' eint=',1pe9.2)
+
+777 format(' Main step=',i7,' mcons=',1pe12.5,' econs=',1pe12.5, &
+         & ' epot=',1pe12.5,' ekin=',1pe12.5)
+778 format(' Main step=',i7,' mcons=',1pe12.5,' econs=',1pe12.5, &
+         & ' epot=',1pe12.5,' ekin=',1pe12.5,' eint=',1pe12.5)
 888 format(' Fine step=',i7,' t=',1pe12.5,' dt=',1pe10.3, &
          & ' a=',1pe10.3,' mem=',0pF4.1,'% ',0pF4.1,'%')
 999 format(' Level ',I2,' has ',I10,' grids (',3(I8,','),')')
+
 
 end subroutine update_time
 

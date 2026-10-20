@@ -63,3 +63,7 @@ turb_Ndt=100       ! Number of timesteps per autocorr. time
 turb_rms=5.094074502271999      ! rms turbulent forcing acceleration
 turb_min_rho=2.5470372511355715d-6 ! Minimum density for turbulence
 /
+
+&DELTAE_PARAMS
+deltaE_debug=.false.
+/
