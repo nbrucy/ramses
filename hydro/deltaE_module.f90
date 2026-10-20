@@ -31,7 +31,7 @@ module deltaE_module
                         & "epot_part_star", "epot_part_dm"]
 
   ! Turbulent kinetic energy, one reservoir per level: index iekin_turb0 + ilevel
-  integer, parameter :: iekin_turb0 = nb_energy_fixed
+  integer, parameter :: iekin_turb0 = nb_energy_fixed 
   integer, parameter :: nb_energy_kind = nb_energy_fixed + MAXLEVEL
 
   type process
@@ -184,7 +184,7 @@ contains
     if (hydro .and. compute_eturb) then
       eturb = 0.0d0
       call compute_ekin_turb_all_levels(eturb)
-      energies(iekin_turb0 + levelmin - 1:iekin_turb0 + nlevelmax) = eturb(levelmin:nlevelmax)
+      energies(iekin_turb0 + levelmin:iekin_turb0 + nlevelmax) = eturb(levelmin:nlevelmax)
     end if
     energies(iekin) = energies(iekin_gas) + energies(iekin_part)
     energies(iepot) = energies(iepot_gas) + energies(iepot_part)
