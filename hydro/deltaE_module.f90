@@ -474,9 +474,9 @@ contains
     use hydro_commons
     implicit none
     integer, intent(in) :: ilevel, ngrid
-    integer, dimension(1:nvector), intent(in) :: ind_grid
-    real(dp), dimension(1:nvector), intent(out) :: mass_total
-    real(dp), dimension(1:ndim, 1:nvector), intent(out) :: momentum_total
+    integer, dimension(1:ngrid), intent(in) :: ind_grid
+    real(dp), dimension(1:ngrid), intent(out) :: mass_total
+    real(dp), dimension(1:ndim, 1:ngrid), intent(out) :: momentum_total
     real(dp), dimension(1:nlevelmax), intent(inout) :: eturb
 
     real(dp), dimension(1:nvector, 1:twotondim) :: mass
