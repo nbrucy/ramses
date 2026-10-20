@@ -10,7 +10,6 @@ module deltaE_module
   logical::deltaE_correct_pressure_fix=.true. ! Whether to be "pressure_fix" aware when computing energy
   logical::deltaE_debug=.false. ! print intermediate energies
   logical::deltaE_force_all_levels=.false. ! Force computation on all levels for all processes
-  integer::deltaE_level_turb=0 ! Level at wich the turbulence energy is computed (0 = compute on leaf cells.)
 
 
   ! DeltaE status flags
@@ -18,21 +17,27 @@ module deltaE_module
   logical, dimension(:), allocatable :: deltaE_use_phi_old
 
   ! Arrays
-  integer, parameter :: nb_energy_kind = 13
+  ! Fixed energies
+  integer, parameter :: nb_energy_fixed = 12
   integer, parameter :: iekin = 1, iepot = 2, ieint = 3, iemag = 4, iekin_gas = 5, &
                         & iekin_part = 6, iepot_gas = 7, iepot_part = 8, &
-                        & iekin_gas_turb = 9, iekin_part_star = 10, &
-                        & iekin_part_dm = 11, iepot_part_star = 12, iepot_part_dm = 13
-  character(len=14), dimension(1:nb_energy_kind) :: energy_names = [character(len=14) :: &
+                        & iekin_part_star = 9, iekin_part_dm = 10, &
+                        & iepot_part_star = 11, iepot_part_dm = 12
+  character(len=14), dimension(1:nb_energy_fixed) :: energy_names = [character(len=14) :: &
                         & "ekin", "epot", "eint", &
                         & "emag", "ekin_gas", "ekin_part",&
                         & "epot_gas", "epot_part", &
-                        & "ekin_gas_turb", "ekin_part_star", "ekin_part_dm", &
+                        & "ekin_part_star", "ekin_part_dm", &
                         & "epot_part_star", "epot_part_dm"]
+
+  ! Turbulent kinetic energy, one reservoir per level: index iekin_turb0 + ilevel
+  integer, parameter :: iekin_turb0 = nb_energy_fixed 
+  integer, parameter :: nb_energy_kind = nb_energy_fixed + MAXLEVEL
 
   type process
     real(dp), dimension(1:nb_energy_kind) :: v
     character(len=20) :: name
+    logical :: compute_eturb
   end type 
 
   type processes
@@ -45,17 +50,17 @@ module deltaE_module
   end type
 
   type(processes) :: deltaE = processes( &
-    process(0.0d0, "flux_gas"), &
-    process(0.0d0, "flux_part"), &
-    process(0.0d0, "cooling"), &
-    process(0.0d0, "gravity_gas"), &
-    process(0.0d0, "gravity_part"), &
-    process(0.0d0, "star_formation"), &
-    process(0.0d0, "feedback"), &
-    process(0.0d0, "turb_driving"), &
-    process(0.0d0, "poisson"), &
-    process(0.0d0, "magnetic_diffusion"), &
-    process(0.0d0, "corrections"))
+    process(0.0d0, "flux_gas", .true.), &
+    process(0.0d0, "flux_part", .false.), &
+    process(0.0d0, "cooling", .false.), &
+    process(0.0d0, "gravity_gas", .true.), &
+    process(0.0d0, "gravity_part", .false.), &
+    process(0.0d0, "star_formation", .true.), &
+    process(0.0d0, "feedback", .true.), &
+    process(0.0d0, "turb_driving", .true.), &
+    process(0.0d0, "poisson", .false.), &
+    process(0.0d0, "magnetic_diffusion", .false.), &
+    process(0.0d0, "corrections", .true.))
 
 contains
 
@@ -65,7 +70,7 @@ contains
     logical,intent(inout)::nml_ok
     integer::nml_err
    
-    namelist/deltaE_params/deltaE_correct_pressure_fix,deltaE_debug,deltaE_enable,deltaE_force_all_levels,deltaE_level_turb
+    namelist/deltaE_params/deltaE_correct_pressure_fix,deltaE_debug,deltaE_enable,deltaE_force_all_levels
    ! Go to the beginning of the file
     rewind(namelist_unit)
 
@@ -106,6 +111,22 @@ contains
 
   end subroutine
 
+  function energy_name(i) result(name)
+    integer, intent(in) :: i
+    character(len=20) :: name
+    if (i <= nb_energy_fixed) then
+      name = energy_names(i)
+    else
+      write(name, '(A,I2.2)') "ekin_gas_turb_", i - iekin_turb0
+    end if
+  end function
+
+  logical function energy_printed(i)
+    integer, intent(in) :: i
+    energy_printed = (i <= nb_energy_fixed) .or. &
+         & (i - iekin_turb0 >= levelmin .and. i - iekin_turb0 <= nlevelmax)
+  end function
+
   subroutine print_energies(energies)
     implicit none
     real(dp), dimension(1:nb_energy_kind), intent(in) :: energies
@@ -113,11 +134,12 @@ contains
 
     write (*, *) "Energy output"
     do i = 1, nb_energy_kind
-      write (*, 998) " ", energy_names(i), energies(i)
+      if (.not. energy_printed(i)) cycle
+      write (*, 996) " ", energy_name(i), energies(i)
     end do
     write (*, *) "End energy output"
 
-998 format(A1, A14, 1pe20.7)
+996 format(A1, A20, 1pe20.7)
 
   end subroutine
 
@@ -132,7 +154,8 @@ contains
                         this%gravity_part%name, this%star_formation%name, this%feedback%name,  this%turb_driving%name, &
                         this%poisson%name, this%magnetic_diffusion%name, this%corrections%name
     do i = 1, nb_energy_kind
-      write (*, 998) energy_names(i), this%flux_gas%v(i), this%flux_part%v(i), this%cooling%v(i), this%gravity_gas%v(i), &
+      if (.not. energy_printed(i)) cycle
+      write (*, 998) energy_name(i), this%flux_gas%v(i), this%flux_part%v(i), this%cooling%v(i), this%gravity_gas%v(i), &
                    this%gravity_part%v(i), this%star_formation%v(i), this%feedback%v(i), this%turb_driving%v(i), &
                    this%poisson%v(i), this%magnetic_diffusion%v(i), this%corrections%v(i)
     end do
@@ -143,11 +166,13 @@ contains
 
   end subroutine
 
-  subroutine compute_energies(ilevel, energies)
+  subroutine compute_energies(ilevel, energies, compute_eturb)
     implicit none
 
     integer, intent(in):: ilevel
     real(dp), dimension(1:nb_energy_kind), intent(inout) :: energies
+    logical, intent(in) :: compute_eturb
+    real(dp), dimension(1:nlevelmax) :: eturb
 
     energies = 0.0d0
     if (hydro) then
@@ -156,9 +181,13 @@ contains
     if (pic) then
       call compute_energy_part(ilevel, energies)
     end if
+    if (hydro .and. compute_eturb) then
+      eturb = 0.0d0
+      call compute_ekin_turb_all_levels(eturb)
+      energies(iekin_turb0 + levelmin:iekin_turb0 + nlevelmax) = eturb(levelmin:nlevelmax)
+    end if
     energies(iekin) = energies(iekin_gas) + energies(iekin_part)
     energies(iepot) = energies(iepot_gas) + energies(iepot_part)
-
   end subroutine
 
   subroutine compute_transfer(levelstart, levelend, deltaE_process, step)
@@ -189,7 +218,7 @@ contains
     end if
 
     do ilevel = act_levelstart, act_levelend
-      call compute_energies(ilevel, energy_level)
+      call compute_energies(ilevel, energy_level, ilevel == act_levelstart .and. deltaE_process%compute_eturb)
       if (step == 1) then
         energy_before = energy_before + energy_level
       else
@@ -397,134 +426,125 @@ contains
     energies(iemag) = emag_loc
     energies(iepot_gas) = epot_loc
 #endif
-
-    if (deltaE_level_turb == 0 .or. deltaE_level_turb == ilevel) then
-      if (deltaE_use_unew(ilevel)) then
-        energies(iekin_gas_turb) = compute_ekin_turb(ilevel, unew)
-      else 
-        energies(iekin_gas_turb) = compute_ekin_turb(ilevel, uold)
-      end if
-    end if
-
   end subroutine compute_energy_gas
 
-  function compute_ekin_turb(ilevel, uarray) result(ekin_turb)
+
+  subroutine compute_ekin_turb_all_levels(eturb)
+    ! Turbulent kinetic energy per level. For every grid i at level L:
+    !   eturb(L) += sum_i 1/2 m_i |v_i - V|^2,  V = mass-weighted mean velocity of the grid.
+    ! Refined cells use the total mass and momentum of their child grid,
+    ! since some updates are done only on leaf cells (eg. feedback, star formation, etc.)
     use amr_commons
     use hydro_commons
     use mpi_mod
-    use amr_constants, only: i1min, i1max, j1min, j1max, k1min, k1max
-
     implicit none
-
-    ! Parameters and outputs
-    integer, intent(in) :: ilevel
-    real(dp),dimension(:,:), intent(in):: uarray
-    real(dp) :: ekin_turb
-
-    ! AMR Variables
-    integer :: i, ind, ncache, igrid, iskip, idim
-    integer :: ncell_turb, ngrid, nx_loc
-    integer, dimension(nvector) :: ind_grid, ind_cell, ind_cell_turb, index_current_grid
-    integer, dimension(1:nvector, 1:threetondim)::nbor_cells
-    integer::i1, j1, k1, ind_father
-
-    ! Physical variables
-    real(dp) :: scale, dx, vol, ekin_turb_loc
-    real(dp), dimension(nvector, ndim):: velocity_mean ! Mean velocity in the grid
-    real(dp), dimension(nvector):: mass
-    real(dp), dimension(ndim) :: mass_velocity ! Mass* velocity of the current leaf cell
-    real(dp) :: vel
-
-    ! MPI variables
+    real(dp), dimension(1:nlevelmax), intent(out) :: eturb
+    real(dp), dimension(1:nlevelmax) :: eturb_loc
+    integer, dimension(1:nvector) :: ind_grid
+    real(dp), dimension(1:nvector) :: mass_total
+    real(dp), dimension(1:ndim, 1:nvector) :: momentum_total
+    integer :: igrid, ngrid, ncache, i
 #ifndef WITHOUTMPI
-    integer::info
+    integer :: info
 #endif
 
-    ! Initialize arrays
-    ekin_turb_loc = 0.0d0
-
-    ! Mesh spacing at that level
-    nx_loc = icoarse_max - icoarse_min + 1
-    scale = boxlen/dble(nx_loc)
-    dx = 0.5D0**ilevel*scale
-    vol = dx**ndim
-
-    ! Loop over active grids by vector sweeps
-    ncache = active(ilevel)%ngrid
+    eturb_loc = 0.0d0
+    ncache = active(levelmin)%ngrid
     do igrid = 1, ncache, nvector
-
-      velocity_mean = 0.0d0
-      mass = 0.0d0
-
-      ngrid = MIN(nvector, ncache - igrid + 1)
-
+      ngrid = min(nvector, ncache - igrid + 1)
       do i = 1, ngrid
-        ind_grid(i) = active(ilevel)%igrid(igrid + i - 1)
-        ind_cell(i) = father(ind_grid(i)) ! also gather father cells
+        ind_grid(i) = active(levelmin)%igrid(igrid + i - 1)
       end do
-
-      ! Collect neighbor cells
-      call get3cubefather(ind_cell, nbor_cells, ngrid, ilevel - 1)
-
-      ! Loop over 3x3x3 neighboring father cells
-      do k1 = k1min, k1max
-        do j1 = j1min, j1max
-          do i1 = i1min, i1max
-
-            ! Get neighbor cell index
-            ind_father = 1 + i1 + 3*j1 + 9*k1
-
-            do i = 1, ngrid
-              ! Get mass and velocity and aggregate
-              ! Always use uold for the father cells (TODO do average ??)
-              mass_velocity = 2**(ndim)*vol*uold(nbor_cells(i, ind_father), 2:1 + ndim)
-              velocity_mean(i, :) = velocity_mean(i, :) + mass_velocity
-              mass(i) = mass(i) + 2**(ndim)*vol*uold(nbor_cells(i, ind_father), 1)
-            end do
-          end do
-        end do
-      end do
-
-      ! Normalize
-      do i = 1, ngrid
-        velocity_mean(i, :) = velocity_mean(i, :)/mass(i)
-      end do
-
-      ! Loop over cells
-      do ind = 1, twotondim
-        iskip = ncoarse + (ind - 1)*ngridmax
-        do i = 1, ngrid
-          ind_cell(i) = ind_grid(i) + iskip
-        end do
-
-        ! Gather cells on which the computation will be done (depending on whether deltaE_level_turb is set)
-        ncell_turb = 0
-        do i = 1, ngrid
-          if (son(ind_cell(i)) == 0 .or. deltaE_level_turb == ilevel) then
-            ncell_turb = ncell_turb + 1
-            ind_cell_turb(ncell_turb) = ind_cell(i)
-            index_current_grid(ncell_turb) = i
-          end if
-        end do
-
-        ! Compute variance
-        do i = 1, ncell_turb
-          do idim = 1, ndim
-            vel = uarray(ind_cell_turb(i), 1 + idim)/max(uarray(ind_cell_turb(i), 1), smallr)
-            ekin_turb_loc = ekin_turb_loc + 0.5*(vol*uarray(ind_cell_turb(i), 1)*(vel - velocity_mean(index_current_grid(i), idim))**2)
-          end do
-        end do
-      end do
+      call compute_eturb_aux(levelmin, ngrid, ind_grid, mass_total, momentum_total, eturb_loc)
     end do
 
 #ifndef WITHOUTMPI
-    call MPI_ALLREDUCE(ekin_turb_loc, ekin_turb, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
+    call MPI_ALLREDUCE(eturb_loc, eturb, nlevelmax, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
+#else
+    eturb = eturb_loc
 #endif
-#ifdef WITHOUTMPI
-    ekin_turb = ekin_turb_loc
-#endif
+  end subroutine compute_ekin_turb_all_levels
 
-  end function
+  recursive subroutine compute_eturb_aux(ilevel, ngrid, ind_grid, mass_total, momentum_total, eturb)
+    ! For a batch of at most nvector grids at level ilevel: returns their total mass and
+    ! momentum, and adds the fluctuation energy of their cells around the grid mean to
+    ! eturb. Refined cells are handled by recursive calls on vectors of at most nvector grids.
+    use amr_commons
+    use hydro_commons
+    implicit none
+    integer, intent(in) :: ilevel, ngrid
+    integer, dimension(1:ngrid), intent(in) :: ind_grid
+    real(dp), dimension(1:ngrid), intent(out) :: mass_total
+    real(dp), dimension(1:ndim, 1:ngrid), intent(out) :: momentum_total
+    real(dp), dimension(1:nlevelmax), intent(inout) :: eturb
+
+    real(dp), dimension(1:nvector, 1:twotondim) :: mass
+    real(dp), dimension(1:ndim, 1:ngrid, 1:twotondim) :: momentum
+    integer, dimension(1:twotondim*nvector) :: child, child_igrid, child_ind
+    real(dp), dimension(1:twotondim*nvector) :: child_mass
+    real(dp), dimension(1:ndim, 1:twotondim*nvector) :: child_momentum
+    real(dp), dimension(1:ndim) :: vmean
+    real(dp) :: vol
+    integer :: igrid, ind, iskip, icell, nchild, k, nk, idim
+    logical :: use_unew
+
+    vol = (0.5d0**ilevel*boxlen/dble(icoarse_max - icoarse_min + 1))**ndim
+    use_unew = deltaE_use_unew(ilevel)
+
+    ! Leaves: take from the current u array. 
+    ! Refined cells: takes from their child
+    nchild = 0
+    do ind = 1, twotondim
+      iskip = ncoarse + (ind - 1)*ngridmax
+      do igrid = 1, ngrid
+        icell = ind_grid(igrid) + iskip
+        if (son(icell) > 0) then
+          nchild = nchild + 1
+          child(nchild) = son(icell)
+          child_igrid(nchild) = igrid
+          child_ind(nchild) = ind
+        else if (use_unew) then
+          mass(igrid, ind) = unew(icell, 1)*vol
+          momentum(:, igrid, ind) = unew(icell, 2:ndim+1)*vol
+        else
+          mass(igrid, ind) = uold(icell, 1)*vol
+          momentum(:, igrid, ind) = uold(icell, 2:ndim+1)*vol
+        end if
+      end do
+    end do
+
+    ! Recursive call to level ilevel + 1 only for children of this vector
+    do k = 1, nchild, nvector
+      nk = min(nvector, nchild - k + 1)
+      call compute_eturb_aux(ilevel + 1, nk, child(k:k+nk-1), child_mass(k:k+nk-1), child_momentum(:, k:k+nk-1), eturb)
+    end do
+    do k = 1, nchild
+      mass(child_igrid(k), child_ind(k)) = child_mass(k)
+      momentum(:, child_igrid(k), child_ind(k)) = child_momentum(:, k)
+    end do
+
+    ! Grid totals, then fluctuations of the 8 cells around the grid mean
+    do igrid = 1, ngrid
+      mass_total(igrid) = 0.0d0
+      momentum_total(:, igrid) = 0.0d0
+    end do
+    do ind = 1, twotondim
+      do igrid = 1, ngrid
+        mass_total(igrid) = mass_total(igrid) + mass(igrid, ind)
+        momentum_total(:, igrid) = momentum_total(:, igrid) + momentum(:, igrid, ind)
+      end do
+    end do
+    do igrid = 1, ngrid
+      vmean = momentum_total(:, igrid)/max(mass_total(igrid), smallr*vol)
+      do ind = 1, twotondim
+        do idim = 1, ndim
+          eturb(ilevel) = eturb(ilevel) + 0.5d0*mass(igrid, ind) &
+               & *(momentum(idim, igrid, ind)/max(mass(igrid, ind), smallr*vol) - vmean(idim))**2
+        end do
+      end do
+    end do
+  end subroutine compute_eturb_aux
+
 
   subroutine compute_energy_part(ilevel, energies)
     use amr_commons
