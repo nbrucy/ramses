@@ -102,9 +102,9 @@ recursive subroutine amr_step(ilevel,icount)
   ok_defrag=.false.
   if(levelmin.lt.nlevelmax)then
      if(ilevel==levelmin)then
-        if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(iflux_part), 1)
-
         if(nremap>0)then
+         if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(iflux_part), 1)
+
            ! Skip first load balance because it has been performed before file dump
            if(nrestart>0.and.first_step)then
               if(nrestart.eq.nrestart_quad) restart_remap=.true.
@@ -121,8 +121,8 @@ recursive subroutine amr_step(ilevel,icount)
                  ok_defrag=.true.
               endif
            end if
+           if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(iflux_part), 2)
         end if
-        if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(iflux_part), 2)
      end if
   end if
 
@@ -348,12 +348,12 @@ recursive subroutine amr_step(ilevel,icount)
         if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(igravity_gas), 2)     
 
         ! Update boundaries
-        if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(icorrections), 1) 
+        !if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(icorrections), 1) 
         do ivar=1,nvar_all
            call make_virtual_fine_dp(uold(1,ivar),ilevel)
         end do
         if(simple_boundary)call make_boundary_hydro(ilevel)
-        if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(icorrections), 2) 
+        !if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(icorrections), 2) 
 
 
         ! Compute Bondi-Hoyle accretion parameters
@@ -443,9 +443,9 @@ recursive subroutine amr_step(ilevel,icount)
 #if NDIM==3
                                call timer('feedback','start')
 
-      if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(ifeedback), 1)     
+      if(deltaE_enable .and. hydro.and.star.and.eta_sn>0) call compute_transfer(levelmin, nlevelmax, deltaE(ifeedback), 1)     
       if(hydro.and.star.and.eta_sn>0)call thermal_feedback(ilevel)
-      if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(ifeedback), 2)     
+      if(deltaE_enable .and. hydro.and.star.and.eta_sn>0) call compute_transfer(levelmin, nlevelmax, deltaE(ifeedback), 2)     
 #endif
 
 
@@ -519,21 +519,21 @@ recursive subroutine amr_step(ilevel,icount)
                                call timer('hydro - set uold','start')
 
      if(deltaE_enable) then 
-         call compute_transfer(ilevel, ilevel, deltaE(icorrections), 1)  
+         !call compute_transfer(ilevel, ilevel, deltaE(icorrections), 1)  
          deltaE_use_unew(ilevel) = .false.
      end if
 
      call set_uold(ilevel)
-     if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(icorrections), 2)   ! correction = pressure fix 
+     !if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(icorrections), 2)   ! correction = pressure fix 
 
 
      ! Add gravity source term with half time step and old force
      ! in order to complete the time step
                                call timer('poisson','start')
 
-     if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(igravity_gas), 1)     
+     if(deltaE_enable .and. poisson) call compute_transfer(ilevel, ilevel, deltaE(igravity_gas), 1)     
      if(poisson)call synchro_hydro_fine(ilevel,+0.5*dtnew(ilevel),1)
-     if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(igravity_gas), 2)     
+     if(deltaE_enable .and. poisson) call compute_transfer(ilevel, ilevel, deltaE(igravity_gas), 2)     
 
 
 #if USE_TURB==1
@@ -550,9 +550,9 @@ recursive subroutine amr_step(ilevel,icount)
 
      ! Restriction operator
                                call timer('hydro upload fine','start')
-     if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(icorrections), 1)     
+     !if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(icorrections), 1)     
      call upload_fine(ilevel)
-     if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(icorrections), 2)     
+     !if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(icorrections), 2)     
   endif
 
 
@@ -627,10 +627,10 @@ recursive subroutine amr_step(ilevel,icount)
 
   end if
 
-  if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(istar_formation), 1) 
+  if(deltaE_enable.and.star.and.(.not.static_gas)) call compute_transfer(ilevel, ilevel, deltaE(istar_formation), 1) 
 
   if(hydro.and.star.and.(.not.static_gas))call star_formation(ilevel)
-  if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(istar_formation), 2) 
+  if(deltaE_enable.and.star.and.(.not.static_gas)) call compute_transfer(ilevel, ilevel, deltaE(istar_formation), 2) 
 #endif 
 
   !---------------------------------------
@@ -680,9 +680,9 @@ recursive subroutine amr_step(ilevel,icount)
 
                                call timer('particles','start')
 
-  if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(iflux_part), 1) 
+  if(deltaE_enable .and. pic) call compute_transfer(levelmin, nlevelmax, deltaE(iflux_part), 1) 
   if(pic)call merge_tree_fine(ilevel)
-  if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(iflux_part), 2) 
+  if(deltaE_enable .and. pic) call compute_transfer(levelmin, nlevelmax, deltaE(iflux_part), 2) 
 
 
 
