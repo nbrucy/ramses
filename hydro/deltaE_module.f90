@@ -175,6 +175,7 @@ contains
     real(dp), dimension(1:nlevelmax) :: eturb
 
     energies = 0.0d0
+    eturb = 0.0d0
     if (hydro) then
       call compute_energy_gas(ilevel, energies)
     end if
@@ -184,7 +185,7 @@ contains
     if (hydro .and. compute_eturb) then
       call compute_ekin_turb_all_levels(eturb)
     end if
-    energies(iekin_turb0 + levelmin : iekin_turb0 + nlevelmax) = eturb(levelmin:nlevelmax)
+    energies(iekin_turb0 + levelmin - 1:iekin_turb0 + nlevelmax) = eturb(levelmin:nlevelmax)
     energies(iekin) = energies(iekin_gas) + energies(iekin_part)
     energies(iepot) = energies(iepot_gas) + energies(iepot_part)
   end subroutine
