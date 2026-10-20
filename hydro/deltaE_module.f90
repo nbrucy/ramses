@@ -124,7 +124,7 @@ contains
   logical function energy_printed(i)
     integer, intent(in) :: i
     energy_printed = (i <= nb_energy_fixed) .or. &
-         & (i - iekin_turb0 > levelmin .and. i - iekin_turb0 <= nlevelmax)
+         & (i - iekin_turb0 >= levelmin .and. i - iekin_turb0 <= nlevelmax)
   end function
 
   subroutine print_energies(energies)
