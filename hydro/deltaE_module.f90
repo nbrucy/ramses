@@ -17,12 +17,15 @@ module deltaE_module
   logical, dimension(:), allocatable :: deltaE_use_phi_old
 
   ! Arrays
-  ! Fixed energies
-  integer, parameter :: nb_energy_fixed = 12
-  integer, parameter :: iekin = 1, iepot = 2, ieint = 3, iemag = 4, iekin_gas = 5, &
-                        & iekin_part = 6, iepot_gas = 7, iepot_part = 8, &
-                        & iekin_part_star = 9, iekin_part_dm = 10, &
-                        & iepot_part_star = 11, iepot_part_dm = 12
+  ! Energies. To add an energy, add its index and name at the same position
+  enum, bind(c)
+  enumerator :: iekin = 1, iepot, ieint, iemag, iekin_gas, &
+                        & iekin_part, iepot_gas, iepot_part, &
+                        & iekin_part_star, iekin_part_dm, &
+                        & iepot_part_star, iepot_part_dm, &
+                        nb_energy_end
+  end enum
+  integer, parameter :: nb_energy_fixed = nb_energy_end - 1
   character(len=14), dimension(1:nb_energy_fixed) :: energy_names = [character(len=14) :: &
                         & "ekin", "epot", "eint", &
                         & "emag", "ekin_gas", "ekin_part",&
@@ -35,32 +38,20 @@ module deltaE_module
   integer, parameter :: nb_energy_kind = nb_energy_fixed + MAXLEVEL
 
   type process
-    real(dp), dimension(1:nb_energy_kind) :: v
-    character(len=20) :: name
-    logical :: compute_eturb
-  end type 
+  real(dp), dimension(1:nb_energy_kind) :: v
+  character(len=20) :: name
+  logical :: compute_eturb
+end type
 
-  type processes
-    type(process) :: flux_gas, flux_part, cooling, gravity_gas, gravity_part, &
-                      &  star_formation, feedback, turb_driving, poisson, &
-                      & magnetic_diffusion, corrections
-  contains
-    procedure :: initialize_processes
-    procedure :: print_processes
-  end type
+! Process indices. To add a process: add its index here and one line in initialize_processes.
+enum, bind(c)
+  enumerator :: iflux_gas = 1, iflux_part, icooling, igravity_gas, igravity_part, &
+              & istar_formation, ifeedback, iturb_driving, ipoisson, &
+              & imagnetic_diffusion, icorrections, nb_process_end
+end enum
+integer, parameter :: nb_process = nb_process_end - 1
 
-  type(processes) :: deltaE = processes( &
-    process(0.0d0, "flux_gas", .true.), &
-    process(0.0d0, "flux_part", .false.), &
-    process(0.0d0, "cooling", .false.), &
-    process(0.0d0, "gravity_gas", .true.), &
-    process(0.0d0, "gravity_part", .false.), &
-    process(0.0d0, "star_formation", .true.), &
-    process(0.0d0, "feedback", .true.), &
-    process(0.0d0, "turb_driving", .true.), &
-    process(0.0d0, "poisson", .false.), &
-    process(0.0d0, "magnetic_diffusion", .false.), &
-    process(0.0d0, "corrections", .true.))
+type(process), dimension(1:nb_process) :: deltaE
 
 contains
 
@@ -88,27 +79,29 @@ contains
     deltaE_use_phi_old = .false.
     deltaE_use_unew = .false.
 
-    call deltaE%initialize_processes
+    call initialize_processes
 
   end subroutine read_deltaE_params
 
-  subroutine initialize_processes(this)
+  subroutine initialize_processes
+    deltaE(iflux_gas)           = process(0.0d0, "flux_gas",           .true.)
+    deltaE(iflux_part)          = process(0.0d0, "flux_part",          .false.)
+    deltaE(icooling)            = process(0.0d0, "cooling",            .false.)
+    deltaE(igravity_gas)        = process(0.0d0, "gravity_gas",        .true.)
+    deltaE(igravity_part)       = process(0.0d0, "gravity_part",       .false.)
+    deltaE(istar_formation)     = process(0.0d0, "star_formation",     .true.)
+    deltaE(ifeedback)           = process(0.0d0, "feedback",           .true.)
+    deltaE(iturb_driving)       = process(0.0d0, "turb_driving",       .true.)
+    deltaE(ipoisson)            = process(0.0d0, "poisson",            .false.)
+    deltaE(imagnetic_diffusion) = process(0.0d0, "magnetic_diffusion", .false.)
+    deltaE(icorrections)        = process(0.0d0, "corrections",        .true.)
+  end subroutine
 
-    implicit none
-    class(processes), intent(inout) :: this
-   
-    this%flux_gas%v = 0.0d0
-    this%flux_part%v = 0.0d0
-    this%cooling%v = 0.0d0
-    this%gravity_gas%v = 0.0d0
-    this%gravity_part%v = 0.0d0
-    this%star_formation%v = 0.0d0
-    this%feedback%v = 0.0d0
-    this%turb_driving%v = 0.0d0
-    this%poisson%v = 0.0d0
-    this%magnetic_diffusion%v = 0.0d0
-    this%corrections%v = 0d0
-
+  subroutine reset_processes
+    integer :: j
+    do j = 1, nb_process
+      deltaE(j)%v = 0.0d0
+    end do
   end subroutine
 
   function energy_name(i) result(name)
@@ -143,27 +136,20 @@ contains
 
   end subroutine
 
-  subroutine print_processes(this)
-
+  subroutine print_processes
     implicit none
-    class(processes), intent(in) :: this
-    integer :: i
+    integer :: i, j
 
     write (*, *) "DeltaE output"
-    write (*, 997) " ", this%flux_gas%name, this%flux_part%name, this%cooling%name, this%gravity_gas%name, &
-                        this%gravity_part%name, this%star_formation%name, this%feedback%name,  this%turb_driving%name, &
-                        this%poisson%name, this%magnetic_diffusion%name, this%corrections%name
+    write (*, 997) " ", (deltaE(j)%name, j = 1, nb_process)
     do i = 1, nb_energy_kind
       if (.not. energy_printed(i)) cycle
-      write (*, 998) energy_name(i), this%flux_gas%v(i), this%flux_part%v(i), this%cooling%v(i), this%gravity_gas%v(i), &
-                   this%gravity_part%v(i), this%star_formation%v(i), this%feedback%v(i), this%turb_driving%v(i), &
-                   this%poisson%v(i), this%magnetic_diffusion%v(i), this%corrections%v(i)
+      write (*, 998) energy_name(i), (deltaE(j)%v(i), j = 1, nb_process)
     end do
     write (*, *) "End deltaE output"
 
 997 format(A20, *(A20))
 998 format(A20, *(1pe20.5))
-
   end subroutine
 
   subroutine compute_energies(ilevel, energies, compute_eturb)
