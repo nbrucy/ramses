@@ -47,7 +47,7 @@ end type
 enum, bind(c)
   enumerator :: iflux_gas = 1, iflux_part, icooling, igravity_gas, igravity_part, &
               & istar_formation, ifeedback, iturb_driving, ipoisson, &
-              & imagnetic_diffusion, icorrections, nb_process_end
+              & imagnetic_diffusion, irefine, icorrections, nb_process_end
 end enum
 integer, parameter :: nb_process = nb_process_end - 1
 
@@ -94,6 +94,7 @@ contains
     deltaE(iturb_driving)       = process(0.0d0, "turb_driving",       .true.)
     deltaE(ipoisson)            = process(0.0d0, "poisson",            .false.)
     deltaE(imagnetic_diffusion) = process(0.0d0, "magnetic_diffusion", .false.)
+    deltaE(irefine)             = process(0.0d0, "refine",             .true.)
     deltaE(icorrections)        = process(0.0d0, "corrections",        .true.)
   end subroutine
 
@@ -114,9 +115,9 @@ contains
     end if
   end function
 
-  logical function energy_printed(i)
+  logical function is_energy_printed(i)
     integer, intent(in) :: i
-    energy_printed = (i <= nb_energy_fixed) .or. &
+    is_energy_printed = (i <= nb_energy_fixed) .or. &
          & (i - iekin_turb0 >= levelmin .and. i - iekin_turb0 <= nlevelmax)
   end function
 
@@ -127,7 +128,7 @@ contains
 
     write (*, *) "Energy output"
     do i = 1, nb_energy_kind
-      if (.not. energy_printed(i)) cycle
+      if (.not. is_energy_printed(i)) cycle
       write (*, 996) " ", energy_name(i), energies(i)
     end do
     write (*, *) "End energy output"
@@ -143,7 +144,7 @@ contains
     write (*, *) "DeltaE output"
     write (*, 997) " ", (deltaE(j)%name, j = 1, nb_process)
     do i = 1, nb_energy_kind
-      if (.not. energy_printed(i)) cycle
+      if (.not. is_energy_printed(i)) cycle
       write (*, 998) energy_name(i), (deltaE(j)%v(i), j = 1, nb_process)
     end do
     write (*, *) "End deltaE output"

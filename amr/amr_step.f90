@@ -47,6 +47,7 @@ recursive subroutine amr_step(ilevel,icount)
                                call timer('refine','start')
   if(levelmin.lt.nlevelmax .and.(.not.static.or.(nstep_coarse_old.eq.nstep_coarse.and.restart_remap)))then
      if(ilevel==levelmin.or.icount>1)then
+        if (deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(irefine), 1)
         do i=ilevel,nlevelmax
            if(i>levelmin)then
 
@@ -90,6 +91,7 @@ recursive subroutine amr_step(ilevel,icount)
            !--------------------------
            call refine_fine(i)
         end do
+        if (deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(irefine), 2)
      end if
   end if
 
