@@ -179,7 +179,7 @@ contains
     integer :: i, j, k
 
     write (*, *) "DeltaE output "
-    write (*, 997) " ", (deltaE(j)%name, j = 1, nb_process)
+    write (*, 997) "", "", (deltaE(j)%name, j = 1, nb_process)
     do k = 0, deltaE_nregions
       do i = 1, nb_energy_kind
         if (.not. is_energy_printed(i)) cycle
@@ -288,7 +288,7 @@ contains
 
     integer, dimension(1:nvector) :: region_index = 0
 
-    real(dp):: dx, vol, scale
+    real(dp):: dx_code, dx, vol, scale
     real(dp),dimension(1:3)::skip_loc
     real(dp),dimension(1:twotondim,1:3)::xc
     real(dp),dimension(1:nvector,1:ndim),save::xx
@@ -321,7 +321,8 @@ contains
     if(ndim>0)skip_loc(1)=dble(icoarse_min)
     if(ndim>1)skip_loc(2)=dble(jcoarse_min)
     if(ndim>2)skip_loc(3)=dble(kcoarse_min)
-    dx = 0.5D0**ilevel*scale
+    dx_code = 0.5D0**ilevel
+    dx = dx_code*scale
     vol = dx**ndim
 
     ! Set position of cell centers relative to grid center
@@ -329,9 +330,9 @@ contains
       iz=(ind-1)/4
       iy=(ind-1-4*iz)/2
       ix=(ind-1-2*iy-4*iz)
-      if(ndim>0)xc(ind,1)=(dble(ix)-0.5D0)*dx
-      if(ndim>1)xc(ind,2)=(dble(iy)-0.5D0)*dx
-      if(ndim>2)xc(ind,3)=(dble(iz)-0.5D0)*dx
+      if(ndim>0)xc(ind,1)=(dble(ix)-0.5D0)*dx_code
+      if(ndim>1)xc(ind,2)=(dble(iy)-0.5D0)*dx_code
+      if(ndim>2)xc(ind,3)=(dble(iz)-0.5D0)*dx_code
     end do
 
    
