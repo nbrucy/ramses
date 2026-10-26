@@ -42,7 +42,7 @@ subroutine update_time(ilevel)
 #endif
   integer::i,itest
 
-  real(dp), dimension(1:nb_energy_kind, 1:deltaE_region_number) :: energies, energies_level
+  real(dp), dimension(1:nb_energy_kind, 0:deltaE_nregions) :: energies, energies_level
 
   ! Local constants
   dt=dtnew(ilevel)
