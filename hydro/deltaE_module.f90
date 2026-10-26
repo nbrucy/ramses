@@ -15,14 +15,14 @@ module deltaE_module
   ! The regions are mutually exclusive: a cell/particles can belong on to one region, with the lowest index
   integer,parameter :: DELTAE_MAX_REGIONS=99
   integer::deltaE_nregions=0 ! Number of deltaE zones
-  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_diameter =-1   ! Diameter of refinement region
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_size =-1       ! Size of refinement region
   real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_x = 0          ! Center of deltaE region
   real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_y = 0          ! Center of deltaE region
   real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_z = 0          ! Center of deltaE region
   real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_exp = 2        ! Exponent for distance
   real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_a = 1          ! Ellipticity (Y/X)
   real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_b = 1          ! Ellipticity (Z/X)
-  character(len=20),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_names = "" ! Names of the region
+  character(len=20),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_name = "" ! Name of the region
 
   ! DeltaE status flags
   logical, dimension(:), allocatable :: deltaE_use_unew
@@ -74,8 +74,8 @@ contains
     integer::nml_err
    
     namelist/deltaE_params/deltaE_correct_pressure_fix,deltaE_debug,deltaE_enable,deltaE_force_all_levels, &
-    & deltaE_nregions,deltaE_region_diameter,deltaE_region_x,deltaE_region_y,deltaE_region_z, &
-    & deltaE_region_exp,deltaE_region_a,deltaE_region_b,deltaE_region_names
+    & deltaE_nregions,deltaE_region_size,deltaE_region_x,deltaE_region_y,deltaE_region_z, &
+    & deltaE_region_exp,deltaE_region_a,deltaE_region_b,deltaE_region_name
 
   
    ! Go to the beginning of the file
@@ -142,10 +142,10 @@ contains
     if (k == 0) then
       name = ""
     else
-      if (deltaE_region_names(k) == "") then
+      if (deltaE_region_name(k) == "") then
         write(name, '(A,I2.2)') "region_", k
       else
-        name = deltaE_region_names(k)
+        name = deltaE_region_name(k)
       end if
     end if
   end function
@@ -380,7 +380,7 @@ contains
             xr = deltaE_region_x         (k) ! Region centre
             yr = deltaE_region_y         (k)
             zr = deltaE_region_z         (k)
-            rr = deltaE_region_diameter  (k) ! Region diameter
+            rr = deltaE_region_size  (k) ! Region diameter
             aa = deltaE_region_a         (k) ! Ellipticity (Y/X)
             bb = deltaE_region_b         (k) ! Ellipticity (Z/X)
             do i=1,nleaf
@@ -794,7 +794,7 @@ contains
         xr = deltaE_region_x         (k) ! Region centre
         yr = deltaE_region_y         (k)
         zr = deltaE_region_z         (k)
-        rr = deltaE_region_diameter  (k) ! Region diameter
+        rr = deltaE_region_size  (k) ! Region diameter
         aa = deltaE_region_a         (k) ! Ellipticity (Y/X)
         bb = deltaE_region_b         (k) ! Ellipticity (Z/X)
         do i=1,nn
