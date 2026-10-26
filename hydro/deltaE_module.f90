@@ -676,7 +676,9 @@ contains
     ! MPI variables
 #ifndef WITHOUTMPI
     integer::info
+    real(kind=8), dimension(6,0:deltaE_nregions)::comm_buffin, comm_buffout
 #endif
+
 
     energies(iepot_part,:) = 0.d0
     energies(iepot_part_dm,:) = 0.d0
@@ -723,12 +725,19 @@ contains
       end if
 
 #ifndef WITHOUTMPI
-      call MPI_ALLREDUCE(ekin_part_loc, energies(iekin_part,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-      call MPI_ALLREDUCE(ekin_families_loc(FAM_DM,0:deltaE_nregions), energies(iekin_part_dm,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-  call MPI_ALLREDUCE(ekin_families_loc(FAM_STAR,0:deltaE_nregions), energies(iekin_part_star,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-      call MPI_ALLREDUCE(epot_part_loc, energies(iepot_part,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-      call MPI_ALLREDUCE(epot_families_loc(FAM_DM,0:deltaE_nregions), energies(iepot_part_dm,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-  call MPI_ALLREDUCE(epot_families_loc(FAM_STAR,0:deltaE_nregions), energies(iepot_part_star,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
+      comm_buffin(1,:) = ekin_part_loc(0:deltaE_nregions)
+      comm_buffin(2,:) = ekin_families_loc(FAM_DM,0:deltaE_nregions)
+      comm_buffin(3,:) = ekin_families_loc(FAM_STAR,0:deltaE_nregions)
+      comm_buffin(4,:) = epot_part_loc(0:deltaE_nregions)
+      comm_buffin(5,:) = epot_families_loc(FAM_DM,0:deltaE_nregions)
+      comm_buffin(6,:) = epot_families_loc(FAM_STAR,0:deltaE_nregions)
+      call MPI_ALLREDUCE(comm_buffin, comm_buffout, 6*(deltaE_nregions+1), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
+      energies(iekin_part,:) = comm_buffout(1,:)
+      energies(iekin_part_dm,:) = comm_buffout(2,:)
+      energies(iekin_part_star,:) = comm_buffout(3,:)
+      energies(iepot_part,:) = comm_buffout(4,:)
+      energies(iepot_part_dm,:) = comm_buffout(5,:)
+      energies(iepot_part_star,:) = comm_buffout(6,:)
 #endif
 #ifdef WITHOUTMPI
       energies(iekin_part,0:deltaE_nregions) = ekin_part_loc(0:deltaE_nregions)
