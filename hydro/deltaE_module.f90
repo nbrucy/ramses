@@ -75,7 +75,7 @@ contains
    
     namelist/deltaE_params/deltaE_correct_pressure_fix,deltaE_debug,deltaE_enable,deltaE_force_all_levels, &
     & deltaE_nregions,deltaE_region_diameter,deltaE_region_x,deltaE_region_y,deltaE_region_z, &
-    & deltaE_region_exp,deltaE_region_a,deltaE_region_b
+    & deltaE_region_exp,deltaE_region_a,deltaE_region_b,deltaE_region_names
 
   
    ! Go to the beginning of the file
