@@ -206,7 +206,7 @@ contains
       call compute_energy_gas(ilevel, energies)
     end if
     if (pic) then
-      call compute_energy_part(ilevel, energies(:,0))
+      call compute_energy_part(ilevel, energies)
     end if
     if (hydro .and. compute_eturb) then
       eturb = 0.0d0
@@ -515,7 +515,7 @@ contains
     comm_buffin(2,:) = eint_loc(0:deltaE_nregions)
     comm_buffin(3,:) = emag_loc(0:deltaE_nregions)
     comm_buffin(4,:) = epot_loc(0:deltaE_nregions)
-    call MPI_ALLREDUCE(comm_buffin, comm_buffout, 4*deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM,&
+    call MPI_ALLREDUCE(comm_buffin, comm_buffout, 4*(deltaE_nregions + 1), MPI_DOUBLE_PRECISION, MPI_SUM,&
             &MPI_COMM_WORLD, info)
     energies(iekin_gas,:) = comm_buffout(1,:)
     energies(ieint,:) = comm_buffout(2,:)
