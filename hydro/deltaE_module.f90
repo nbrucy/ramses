@@ -724,11 +724,11 @@ contains
 
 #ifndef WITHOUTMPI
       call MPI_ALLREDUCE(ekin_part_loc, energies(iekin_part,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-      call MPI_ALLREDUCE(ekin_families_loc(FAM_DM), energies(iekin_part_dm,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-  call MPI_ALLREDUCE(ekin_families_loc(FAM_STAR), energies(iekin_part_star,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
+      call MPI_ALLREDUCE(ekin_families_loc(FAM_DM,0:deltaE_nregions), energies(iekin_part_dm,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
+  call MPI_ALLREDUCE(ekin_families_loc(FAM_STAR,0:deltaE_nregions), energies(iekin_part_star,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
       call MPI_ALLREDUCE(epot_part_loc, energies(iepot_part,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-      call MPI_ALLREDUCE(epot_families_loc(FAM_DM), energies(iepot_part_dm,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-  call MPI_ALLREDUCE(epot_families_loc(FAM_STAR), energies(iepot_part_star,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
+      call MPI_ALLREDUCE(epot_families_loc(FAM_DM,0:deltaE_nregions), energies(iepot_part_dm,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
+  call MPI_ALLREDUCE(epot_families_loc(FAM_STAR,0:deltaE_nregions), energies(iepot_part_star,0:deltaE_nregions), 1+deltaE_nregions, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
 #endif
 #ifdef WITHOUTMPI
       energies(iekin_part,0:deltaE_nregions) = ekin_part_loc(0:deltaE_nregions)
