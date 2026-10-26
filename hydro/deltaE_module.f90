@@ -11,6 +11,17 @@ module deltaE_module
   logical::deltaE_debug=.false. ! print intermediate energies
   logical::deltaE_force_all_levels=.false. ! Force computation on all levels for all processes
 
+  ! Zone settings (similar to geometrical refine zone definition)
+  integer,parameter :: DELTAE_MAX_REGIONS=100
+  integer::deltaE_region_number=0 ! Number of deltaE zones
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_diameter =-1   ! Diameter of refinement region
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_x = 0          ! Center of deltaE region
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_y = 0          ! Center of deltaE region
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_z = 0          ! Center of deltaE region
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_exp = 2        ! Exponent for distance
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_a = 1          ! Ellipticity (Y/X)
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_b = 1          ! Ellipticity (Z/X)
+  character(len=20),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_names = "" ! Names of the region
 
   ! DeltaE status flags
   logical, dimension(:), allocatable :: deltaE_use_unew
@@ -51,7 +62,7 @@ enum, bind(c)
 end enum
 integer, parameter :: nb_process = nb_process_end - 1
 
-type(process), dimension(1:nb_process) :: deltaE
+type(process), dimension(:,:), allocatable :: deltaE
 
 contains
 
@@ -61,7 +72,11 @@ contains
     logical,intent(inout)::nml_ok
     integer::nml_err
    
-    namelist/deltaE_params/deltaE_correct_pressure_fix,deltaE_debug,deltaE_enable,deltaE_force_all_levels
+    namelist/deltaE_params/deltaE_correct_pressure_fix,deltaE_debug,deltaE_enable,deltaE_force_all_levels, &
+    & deltaE_region_number,deltaE_region_diameter,deltaE_region_x,deltaE_region_y,deltaE_region_z, &
+    & deltaE_region_exp,deltaE_region_a,deltaE_region_b
+
+  
    ! Go to the beginning of the file
     rewind(namelist_unit)
 
@@ -73,8 +88,15 @@ contains
       nml_ok=.false.
     end if
 
+    if(deltaE_region_number < 0 .or. deltaE_region_number > DELTAE_MAX_REGIONS) then 
+      if(myid==1)write(*,*)'Error in &DELTAE_PARAMS. deltaE_region_number should be positive and below DELTAE_MAX_REGIONS'
+      nml_ok=.false.
+    end if
+
     allocate(deltaE_use_unew(levelmin:nlevelmax))
     allocate(deltaE_use_phi_old(levelmin:nlevelmax))
+
+    allocate(deltaE(1:nb_process,0:deltaE_region_number))
 
     deltaE_use_phi_old = .false.
     deltaE_use_unew = .false.
@@ -84,24 +106,26 @@ contains
   end subroutine read_deltaE_params
 
   subroutine initialize_processes
-    deltaE(iflux_gas)           = process(0.0d0, "flux_gas",           .true.)
-    deltaE(iflux_part)          = process(0.0d0, "flux_part",          .false.)
-    deltaE(icooling)            = process(0.0d0, "cooling",            .false.)
-    deltaE(igravity_gas)        = process(0.0d0, "gravity_gas",        .true.)
-    deltaE(igravity_part)       = process(0.0d0, "gravity_part",       .false.)
-    deltaE(istar_formation)     = process(0.0d0, "star_formation",     .true.)
-    deltaE(ifeedback)           = process(0.0d0, "feedback",           .true.)
-    deltaE(iturb_driving)       = process(0.0d0, "turb_driving",       .true.)
-    deltaE(ipoisson)            = process(0.0d0, "poisson",            .false.)
-    deltaE(imagnetic_diffusion) = process(0.0d0, "magnetic_diffusion", .false.)
-    deltaE(irefine)             = process(0.0d0, "refine",             .true.)
-    deltaE(icorrections)        = process(0.0d0, "corrections",        .true.)
+    deltaE(iflux_gas,:)           = process(0.0d0, "flux_gas",           .true.)
+    deltaE(iflux_part,:)          = process(0.0d0, "flux_part",          .false.)
+    deltaE(icooling,:)            = process(0.0d0, "cooling",            .false.)
+    deltaE(igravity_gas,:)        = process(0.0d0, "gravity_gas",        .true.)
+    deltaE(igravity_part,:)       = process(0.0d0, "gravity_part",       .false.)
+    deltaE(istar_formation,:)     = process(0.0d0, "star_formation",     .true.)
+    deltaE(ifeedback,:)           = process(0.0d0, "feedback",           .true.)
+    deltaE(iturb_driving,:)       = process(0.0d0, "turb_driving",       .true.)
+    deltaE(ipoisson,:)            = process(0.0d0, "poisson",            .false.)
+    deltaE(imagnetic_diffusion,:) = process(0.0d0, "magnetic_diffusion", .false.)
+    deltaE(irefine,:)             = process(0.0d0, "refine",             .true.)
+    deltaE(icorrections,:)        = process(0.0d0, "corrections",        .true.)
   end subroutine
 
   subroutine reset_processes
-    integer :: j
-    do j = 1, nb_process
-      deltaE(j)%v = 0.0d0
+    integer :: j, k
+    do k = 0, deltaE_region_number
+      do j = 1, nb_process
+        deltaE(j,k)%v = 0.0d0
+      end do
     end do
   end subroutine
 
@@ -112,6 +136,20 @@ contains
       name = energy_names(i)
     else
       write(name, '(A,I2.2)') "ekin_gas_turb_", i - iekin_turb0
+    end if
+  end function
+
+  function region_name(i) result(name)
+    integer, intent(in) :: i
+    character(len=20) :: name
+    if (i == nb_energy_fixed) then
+      name = "global"
+    else
+      if (deltaE_region_names(i) == "") then
+        write(name, '(A,I2.2)') "region_", i
+      else
+        name = deltaE_region_names(i)
+      end if
     end if
   end function
 
@@ -139,15 +177,17 @@ contains
 
   subroutine print_processes
     implicit none
-    integer :: i, j
+    integer :: i, j, k
 
-    write (*, *) "DeltaE output"
-    write (*, 997) " ", (deltaE(j)%name, j = 1, nb_process)
-    do i = 1, nb_energy_kind
-      if (.not. is_energy_printed(i)) cycle
-      write (*, 998) energy_name(i), (deltaE(j)%v(i), j = 1, nb_process)
+    do k = 0, deltaE_region_number
+      write (*, *) "DeltaE output ", region_name(k)
+      write (*, 997) " ", (deltaE(j,k)%name, j = 1, nb_process)
+      do i = 1, nb_energy_kind
+        if (.not. is_energy_printed(i)) cycle
+        write (*, 998) energy_name(i), (deltaE(j,k)%v(i), j = 1, nb_process)
+      end do
+      write (*, *) "End deltaE output", region_name(k)
     end do
-    write (*, *) "End deltaE output"
 
 997 format(A20, *(A20))
 998 format(A20, *(1pe20.5))
@@ -181,9 +221,10 @@ contains
 
     implicit none
     integer, intent(in):: levelstart, levelend
-    integer :: act_levelstart, act_levelend
-    type(process), intent(inout) :: deltaE_process
+    type(process), intent(inout), dimension(0:deltaE_region_number) :: deltaE_process
     integer, intent(in) :: step
+    integer :: act_levelstart, act_levelend
+    integer :: k
 
     integer :: ilevel
 
@@ -205,7 +246,7 @@ contains
     end if
 
     do ilevel = act_levelstart, act_levelend
-      call compute_energies(ilevel, energy_level, ilevel == act_levelstart .and. deltaE_process%compute_eturb)
+      call compute_energies(ilevel, energy_level, ilevel == act_levelstart .and. deltaE_process(0)%compute_eturb)
       if (step == 1) then
         energy_before = energy_before + energy_level
       else
@@ -216,12 +257,14 @@ contains
 
     if (step == 2) then
 
-      deltaE_process%v = deltaE_process%v + energy_after - energy_before
+      do k=0, deltaE_region_number
+        deltaE_process(k)%v = deltaE_process(k)%v + energy_after - energy_before
+      end do
 
       if (deltaE_debug .and. myid == 1) then
-        write(*,*) "DeltaE debug before ", deltaE_process%name
+        write(*,*) "DeltaE debug before ", deltaE_process(0)%name
         call print_energies(energy_before)
-        write(*,*) "DeltaE debug after ", deltaE_process%name
+        write(*,*) "DeltaE debug after ", deltaE_process(0)%name
         call print_energies(energy_after)
       end if
     end if
