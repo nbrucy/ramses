@@ -31,7 +31,6 @@ recursive subroutine amr_step(ilevel,icount)
   integer::i,idim,ivar
   logical::ok_defrag,output_now_all
   logical,save::first_step=.true.
-  integer:: ilevel_ener
 
   if(numbtot(1,ilevel)==0)return
 

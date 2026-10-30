@@ -11,6 +11,18 @@ module deltaE_module
   logical::deltaE_debug=.false. ! print intermediate energies
   logical::deltaE_force_all_levels=.false. ! Force computation on all levels for all processes
 
+  ! Zone settings (similar to geometrical refine zone definition)
+  ! The regions are mutually exclusive: a cell/particles can belong on to one region, with the lowest index
+  integer,parameter :: DELTAE_MAX_REGIONS=99
+  integer::deltaE_nregions=0 ! Number of deltaE zones
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_size =-1       ! Size of refinement region
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_x = 0          ! Center of deltaE region
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_y = 0          ! Center of deltaE region
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_z = 0          ! Center of deltaE region
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_exp = 2        ! Exponent for distance
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_a = 1          ! Ellipticity (Y/X)
+  real(dp),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_b = 1          ! Ellipticity (Z/X)
+  character(len=20),dimension(1:DELTAE_MAX_REGIONS)::deltaE_region_name = "" ! Name of the region
 
   ! DeltaE status flags
   logical, dimension(:), allocatable :: deltaE_use_unew
@@ -38,7 +50,7 @@ module deltaE_module
   integer, parameter :: nb_energy_kind = nb_energy_fixed + MAXLEVEL
 
   type process
-  real(dp), dimension(1:nb_energy_kind) :: v
+  real(dp), dimension(1:nb_energy_kind, 0:DELTAE_MAX_REGIONS) :: v
   character(len=20) :: name
   logical :: compute_eturb
 end type
@@ -51,7 +63,7 @@ enum, bind(c)
 end enum
 integer, parameter :: nb_process = nb_process_end - 1
 
-type(process), dimension(1:nb_process) :: deltaE
+type(process), dimension(nb_process) :: deltaE
 
 contains
 
@@ -61,7 +73,11 @@ contains
     logical,intent(inout)::nml_ok
     integer::nml_err
    
-    namelist/deltaE_params/deltaE_correct_pressure_fix,deltaE_debug,deltaE_enable,deltaE_force_all_levels
+    namelist/deltaE_params/deltaE_correct_pressure_fix,deltaE_debug,deltaE_enable,deltaE_force_all_levels, &
+    & deltaE_nregions,deltaE_region_size,deltaE_region_x,deltaE_region_y,deltaE_region_z, &
+    & deltaE_region_exp,deltaE_region_a,deltaE_region_b,deltaE_region_name
+
+  
    ! Go to the beginning of the file
     rewind(namelist_unit)
 
@@ -70,6 +86,11 @@ contains
 
     if(nml_err>0)then
       if(myid==1)write(*,*)'Error reading namelist &DELTAE_PARAMS. Check formatting.'
+      nml_ok=.false.
+    end if
+
+    if(deltaE_nregions < 0 .or. deltaE_nregions > DELTAE_MAX_REGIONS) then 
+      if(myid==1)write(*,*)'Error in &DELTAE_PARAMS. deltaE_nregions should be positive and below DELTAE_MAX_REGIONS'
       nml_ok=.false.
     end if
 
@@ -115,6 +136,20 @@ contains
     end if
   end function
 
+  function region_name(k) result(name)
+    integer, intent(in) :: k
+    character(len=20) :: name
+    if (k == 0) then
+      name = ""
+    else
+      if (deltaE_region_name(k) == "") then
+        write(name, '(A,I2.2)') "region_", k
+      else
+        name = deltaE_region_name(k)
+      end if
+    end if
+  end function
+
   logical function is_energy_printed(i)
     integer, intent(in) :: i
     is_energy_printed = (i <= nb_energy_fixed) .or. &
@@ -123,41 +158,46 @@ contains
 
   subroutine print_energies(energies)
     implicit none
-    real(dp), dimension(1:nb_energy_kind), intent(in) :: energies
-    integer :: i
+    real(dp), dimension(1:nb_energy_kind, 0:deltaE_nregions), intent(in) :: energies
+    integer :: i, k
 
     write (*, *) "Energy output"
-    do i = 1, nb_energy_kind
-      if (.not. is_energy_printed(i)) cycle
-      write (*, 996) " ", energy_name(i), energies(i)
+    do k = 0, deltaE_nregions
+      do i = 1, nb_energy_kind
+        if (.not. is_energy_printed(i)) cycle
+        write (*, 996) region_name(k), energy_name(i), energies(i, k)
+      end do
     end do
     write (*, *) "End energy output"
 
-996 format(A1, A20, 1pe20.7)
+996 format(A20, A20, 1pe20.7)
 
   end subroutine
 
   subroutine print_processes
     implicit none
-    integer :: i, j
+    integer :: i, j, k
 
-    write (*, *) "DeltaE output"
-    write (*, 997) " ", (deltaE(j)%name, j = 1, nb_process)
-    do i = 1, nb_energy_kind
-      if (.not. is_energy_printed(i)) cycle
-      write (*, 998) energy_name(i), (deltaE(j)%v(i), j = 1, nb_process)
+    write (*, *) "DeltaE output "
+    write (*, 997) "", "", (deltaE(j)%name, j = 1, nb_process)
+    do k = 0, deltaE_nregions
+      do i = 1, nb_energy_kind
+        if (.not. is_energy_printed(i)) cycle
+        write (*, 998) region_name(k), energy_name(i), (deltaE(j)%v(i,k), j = 1, nb_process)
+      end do
     end do
+
     write (*, *) "End deltaE output"
 
-997 format(A20, *(A20))
-998 format(A20, *(1pe20.5))
+997 format(A20, A20, *(A20))
+998 format(A20, A20, *(1pe20.5))
   end subroutine
 
   subroutine compute_energies(ilevel, energies, compute_eturb)
     implicit none
 
     integer, intent(in):: ilevel
-    real(dp), dimension(1:nb_energy_kind), intent(inout) :: energies
+    real(dp), dimension(1:nb_energy_kind, 0:deltaE_nregions), intent(inout) :: energies
     logical, intent(in) :: compute_eturb
     real(dp), dimension(1:nlevelmax) :: eturb
 
@@ -171,24 +211,24 @@ contains
     if (hydro .and. compute_eturb) then
       eturb = 0.0d0
       call compute_ekin_turb_all_levels(eturb)
-      energies(iekin_turb0 + levelmin:iekin_turb0 + nlevelmax) = eturb(levelmin:nlevelmax)
+      energies(iekin_turb0 + levelmin:iekin_turb0 + nlevelmax, 0) = eturb(levelmin:nlevelmax)
     end if
-    energies(iekin) = energies(iekin_gas) + energies(iekin_part)
-    energies(iepot) = energies(iepot_gas) + energies(iepot_part)
+    energies(iekin,:) = energies(iekin_gas,:) + energies(iekin_part,:)
+    energies(iepot,:) = energies(iepot_gas,:) + energies(iepot_part,:)
   end subroutine
 
   subroutine compute_transfer(levelstart, levelend, deltaE_process, step)
 
     implicit none
     integer, intent(in):: levelstart, levelend
-    integer :: act_levelstart, act_levelend
     type(process), intent(inout) :: deltaE_process
     integer, intent(in) :: step
+    integer :: act_levelstart, act_levelend
 
     integer :: ilevel
 
-    real(dp), dimension(1:nb_energy_kind), save :: energy_before
-    real(dp), dimension(1:nb_energy_kind) ::energy_level, energy_after
+    real(dp), dimension(1:nb_energy_kind,0:DELTAE_MAX_REGIONS), save :: energy_before
+    real(dp), dimension(1:nb_energy_kind,0:deltaE_nregions) ::energy_level, energy_after
 
     if (deltaE_force_all_levels) then
       act_levelstart = levelmin
@@ -207,7 +247,7 @@ contains
     do ilevel = act_levelstart, act_levelend
       call compute_energies(ilevel, energy_level, ilevel == act_levelstart .and. deltaE_process%compute_eturb)
       if (step == 1) then
-        energy_before = energy_before + energy_level
+        energy_before(:, 0:deltaE_nregions) = energy_before(:,0:deltaE_nregions) + energy_level
       else
         energy_after = energy_after + energy_level
       end if
@@ -216,7 +256,8 @@ contains
 
     if (step == 2) then
 
-      deltaE_process%v = deltaE_process%v + energy_after - energy_before
+      deltaE_process%v(:,0:deltaE_nregions) = deltaE_process%v(:,0:deltaE_nregions) &
+         &  + energy_after(:, 0:deltaE_nregions) - energy_before(:, 0:deltaE_nregions)
 
       if (deltaE_debug .and. myid == 1) then
         write(*,*) "DeltaE debug before ", deltaE_process%name
@@ -236,22 +277,28 @@ contains
     implicit none
 #ifndef WITHOUTMPI
     integer::info
-    real(kind=8), dimension(4)::comm_buffin, comm_buffout
+    real(kind=8), dimension(4,0:deltaE_nregions)::comm_buffin, comm_buffout
 #endif
     integer, intent(in)::ilevel
-    real(dp), dimension(1:nb_energy_kind), intent(inout) :: energies
+    real(dp), dimension(1:nb_energy_kind, 0:deltaE_nregions), intent(inout) :: energies
 
-    integer::i, ivar,  ind, ncache, igrid, iskip
+    integer::i, ivar, ind, ncache, igrid, ix, iy, iz, iskip, idim, k
     integer::nleaf, ngrid, nx_loc
-    integer, dimension(1:nvector), save::ind_grid, ind_cell, ind_leaf
+    integer, dimension(1:nvector), save::ind_grid, ind_cell, ind_leaf, ind_grid_of_leaf
 
-    real(dp):: dx, vol, scale
-    real(kind=8)::mass_loc, ekin_loc, eint_loc, emag_loc, epot_loc, ekin_leaf, emag_leaf, epot_leaf
-    real(kind=8)::mass_all
+    integer, dimension(1:nvector) :: region_index = 0
+
+    real(dp):: dx_code, dx, vol, scale
+    real(dp),dimension(1:3)::skip_loc
+    real(dp),dimension(1:twotondim,1:3)::xc
+    real(dp),dimension(1:nvector,1:ndim),save::xx
+  
+    real(kind=8)::mass_loc, ekin_leaf, emag_leaf, epot_leaf
+    real(kind=8), dimension(0:deltaE_nregions+1) :: ekin_loc, eint_loc, emag_loc, epot_loc
     real(dp), dimension(1:nvector, 1:nvar_all), save::uu
     real(dp), dimension(1:nvector), save::phi_level
+    real(dp)::er,xr,yr,zr,rr,xn,yn,zn,r,aa,bb
 
-    real(dp), dimension(1:nvector, 1:ndim), save::gg
 
     real(dp):: e_cons, e_prim, e_trunc, div
 
@@ -261,19 +308,34 @@ contains
     eint_loc = 0.0d0
     epot_loc = 0.0d0; epot_leaf = 0.0d0
 
-    energies(iekin_gas) = 0.0d0
-    energies(ieint) = 0.0d0
-    energies(iemag) = 0.0d0
-    energies(iepot_gas) = 0.0d0
+    energies(iekin_gas,:) = 0.0d0
+    energies(ieint,:) = 0.0d0
+    energies(iemag,:) = 0.0d0
+    energies(iepot_gas,:) = 0.0d0
 
     if (numbtot(1, ilevel) == 0) return
 
     ! Mesh spacing at that level
     nx_loc = icoarse_max - icoarse_min + 1
     scale = boxlen/dble(nx_loc)
-    dx = 0.5D0**ilevel*scale
+    if(ndim>0)skip_loc(1)=dble(icoarse_min)
+    if(ndim>1)skip_loc(2)=dble(jcoarse_min)
+    if(ndim>2)skip_loc(3)=dble(kcoarse_min)
+    dx_code = 0.5D0**ilevel
+    dx = dx_code*scale
     vol = dx**ndim
 
+    ! Set position of cell centers relative to grid center
+    do ind=1,twotondim
+      iz=(ind-1)/4
+      iy=(ind-1-4*iz)/2
+      ix=(ind-1-2*iy-4*iz)
+      if(ndim>0)xc(ind,1)=(dble(ix)-0.5D0)*dx_code
+      if(ndim>1)xc(ind,2)=(dble(iy)-0.5D0)*dx_code
+      if(ndim>2)xc(ind,3)=(dble(iz)-0.5D0)*dx_code
+    end do
+
+   
     ! Loop over active grids by vector sweeps
     ncache = active(ilevel)%ngrid
     do igrid = 1, ncache, nvector
@@ -295,8 +357,55 @@ contains
           if (son(ind_cell(i)) == 0) then
             nleaf = nleaf + 1
             ind_leaf(nleaf) = ind_cell(i)
+            ind_grid_of_leaf(nleaf) = ind_grid(i) 
           end if
         end do
+
+        region_index = deltaE_nregions + 1
+        if (deltaE_nregions > 0) then
+          ! Compute cell center in code units
+          do idim=1,ndim
+            do i=1,nleaf
+              xx(i,idim)=xg(ind_grid_of_leaf(i),idim)+xc(ind,idim)
+            end do
+          end do
+          ! Rescale position from code units to user units
+          do idim=1,ndim
+            do i=1,nleaf
+              xx(i,idim)=(xx(i,idim)-skip_loc(idim))*scale
+            end do
+          end do
+
+          do k = deltaE_nregions, 1, -1
+            er = deltaE_region_exp       (k) ! Exponent defining norm
+            xr = deltaE_region_x         (k) ! Region centre
+            yr = deltaE_region_y         (k)
+            zr = deltaE_region_z         (k)
+            rr = deltaE_region_size  (k) ! Region diameter
+            aa = deltaE_region_a         (k) ! Ellipticity (Y/X)
+            bb = deltaE_region_b         (k) ! Ellipticity (Z/X)
+            do i=1,nleaf
+              xn = 0.0d0; yn=0.0d0; zn=0.0d0
+              xn = abs(xx(i,1)-xr)
+              xn = 2.0d0*xn/rr
+#if NDIM > 1
+              yn = abs(xx(i,2)-yr)
+              yn = 2.0d0*yn/(aa*rr)
+#endif
+#if NDIM >2
+              zn = abs(xx(i,3)-zr)
+              zn = 2.0d0*zn/(bb*rr)
+#endif
+              if(er<10)then
+                r = (xn**er+yn**er+zn**er)**(1/er)
+              else
+                r = max(xn,yn,zn)
+              end if
+              if (r < 1.0) region_index(i) = k
+            end do
+          end do
+        end if
+
 
         ! Gather hydro variables
         do ivar = 1, nvar_all
@@ -325,13 +434,15 @@ contains
 
           do i = 1, nleaf
             epot_leaf = 0.5*vol*uu(i, 1)*scale*phi_level(i)
-            epot_loc = epot_loc + epot_leaf
+            epot_loc(0) = epot_loc(0) + epot_leaf
+            epot_loc(region_index(i)) = epot_loc(region_index(i)) + epot_leaf
           end do
         end if
 
         ! Compute total internal energy step 1
         do i = 1, nleaf
-          eint_loc = eint_loc + uu(i, neul)*vol
+          eint_loc(0) = eint_loc(0) + uu(i, neul)*vol
+          eint_loc(region_index(i)) = eint_loc(region_index(i)) + uu(i, neul)*vol
         end do
 
         ! Compute total energies
@@ -339,15 +450,18 @@ contains
           do i = 1, nleaf
             ! Compute total kinetic energy
             ekin_leaf = 0.5d0*vol*uu(i, 1 + ivar)**2/uu(i, 1)
-            ekin_loc = ekin_loc + ekin_leaf
+            ekin_loc(0) = ekin_loc(0)  + ekin_leaf
+            ekin_loc(region_index(i)) = ekin_loc(region_index(i)) + ekin_leaf
 #ifdef SOLVERmhd
             ! Compute total magnetic energy
             emag_leaf = 0.125d0*(uu(i, neul + ivar) + uu(i, nvar + ivar))**2*vol
-            emag_loc = emag_loc + emag_leaf
+            emag_loc(0) = emag_loc(0) + emag_leaf
+            emag_loc(region_index(i)) = emag_loc(region_index(i)) + emag_leaf
 #endif
 
             ! Compute total internal energy step 2
-            eint_loc = eint_loc - ekin_leaf - emag_leaf
+            eint_loc(0) = eint_loc(0) - ekin_leaf - emag_leaf
+            eint_loc(region_index(i)) = eint_loc(region_index(i)) - ekin_leaf - emag_leaf
           end do
         end do
 
@@ -355,7 +469,8 @@ contains
 #if NENER>0
         do ivar = 1, nener
           do i = 1, nleaf
-            eint_loc = eint_loc - uu(i, nhydro + ivar)*vol
+            eint_loc(0) = eint_loc(0) - uu(i, nhydro + ivar)*vol
+            eint_loc(region_index(i)) = eint_loc(region_index(i)) - uu(i, nhydro + ivar)*vol
           end do
         end do
 #endif
@@ -384,7 +499,8 @@ contains
             div = abs(divu(ind_leaf(i)))*dx/dtnew(ilevel)
             e_trunc = beta_fix*uu(i, 1)*max(div,3.0d0*hexp*dx)**2
             if(e_cons<e_trunc)then
-                eint_loc = eint_loc - e_cons*vol + e_prim*vol
+                eint_loc(0) = eint_loc(0) - e_cons*vol + e_prim*vol
+                eint_loc(region_index(i)) = eint_loc(region_index(i)) - e_cons*vol + e_prim*vol
             end if
           end do
         end if
@@ -396,22 +512,22 @@ contains
 
     ! Compute global quantities
 #ifndef WITHOUTMPI
-    comm_buffin(1) = ekin_loc
-    comm_buffin(2) = eint_loc
-    comm_buffin(3) = emag_loc
-    comm_buffin(4) = epot_loc
-    call MPI_ALLREDUCE(comm_buffin, comm_buffout, 4, MPI_DOUBLE_PRECISION, MPI_SUM,&
+    comm_buffin(1,:) = ekin_loc(0:deltaE_nregions)
+    comm_buffin(2,:) = eint_loc(0:deltaE_nregions)
+    comm_buffin(3,:) = emag_loc(0:deltaE_nregions)
+    comm_buffin(4,:) = epot_loc(0:deltaE_nregions)
+    call MPI_ALLREDUCE(comm_buffin, comm_buffout, 4*(deltaE_nregions + 1), MPI_DOUBLE_PRECISION, MPI_SUM,&
             &MPI_COMM_WORLD, info)
-    energies(iekin_gas) = comm_buffout(1)
-    energies(ieint) = comm_buffout(2)
-    energies(iemag) = comm_buffout(3)
-    energies(iepot_gas) = comm_buffout(4)
+    energies(iekin_gas,:) = comm_buffout(1,:)
+    energies(ieint,:) = comm_buffout(2,:)
+    energies(iemag,:) = comm_buffout(3,:)
+    energies(iepot_gas,:) = comm_buffout(4,:)
 #endif
 #ifdef WITHOUTMPI
-    energies(iekin_gas) = ekin_loc
-    energies(ieint) = eint_loc
-    energies(iemag) = emag_loc
-    energies(iepot_gas) = epot_loc
+    energies(iekin_gas,:) = ekin_loc(0:deltaE_nregions)
+    energies(ieint,:) = eint_loc(0:deltaE_nregions)
+    energies(iemag,:) = emag_loc(0:deltaE_nregions)
+    energies(iepot_gas,:) = epot_loc(0:deltaE_nregions)
 #endif
   end subroutine compute_energy_gas
 
@@ -543,32 +659,34 @@ contains
 
     ! Parameters & outputs
     integer, intent(in):: ilevel
-    real(dp), dimension(1:nb_energy_kind), intent(inout) :: energies
+    real(dp), dimension(1:nb_energy_kind, 0:deltaE_nregions), intent(inout) :: energies
 
-    real(dp), dimension(-NFAMILIES:NFAMILIES) :: ekin_families_loc
-    real(dp), dimension(-NFAMILIES:NFAMILIES) :: epot_families_loc
+    real(dp), dimension(-NFAMILIES:NFAMILIES,0:deltaE_nregions+1) :: ekin_families_loc
+    real(dp), dimension(-NFAMILIES:NFAMILIES,0:deltaE_nregions+1) :: epot_families_loc
 
-    real(kind=8)::ekin_part_loc, epot_part_loc
+    real(kind=8), dimension(0:deltaE_nregions+1)::ekin_part_loc, epot_part_loc
 
     ! AMR variables
     integer :: igrid, jgrid
 
     ! Particle variable
-    integer::ipart, jpart, next_part, ip, npart1, local_counter
+    integer::ipart, jpart, next_part, ip, npart1
 
     integer, dimension(1:nvector), save:: ind_part
 
     ! MPI variables
 #ifndef WITHOUTMPI
     integer::info
+    real(kind=8), dimension(6,0:deltaE_nregions)::comm_buffin, comm_buffout
 #endif
 
-    energies(iepot_part) = 0.d0
-    energies(iepot_part_dm) = 0.d0
-    energies(iepot_part_star) = 0.d0
-    energies(iekin_part) = 0.d0
-    energies(iekin_part_dm) = 0.d0
-    energies(iekin_part_star) = 0.d0
+
+    energies(iepot_part,:) = 0.d0
+    energies(iepot_part_dm,:) = 0.d0
+    energies(iepot_part_star,:) = 0.d0
+    energies(iekin_part,:) = 0.d0
+    energies(iekin_part_dm,:) = 0.d0
+    energies(iekin_part_star,:) = 0.d0
 
     ekin_part_loc = 0.d0
     epot_part_loc = 0.d0
@@ -608,20 +726,27 @@ contains
       end if
 
 #ifndef WITHOUTMPI
-      call MPI_ALLREDUCE(ekin_part_loc, energies(iekin_part), 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-      call MPI_ALLREDUCE(ekin_families_loc(FAM_DM), energies(iekin_part_dm), 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-  call MPI_ALLREDUCE(ekin_families_loc(FAM_STAR), energies(iekin_part_star), 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-      call MPI_ALLREDUCE(epot_part_loc, energies(iepot_part), 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-      call MPI_ALLREDUCE(epot_families_loc(FAM_DM), energies(iepot_part_dm), 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-  call MPI_ALLREDUCE(epot_families_loc(FAM_STAR), energies(iepot_part_star), 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
+      comm_buffin(1,:) = ekin_part_loc(0:deltaE_nregions)
+      comm_buffin(2,:) = ekin_families_loc(FAM_DM,0:deltaE_nregions)
+      comm_buffin(3,:) = ekin_families_loc(FAM_STAR,0:deltaE_nregions)
+      comm_buffin(4,:) = epot_part_loc(0:deltaE_nregions)
+      comm_buffin(5,:) = epot_families_loc(FAM_DM,0:deltaE_nregions)
+      comm_buffin(6,:) = epot_families_loc(FAM_STAR,0:deltaE_nregions)
+      call MPI_ALLREDUCE(comm_buffin, comm_buffout, 6*(deltaE_nregions+1), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
+      energies(iekin_part,:) = comm_buffout(1,:)
+      energies(iekin_part_dm,:) = comm_buffout(2,:)
+      energies(iekin_part_star,:) = comm_buffout(3,:)
+      energies(iepot_part,:) = comm_buffout(4,:)
+      energies(iepot_part_dm,:) = comm_buffout(5,:)
+      energies(iepot_part_star,:) = comm_buffout(6,:)
 #endif
 #ifdef WITHOUTMPI
-      energies(iekin_part) = ekin_part_loc
-      energies(iekin_part_dm) = ekin_families_loc(FAM_DM)
-      energies(iekin_part_star) = ekin_families_loc(FAM_STAR)
-      energies(iepot_part) = epot_part_loc
-      energies(iepot_part_dm) = epot_families_loc(FAM_DM)
-      energies(iepot_part_star) = epot_families_loc(FAM_STAR)
+      energies(iekin_part,0:deltaE_nregions) = ekin_part_loc(0:deltaE_nregions)
+      energies(iekin_part_dm,0:deltaE_nregions) = ekin_families_loc(FAM_DM,0:deltaE_nregions)
+      energies(iekin_part_star,0:deltaE_nregions) = ekin_families_loc(FAM_STAR,0:deltaE_nregions)
+      energies(iepot_part,0:deltaE_nregions) = epot_part_loc(0:deltaE_nregions)
+      energies(iepot_part_dm,0:deltaE_nregions) = epot_families_loc(FAM_DM,0:deltaE_nregions)
+      energies(iepot_part_star,0:deltaE_nregions) = epot_families_loc(FAM_STAR,0:deltaE_nregions)
 #endif
 
     end if
@@ -637,14 +762,17 @@ contains
     integer::nn, ilevel
     integer, dimension(1:nvector)::ind_part
 
-    integer::i, idim, nx_loc
-    real(dp)::scale
+    integer::i, idim, nx_loc, k
+    real(dp)::scale, epot_part, ekin_part
     real(dp), dimension(1:nvector), save:: mass_part, phi_part
     integer, dimension(1:nvector) :: type_part
     real(dp), dimension(1:nvector, 1:ndim)::vel_part
-    real(dp), dimension(-NFAMILIES:NFAMILIES), intent(inout) :: ekin_families_loc
-    real(dp), dimension(-NFAMILIES:NFAMILIES), intent(inout) :: epot_families_loc
-    real(dp), intent(inout):: ekin_loc, epot_loc
+    real(dp), dimension(-NFAMILIES:NFAMILIES,0:1+deltaE_nregions), intent(inout) :: ekin_families_loc
+    real(dp), dimension(-NFAMILIES:NFAMILIES,0:1+deltaE_nregions), intent(inout) :: epot_families_loc
+    real(dp), intent(inout), dimension(0:1+deltaE_nregions):: ekin_loc, epot_loc
+    integer, dimension(1:nvector) :: region_index
+    real(dp)::er,xr,yr,zr,rr,xn,yn,zn,r,aa,bb
+
 
     real(dp)::dx
 
@@ -659,22 +787,63 @@ contains
       end do
     end do
 
+    ! Get region index
+    region_index = deltaE_nregions + 1
+    if (deltaE_nregions > 0) then
+      do k = deltaE_nregions, 1, -1
+        er = deltaE_region_exp       (k) ! Exponent defining norm
+        xr = deltaE_region_x         (k) ! Region centre
+        yr = deltaE_region_y         (k)
+        zr = deltaE_region_z         (k)
+        rr = deltaE_region_size  (k) ! Region diameter
+        aa = deltaE_region_a         (k) ! Ellipticity (Y/X)
+        bb = deltaE_region_b         (k) ! Ellipticity (Z/X)
+        do i=1,nn
+          xn = 0.0d0; yn=0.0d0; zn=0.0d0
+          xn = abs(xp(ind_part(i), 1)-xr)
+          xn = 2.0d0*xn/rr
+#if NDIM > 1
+          yn = abs(xp(ind_part(i),2)-yr)
+          yn = 2.0d0*yn/(aa*rr)
+#endif
+#if NDIM >2
+          zn = abs(xp(ind_part(i),3)-zr)
+          zn = 2.0d0*zn/(bb*rr)
+#endif
+          if(er<10)then
+            r = (xn**er+yn**er+zn**er)**(1/er)
+          else
+            r = max(xn,yn,zn)
+          end if
+          if (r < 1.0) region_index(i) = k
+        end do
+      end do
+    end if
+
+
+
     ! Fetch mass and type
     do i = 1, nn
       mass_part(i) = mp(ind_part(i))
       type_part(i) = typep(ind_part(i))%family
 #ifdef OUTPUT_PARTICLE_POTENTIAL
       phi_part(i) = ptcl_phi(ind_part(i))
-      epot_loc = epot_loc + 0.5 * mass_part(i) * phi_part(i) * scale
-      epot_families_loc(type_part(i)) = epot_families_loc(type_part(i)) + 0.5 * mass_part(i) *  phi_part(i) * scale
+      epot_part = 0.5 * mass_part(i) * phi_part(i) * scale
+      epot_loc(0) = epot_loc(0) + epot_part
+      epot_loc(region_index(i)) = epot_loc(region_index(i)) + epot_part
+      epot_families_loc(type_part(i), 0) = epot_families_loc(type_part(i), 0) + epot_part
+      epot_families_loc(type_part(i), region_index(i)) = epot_families_loc(type_part(i), region_index(i)) + epot_part
 #endif
     end do
 
     ! Compute kinetic energy
     do idim = 1, ndim
       do i = 1, nn
-        ekin_loc = ekin_loc + 0.5D0*mass_part(i)*vel_part(i, idim)**2
-        ekin_families_loc(type_part(i)) = ekin_families_loc(type_part(i)) + 0.5D0*mass_part(i)*vel_part(i, idim)**2
+        ekin_part = 0.5D0*mass_part(i)*vel_part(i, idim)**2
+        ekin_loc(0) = ekin_loc(0) + ekin_part
+        ekin_loc(region_index(i)) = ekin_loc(region_index(i)) + ekin_part
+        ekin_families_loc(type_part(i), 0) = ekin_families_loc(type_part(i), 0) + ekin_part
+        ekin_families_loc(type_part(i), region_index(i)) = ekin_families_loc(type_part(i), region_index(i)) + ekin_part
       end do
     end do
 
