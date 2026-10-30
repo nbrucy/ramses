@@ -670,9 +670,9 @@ contains
     integer :: igrid, jgrid
 
     ! Particle variable
-    integer::ipart, jpart, next_part, ip, npart1
+    integer::ipart, jpart, next_part, ip, ig, npart1, local_counter
 
-    integer, dimension(1:nvector), save:: ind_part
+    integer, dimension(1:nvector), save:: ind_grid, ind_part, ind_grid_part
 
     ! MPI variables
 #ifndef WITHOUTMPI
@@ -694,35 +694,51 @@ contains
     epot_families_loc = 0.d0
 
     if (pic) then
+      ig = 0
       ip = 0
-      ! Loop over particles that are not tracers
+      ! Loop over particles that are not tracers (same buffering as move_fine)
       do jgrid = 1, active(ilevel)%ngrid
         igrid = active(ilevel)%igrid(jgrid)
         npart1 = numbp(igrid)  ! Number of particles in the grid
         if (npart1 > 0) then
+          ig = ig + 1
+          ind_grid(ig) = igrid
           ipart = headp(igrid)
+          local_counter = 0
           ! Loop over particles
           do jpart = 1, npart1
             ! Save next particle  <---- Very important !!!
             next_part = nextp(ipart)
+            if (ig == 0) then
+              ig = 1
+              ind_grid(ig) = igrid
+            end if
             ! Skip tracers
             if (.not. is_tracer(typep(ipart))) then
+              local_counter = local_counter + 1
               ip = ip + 1
               ind_part(ip) = ipart
+              ind_grid_part(ip) = ig
               if (ip == nvector) then
-                call ekin_part_helper(ind_part, ekin_part_loc, ekin_families_loc, epot_part_loc, epot_families_loc, ip, ilevel)
+                call energy_part_helper(ind_grid, ind_part, ind_grid_part, ig, ip, &
+                     & ekin_part_loc, ekin_families_loc, epot_part_loc, epot_families_loc, ilevel)
+                local_counter = 0
                 ip = 0
+                ig = 0
               end if
             end if
 
             ipart = next_part  ! Go to next particle
           end do
           ! End loop over particles
+          ! If there was no particle in the grid, remove the grid from the buffer
+          if (local_counter == 0 .and. ig > 0) ig = ig - 1
         end if
       end do
       ! End loop over grids
       if (ip > 0) then
-        call ekin_part_helper(ind_part, ekin_part_loc, ekin_families_loc, epot_part_loc, epot_families_loc,  ip, ilevel)
+        call energy_part_helper(ind_grid, ind_part, ind_grid_part, ig, ip, &
+             & ekin_part_loc, ekin_families_loc, epot_part_loc, epot_families_loc, ilevel)
       end if
 
 #ifndef WITHOUTMPI
@@ -753,26 +769,26 @@ contains
 
   end subroutine compute_energy_part
 
-  subroutine ekin_part_helper(ind_part, ekin_loc, ekin_families_loc, epot_loc, epot_families_loc, nn, ilevel)
+  subroutine energy_part_helper(ind_grid, ind_part, ind_grid_part, ng, nn, &
+    & ekin_loc, ekin_families_loc, epot_loc, epot_families_loc, ilevel)
     use amr_commons
     use pm_commons
     use hydro_commons
     implicit none
 
-    integer::nn, ilevel
-    integer, dimension(1:nvector)::ind_part
+    integer::ng, nn, ilevel
+    integer, dimension(1:nvector)::ind_grid, ind_part, ind_grid_part
 
     integer::i, idim, nx_loc, k
     real(dp)::scale, epot_part, ekin_part
     real(dp), dimension(1:nvector), save:: mass_part, phi_part
     integer, dimension(1:nvector) :: type_part
     real(dp), dimension(1:nvector, 1:ndim)::vel_part
-    real(dp), dimension(-NFAMILIES:NFAMILIES,0:1+deltaE_nregions), intent(inout) :: ekin_families_loc
-    real(dp), dimension(-NFAMILIES:NFAMILIES,0:1+deltaE_nregions), intent(inout) :: epot_families_loc
-    real(dp), intent(inout), dimension(0:1+deltaE_nregions):: ekin_loc, epot_loc
+    real(dp), dimension(-NFAMILIES:NFAMILIES, 0:1 + deltaE_nregions), intent(inout) :: ekin_families_loc
+    real(dp), dimension(-NFAMILIES:NFAMILIES, 0:1 + deltaE_nregions), intent(inout) :: epot_families_loc
+    real(dp), intent(inout), dimension(0:1 + deltaE_nregions):: ekin_loc, epot_loc
     integer, dimension(1:nvector) :: region_index
-    real(dp)::er,xr,yr,zr,rr,xn,yn,zn,r,aa,bb
-
+    real(dp)::er, xr, yr, zr, rr, xn, yn, zn, r, aa, bb
 
     real(dp)::dx
 
@@ -791,50 +807,52 @@ contains
     region_index = deltaE_nregions + 1
     if (deltaE_nregions > 0) then
       do k = deltaE_nregions, 1, -1
-        er = deltaE_region_exp       (k) ! Exponent defining norm
-        xr = deltaE_region_x         (k) ! Region centre
-        yr = deltaE_region_y         (k)
-        zr = deltaE_region_z         (k)
-        rr = deltaE_region_size  (k) ! Region diameter
-        aa = deltaE_region_a         (k) ! Ellipticity (Y/X)
-        bb = deltaE_region_b         (k) ! Ellipticity (Z/X)
-        do i=1,nn
-          xn = 0.0d0; yn=0.0d0; zn=0.0d0
-          xn = abs(xp(ind_part(i), 1)-xr)
+        er = deltaE_region_exp(k) ! Exponent defining norm
+        xr = deltaE_region_x(k) ! Region centre
+        yr = deltaE_region_y(k)
+        zr = deltaE_region_z(k)
+        rr = deltaE_region_size(k) ! Region size (diameter for a circle)
+        aa = deltaE_region_a(k) ! Ellipticity (Y/X)
+        bb = deltaE_region_b(k) ! Ellipticity (Z/X)
+        do i = 1, nn
+          xn = 0.0d0; yn = 0.0d0; zn = 0.0d0
+          xn = abs(xp(ind_part(i), 1) - xr)
           xn = 2.0d0*xn/rr
 #if NDIM > 1
-          yn = abs(xp(ind_part(i),2)-yr)
+          yn = abs(xp(ind_part(i), 2) - yr)
           yn = 2.0d0*yn/(aa*rr)
 #endif
 #if NDIM >2
-          zn = abs(xp(ind_part(i),3)-zr)
+          zn = abs(xp(ind_part(i), 3) - zr)
           zn = 2.0d0*zn/(bb*rr)
 #endif
-          if(er<10)then
-            r = (xn**er+yn**er+zn**er)**(1/er)
+          if (er < 10) then
+            r = (xn**er + yn**er + zn**er)**(1/er)
           else
-            r = max(xn,yn,zn)
+            r = max(xn, yn, zn)
           end if
           if (r < 1.0) region_index(i) = k
         end do
       end do
     end if
 
-
-
     ! Fetch mass and type
     do i = 1, nn
       mass_part(i) = mp(ind_part(i))
       type_part(i) = typep(ind_part(i))%family
-#ifdef OUTPUT_PARTICLE_POTENTIAL
-      phi_part(i) = ptcl_phi(ind_part(i))
-      epot_part = 0.5 * mass_part(i) * phi_part(i) * scale
+    end do
+
+    ! Potential at the current particle position, from the current grid potential
+    if (poisson) then
+      call cic_phi_part(ind_grid, ind_part, ind_grid_part, ng, nn, ilevel, phi_part)
+      do i = 1, nn
+        epot_part = 0.5*mass_part(i)*phi_part(i)*scale
       epot_loc(0) = epot_loc(0) + epot_part
       epot_loc(region_index(i)) = epot_loc(region_index(i)) + epot_part
       epot_families_loc(type_part(i), 0) = epot_families_loc(type_part(i), 0) + epot_part
       epot_families_loc(type_part(i), region_index(i)) = epot_families_loc(type_part(i), region_index(i)) + epot_part
-#endif
     end do
+    end if
 
     ! Compute kinetic energy
     do idim = 1, ndim
@@ -847,7 +865,242 @@ contains
       end do
     end do
 
-  end subroutine ekin_part_helper
+  end subroutine energy_part_helper
+
+  subroutine cic_phi_part(ind_grid, ind_part, ind_grid_part, ng, np, ilevel, phi_part)
+    !------------------------------------------------------------
+    ! CIC interpolation of the potential at the particle positions,
+    ! Cloud at level ilevel if the cloud lies
+    ! entirely in it, level ilevel-1 otherwise.
+    ! Uses phi_old instead of phi for the cells of a level whose
+    ! deltaE_use_phi_old flag is set.
+    !------------------------------------------------------------
+    use amr_commons
+    use pm_commons
+    use poisson_commons
+    implicit none
+    integer, intent(in)::ng, np, ilevel
+    integer, dimension(1:nvector), intent(in)::ind_grid, ind_grid_part, ind_part
+    real(dp), dimension(1:nvector), intent(out)::phi_part
+
+    integer::j, ind, idim, nx_loc
+    real(dp)::dx, scale
+    logical::use_old_fine, use_old_coarse
+    integer, dimension(1:nvector), save::father_cell
+    real(dp), dimension(1:nvector, 1:ndim), save::x0
+    integer, dimension(1:nvector, 1:threetondim), save::nbors_father_cells
+    logical, dimension(1:nvector), save::ok
+    real(dp), dimension(1:nvector, 1:ndim), save::x, dd, dg
+    integer, dimension(1:nvector, 1:ndim), save::ig, id, igg, igd, icg, icd
+    real(dp), dimension(1:nvector, 1:twotondim), save::vol
+    integer, dimension(1:nvector, 1:twotondim), save::igrid, icell, indp, kg
+    real(dp), dimension(1:3)::skip_loc
+
+    dx = 0.5D0**ilevel
+    nx_loc = (icoarse_max - icoarse_min + 1)
+    skip_loc = (/0.0d0, 0.0d0, 0.0d0/)
+    if (ndim > 0) skip_loc(1) = dble(icoarse_min)
+    if (ndim > 1) skip_loc(2) = dble(jcoarse_min)
+    if (ndim > 2) skip_loc(3) = dble(kcoarse_min)
+    scale = boxlen/dble(nx_loc)
+
+    ! Lower left corner of 3x3x3 grid-cube
+    do idim = 1, ndim
+      do j = 1, ng
+        x0(j, idim) = xg(ind_grid(j), idim) - 3.0D0*dx
+      end do
+    end do
+    do j = 1, ng
+      father_cell(j) = father(ind_grid(j))
+    end do
+    call get3cubefather(father_cell, nbors_father_cells, ng, ilevel)
+
+    ! Particle position in units of dx relative to the 3x3x3 cube
+    do idim = 1, ndim
+      do j = 1, np
+        x(j, idim) = (xp(ind_part(j), idim)/scale + skip_loc(idim) - x0(ind_grid_part(j), idim))/dx
+      end do
+    end do
+
+    ! CIC at level ilevel
+    do idim = 1, ndim
+      do j = 1, np
+        dd(j, idim) = x(j, idim) + 0.5D0
+        id(j, idim) = int(dd(j, idim))
+        dd(j, idim) = dd(j, idim) - id(j, idim)
+        dg(j, idim) = 1.0D0 - dd(j, idim)
+        ig(j, idim) = id(j, idim) - 1
+        igg(j, idim) = ig(j, idim)/2
+        igd(j, idim) = id(j, idim)/2
+      end do
+    end do
+#if NDIM==1
+    do j = 1, np
+      kg(j, 1) = 1 + igg(j, 1)
+      kg(j, 2) = 1 + igd(j, 1)
+    end do
+#endif
+#if NDIM==2
+    do j = 1, np
+      kg(j, 1) = 1 + igg(j, 1) + 3*igg(j, 2)
+      kg(j, 2) = 1 + igd(j, 1) + 3*igg(j, 2)
+      kg(j, 3) = 1 + igg(j, 1) + 3*igd(j, 2)
+      kg(j, 4) = 1 + igd(j, 1) + 3*igd(j, 2)
+    end do
+#endif
+#if NDIM==3
+    do j = 1, np
+      kg(j, 1) = 1 + igg(j, 1) + 3*igg(j, 2) + 9*igg(j, 3)
+      kg(j, 2) = 1 + igd(j, 1) + 3*igg(j, 2) + 9*igg(j, 3)
+      kg(j, 3) = 1 + igg(j, 1) + 3*igd(j, 2) + 9*igg(j, 3)
+      kg(j, 4) = 1 + igd(j, 1) + 3*igd(j, 2) + 9*igg(j, 3)
+      kg(j, 5) = 1 + igg(j, 1) + 3*igg(j, 2) + 9*igd(j, 3)
+      kg(j, 6) = 1 + igd(j, 1) + 3*igg(j, 2) + 9*igd(j, 3)
+      kg(j, 7) = 1 + igg(j, 1) + 3*igd(j, 2) + 9*igd(j, 3)
+      kg(j, 8) = 1 + igd(j, 1) + 3*igd(j, 2) + 9*igd(j, 3)
+    end do
+#endif
+    do ind = 1, twotondim
+      do j = 1, np
+        igrid(j, ind) = son(nbors_father_cells(ind_grid_part(j), kg(j, ind)))
+      end do
+    end do
+
+    ! Cloud entirely in level ilevel ?
+    ok(1:np) = .true.
+    do ind = 1, twotondim
+      do j = 1, np
+        ok(j) = ok(j) .and. igrid(j, ind) > 0
+      end do
+    end do
+
+    ! If not, redo CIC at level ilevel-1
+    do idim = 1, ndim
+      do j = 1, np
+        if (.not. ok(j)) then
+          x(j, idim) = x(j, idim)/2.0D0
+          dd(j, idim) = x(j, idim) + 0.5D0
+          id(j, idim) = int(dd(j, idim))
+          dd(j, idim) = dd(j, idim) - id(j, idim)
+          dg(j, idim) = 1.0D0 - dd(j, idim)
+          ig(j, idim) = id(j, idim) - 1
+        end if
+      end do
+    end do
+
+    ! Parent cell position
+    do idim = 1, ndim
+      do j = 1, np
+        if (ok(j)) then
+          icg(j, idim) = ig(j, idim) - 2*igg(j, idim)
+          icd(j, idim) = id(j, idim) - 2*igd(j, idim)
+        else
+          icg(j, idim) = ig(j, idim)
+          icd(j, idim) = id(j, idim)
+        end if
+      end do
+    end do
+#if NDIM==1
+    do j = 1, np
+      icell(j, 1) = 1 + icg(j, 1)
+      icell(j, 2) = 1 + icd(j, 1)
+    end do
+#endif
+#if NDIM==2
+    do j = 1, np
+      if (ok(j)) then
+        icell(j, 1) = 1 + icg(j, 1) + 2*icg(j, 2)
+        icell(j, 2) = 1 + icd(j, 1) + 2*icg(j, 2)
+        icell(j, 3) = 1 + icg(j, 1) + 2*icd(j, 2)
+        icell(j, 4) = 1 + icd(j, 1) + 2*icd(j, 2)
+      else
+        icell(j, 1) = 1 + icg(j, 1) + 3*icg(j, 2)
+        icell(j, 2) = 1 + icd(j, 1) + 3*icg(j, 2)
+        icell(j, 3) = 1 + icg(j, 1) + 3*icd(j, 2)
+        icell(j, 4) = 1 + icd(j, 1) + 3*icd(j, 2)
+      end if
+    end do
+#endif
+#if NDIM==3
+    do j = 1, np
+      if (ok(j)) then
+        icell(j, 1) = 1 + icg(j, 1) + 2*icg(j, 2) + 4*icg(j, 3)
+        icell(j, 2) = 1 + icd(j, 1) + 2*icg(j, 2) + 4*icg(j, 3)
+        icell(j, 3) = 1 + icg(j, 1) + 2*icd(j, 2) + 4*icg(j, 3)
+        icell(j, 4) = 1 + icd(j, 1) + 2*icd(j, 2) + 4*icg(j, 3)
+        icell(j, 5) = 1 + icg(j, 1) + 2*icg(j, 2) + 4*icd(j, 3)
+        icell(j, 6) = 1 + icd(j, 1) + 2*icg(j, 2) + 4*icd(j, 3)
+        icell(j, 7) = 1 + icg(j, 1) + 2*icd(j, 2) + 4*icd(j, 3)
+        icell(j, 8) = 1 + icd(j, 1) + 2*icd(j, 2) + 4*icd(j, 3)
+      else
+        icell(j, 1) = 1 + icg(j, 1) + 3*icg(j, 2) + 9*icg(j, 3)
+        icell(j, 2) = 1 + icd(j, 1) + 3*icg(j, 2) + 9*icg(j, 3)
+        icell(j, 3) = 1 + icg(j, 1) + 3*icd(j, 2) + 9*icg(j, 3)
+        icell(j, 4) = 1 + icd(j, 1) + 3*icd(j, 2) + 9*icg(j, 3)
+        icell(j, 5) = 1 + icg(j, 1) + 3*icg(j, 2) + 9*icd(j, 3)
+        icell(j, 6) = 1 + icd(j, 1) + 3*icg(j, 2) + 9*icd(j, 3)
+        icell(j, 7) = 1 + icg(j, 1) + 3*icd(j, 2) + 9*icd(j, 3)
+        icell(j, 8) = 1 + icd(j, 1) + 3*icd(j, 2) + 9*icd(j, 3)
+      end if
+    end do
+#endif
+
+    ! Parent cell addresses
+    do ind = 1, twotondim
+      do j = 1, np
+        if (ok(j)) then
+          indp(j, ind) = ncoarse + (icell(j, ind) - 1)*ngridmax + igrid(j, ind)
+        else
+          indp(j, ind) = nbors_father_cells(ind_grid_part(j), icell(j, ind))
+        end if
+      end do
+    end do
+
+    ! Cloud volumes
+#if NDIM==1
+    do j = 1, np
+      vol(j, 1) = dg(j, 1)
+      vol(j, 2) = dd(j, 1)
+    end do
+#endif
+#if NDIM==2
+    do j = 1, np
+      vol(j, 1) = dg(j, 1)*dg(j, 2)
+      vol(j, 2) = dd(j, 1)*dg(j, 2)
+      vol(j, 3) = dg(j, 1)*dd(j, 2)
+      vol(j, 4) = dd(j, 1)*dd(j, 2)
+    end do
+#endif
+#if NDIM==3
+    do j = 1, np
+      vol(j, 1) = dg(j, 1)*dg(j, 2)*dg(j, 3)
+      vol(j, 2) = dd(j, 1)*dg(j, 2)*dg(j, 3)
+      vol(j, 3) = dg(j, 1)*dd(j, 2)*dg(j, 3)
+      vol(j, 4) = dd(j, 1)*dd(j, 2)*dg(j, 3)
+      vol(j, 5) = dg(j, 1)*dg(j, 2)*dd(j, 3)
+      vol(j, 6) = dd(j, 1)*dg(j, 2)*dd(j, 3)
+      vol(j, 7) = dg(j, 1)*dd(j, 2)*dd(j, 3)
+      vol(j, 8) = dd(j, 1)*dd(j, 2)*dd(j, 3)
+    end do
+#endif
+
+    ! Interpolate the potential: the cloud cells are at level ilevel if ok,
+    ! at level ilevel-1 otherwise
+    use_old_fine = deltaE_use_phi_old(ilevel)
+    use_old_coarse = .false.
+    if (ilevel > levelmin) use_old_coarse = deltaE_use_phi_old(ilevel - 1)
+    phi_part(1:np) = 0.0d0
+    do ind = 1, twotondim
+      do j = 1, np
+        if ((ok(j) .and. use_old_fine) .or. (.not. ok(j) .and. use_old_coarse)) then
+          phi_part(j) = phi_part(j) + phi_old(indp(j, ind))*vol(j, ind)
+        else
+          phi_part(j) = phi_part(j) + phi(indp(j, ind))*vol(j, ind)
+        end if
+      end do
+    end do
+
+  end subroutine cic_phi_part
 
   !#########################################################################
 
