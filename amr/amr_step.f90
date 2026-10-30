@@ -507,9 +507,9 @@ recursive subroutine amr_step(ilevel,icount)
      ! Add non conservative pdV terms to unew
      ! for thermal and/or non-thermal energies
      if(pressure_fix.OR.nener>0)then
-        if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(iflux_gas), 1)
+        if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(iflux_gas), 1, compute_eturb=.false.)
         call add_pdv_source_terms(ilevel)
-        if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(iflux_gas), 2)
+        if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(iflux_gas), 2, compute_eturb=.false.)
      endif
 
      ! Add viscous source terms to unew
@@ -552,9 +552,13 @@ recursive subroutine amr_step(ilevel,icount)
 
      ! Restriction operator
                                call timer('hydro upload fine','start')
-     !if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(icorrections), 1)
+#ifdef SOLVERmhd
+     if(deltaE_enable) call compute_transfer(max(ilevel-1,levelmin), ilevel, deltaE(icorrections), 1, compute_eturb=.false.)
+#endif
      call upload_fine(ilevel)
-     !if(deltaE_enable) call compute_transfer(levelmin, nlevelmax, deltaE(icorrections), 2)
+#ifdef SOLVERmhd
+     if(deltaE_enable) call compute_transfer(max(ilevel-1,levelmin), ilevel, deltaE(icorrections), 2, compute_eturb=.false.)
+#endif
   endif
 
 
@@ -619,15 +623,15 @@ recursive subroutine amr_step(ilevel,icount)
 #if NDIM==3
                                call timer('feedback','start')
 
-  if (deltaE_enable .and. hydro .and.star) then
-      ! Star formation communicates ghost, but we don't want to attribute the update to it
-      call compute_transfer(ilevel, ilevel, deltaE(icorrections), 1)
-      do ivar=1,4
-         call make_virtual_fine_dp(uold(1,ivar),ilevel)
-      end do
-      call compute_transfer(ilevel, ilevel, deltaE(icorrections), 2)
+!   if (deltaE_enable .and. hydro .and.star) then
+!       ! Star formation communicates ghost, but we don't want to attribute the update to it
+!       call compute_transfer(ilevel, ilevel, deltaE(icorrections), 1)
+!       do ivar=1,4
+!          call make_virtual_fine_dp(uold(1,ivar),ilevel)
+!       end do
+!       call compute_transfer(ilevel, ilevel, deltaE(icorrections), 2)
 
-  end if
+!   end if
 
   if(deltaE_enable.and.star.and.(.not.static_gas)) call compute_transfer(ilevel, ilevel, deltaE(istar_formation), 1)
 
@@ -724,9 +728,11 @@ recursive subroutine amr_step(ilevel,icount)
   ! Update coarser level time-step
   !-------------------------------
   if(ilevel>levelmin)then
-     if(nsubcycle(ilevel-1)==1)dtnew(ilevel-1)=dtnew(ilevel)
-     if(icount==2)dtnew(ilevel-1)=dtold(ilevel)+dtnew(ilevel)
-  end if
+   if(deltaE_enable .and. pressure_fix .and. deltaE_correct_pressure_fix) call compute_transfer(ilevel-1, ilevel-1, deltaE(iflux_gas), 1, compute_eturb=.false.)
+   if(nsubcycle(ilevel-1)==1)dtnew(ilevel-1)=dtnew(ilevel)
+   if(icount==2)dtnew(ilevel-1)=dtold(ilevel)+dtnew(ilevel)
+   if(deltaE_enable .and. pressure_fix .and. deltaE_correct_pressure_fix) call compute_transfer(ilevel-1, ilevel-1, deltaE(iflux_gas), 2, compute_eturb=.false.)
+end if
 
   ! Reset move flag flag
   if(MC_tracer .and. .not. ito_tracer) then

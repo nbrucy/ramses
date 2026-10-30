@@ -228,18 +228,23 @@ contains
     energies(iepot, :) = energies(iepot_gas, :) + energies(iepot_part, :)
   end subroutine
 
-  subroutine compute_transfer(levelstart, levelend, deltaE_process, step)
+  subroutine compute_transfer(levelstart, levelend, deltaE_process, step, compute_eturb)
 
     implicit none
     integer, intent(in):: levelstart, levelend
     type(process), intent(inout) :: deltaE_process
     integer, intent(in) :: step
+    logical, intent(in), optional :: compute_eturb
+    logical :: do_eturb
     integer :: act_levelstart, act_levelend
 
     integer :: ilevel
 
     real(dp), dimension(1:nb_energy_kind, 0:DELTAE_MAX_REGIONS), save :: energy_before
     real(dp), dimension(1:nb_energy_kind, 0:deltaE_nregions) ::energy_level, energy_after
+
+    do_eturb = deltaE_process%compute_eturb
+    if (present(compute_eturb)) do_eturb = compute_eturb
 
     if (deltaE_force_all_levels) then
        act_levelstart = levelmin
@@ -257,7 +262,7 @@ contains
 
     do ilevel = act_levelstart, act_levelend
        call compute_energies(ilevel, energy_level, &
-      & compute_eturb=(), &
+      & compute_eturb=(do_eturb .and. ilevel == act_levelstart), &
       & compute_gas=deltaE_process%compute_gas, &
       & compute_part=deltaE_process%compute_part)
        if (step == 1) then
