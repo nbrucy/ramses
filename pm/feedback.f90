@@ -52,21 +52,24 @@ subroutine thermal_feedback(ilevel)
      inquire(file=fileloc,exist=file_exist)
      if(.not.file_exist) then
         open(ilun, file=fileloc, form='formatted')
-        write(ilun,'(A24)',advance='no') '# event id  ilevel  mp  '
+        write(ilun,'(A10)',advance='no') '# event'
+        write(ilun,'(A10)',advance='no') 'ilevel'
+        write(ilun,'(A10)',advance='no') 'mp'
         do idim=1,ndim
-           write(ilun,'(A2,I1,A2)',advance='no') 'xp',idim,'  '
+           write(ilun,'(A2,I1,A21)',advance='no') 'xp',idim,''
         enddo
         do idim=1,ndim
-           write(ilun,'(A2,I1,A2)',advance='no') 'vp',idim,'  '
+           write(ilun,'(A2,I1,A21)',advance='no') 'vp',idim,''
         enddo
         do ivar=1,nvar
            if(ivar.ge.10) then
-              write(ilun,'(A1,I2,A2)',advance='no') 'u',ivar,'  '
+              write(ilun,'(A1,I2,A21)',advance='no') 'u',ivar,''
            else
-              write(ilun,'(A1,I1,A2)',advance='no') 'u',ivar,'  '
+              write(ilun,'(A1,I1,A21)',advance='no') 'u',ivar,''
            endif
         enddo
-        write(ilun,'(A5)',advance='no') 'tag  '
+        write(ilun,'(A10)',advance='no') 'tag  '
+        write(ilun,'(A24)',advance='no') 'rcool  '
         write(ilun,'(A1)') ' '
      else
         open(ilun, file=fileloc, status="old", position="append", action="write", form='formatted')
@@ -184,6 +187,9 @@ subroutine feedbk(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
   integer ,dimension(1:nvector,1:ndim),save::id,igd,icd
   integer ,dimension(1:nvector),save::igrid,icell,indp,kg
   real(dp),dimension(1:3)::skip_loc
+  integer, parameter :: cooling_method = 2
+  real(dp):: r_c,r_c_z_exp,r_c_n_exp
+  real(dp):: r_cool, metallicity
 #if NENER>0
   integer::irad
 #endif
@@ -225,6 +231,25 @@ subroutine feedbk(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
      t0=t_sne*Myr2sec/scale_t
      current_time=t
   endif
+
+  if(cooling_method>0)then
+   SELECT CASE (cooling_method)
+      CASE (1)
+         ! inhomogeneous medium (weak)
+         ! cooling radius
+         r_c = 6.3 * pc2cm / scale_l
+         r_c_z_exp = -0.05
+         r_c_n_exp = -0.42
+      CASE (2)
+         ! homogeneous medium (strong)
+         ! momentum
+         ! cooling radius
+         r_c = 3.0 * pc2cm / scale_l
+         r_c_z_exp = -0.082
+         r_c_n_exp = -0.42
+   END SELECT
+  endif
+
 
   ! Type II supernova specific energy from cgs to code units
   ESN=1d51/(10d0*M_sun)/scale_v**2
@@ -330,6 +355,14 @@ subroutine feedbk(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
      ethermal(j)=0d0
   end do
 
+
+  if(metal)then
+     metallicity=max(uold(indp(j),imetal),smallr)/max(uold(indp(j),1),smallr)/0.02
+  else
+     metallicity=z_ave
+  endif
+  metallicity=max(metallicity,0.01)
+
   ! Compute stellar mass loss and thermal feedback due to supernovae
   if(f_w==0)then
      do j=1,np
@@ -368,6 +401,7 @@ subroutine feedbk(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
                  ethermal(j)=0d0
               endif
            endif
+
            if(sf_log_properties) then
               write(ilun,'(I10)',advance='no') 1
               write(ilun,'(2I10,E24.12)',advance='no') idp(ind_part(j)),ilevel,mp(ind_part(j))
@@ -402,6 +436,10 @@ subroutine feedbk(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
                  write(ilun,'(E24.12)',advance='no') uvar/unew(indp(j),1)
               enddo
               write(ilun,'(I10)',advance='no') typep(ind_part(i))%tag
+              if (cooling_method > 0) then
+                 r_cool=r_c*(metallicity**r_c_z_exp)*((max(uold(indp(j),1),smallr)*scale_nH/100.0)**r_c_n_exp)
+              end if
+              write(ilun,'(E24.12)',advance='no') r_cool
               write(ilun,'(A1)') ' '
            endif
         endif
