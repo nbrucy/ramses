@@ -49,6 +49,9 @@ module deltaE_module
   integer, parameter :: iekin_turb0 = nb_energy_fixed 
   integer, parameter :: nb_energy_kind = nb_energy_fixed + MAXLEVEL
 
+  ! Per grid totals for the turbulent energy 
+  real(dp), allocatable, dimension(:,:) :: grid_u  ! (1:ngridmax, 1:ndim+1)
+
   type process
   real(dp), dimension(1:nb_energy_kind, 0:DELTAE_MAX_REGIONS) :: v
   character(len=20) :: name
@@ -532,11 +535,13 @@ contains
   end subroutine compute_energy_gas
 
 
+
   subroutine compute_ekin_turb_all_levels(eturb)
-    ! Turbulent kinetic energy per level. For every grid i at level L:
+    ! Turbulent kinetic energy per level. For every grid at level L:
     !   eturb(L) += sum_i 1/2 m_i |v_i - V|^2,  V = mass-weighted mean velocity of the grid.
-    ! Refined cells use the total mass and momentum of their child grid,
-    ! since some updates are done only on leaf cells (eg. feedback, star formation, etc.)
+    ! Refined cells use the total mass and momentum of their child grid.
+    ! Each grid is processed by its owner only, from nlevelmax up to levelmin; grid totals are
+    ! stored in grid_u and sent to virtual copies so that a parent owned by another rank can use them.
     use amr_commons
     use hydro_commons
     use mpi_mod
@@ -544,21 +549,25 @@ contains
     real(dp), dimension(1:nlevelmax), intent(out) :: eturb
     real(dp), dimension(1:nlevelmax) :: eturb_loc
     integer, dimension(1:nvector) :: ind_grid
-    real(dp), dimension(1:nvector) :: mass_total
-    real(dp), dimension(1:ndim, 1:nvector) :: momentum_total
-    integer :: igrid, ngrid, ncache, i
+    integer :: ilevel, igrid, ngrid, ncache, i
 #ifndef WITHOUTMPI
     integer :: info
 #endif
 
+    if (.not. allocated(grid_u)) allocate(grid_u(1:ngridmax, 1:ndim+1))
+
     eturb_loc = 0.0d0
-    ncache = active(levelmin)%ngrid
-    do igrid = 1, ncache, nvector
-      ngrid = min(nvector, ncache - igrid + 1)
-      do i = 1, ngrid
-        ind_grid(i) = active(levelmin)%igrid(igrid + i - 1)
+    do ilevel = nlevelmax, levelmin, -1
+      ncache = active(ilevel)%ngrid
+      do igrid = 1, ncache, nvector
+        ngrid = min(nvector, ncache - igrid + 1)
+        do i = 1, ngrid
+          ind_grid(i) = active(ilevel)%igrid(igrid + i - 1)
+        end do
+        call compute_eturb_grids(ilevel, ngrid, ind_grid, eturb_loc)
       end do
-      call compute_eturb_aux(levelmin, ngrid, ind_grid, mass_total, momentum_total, eturb_loc)
+      ! Totals of level ilevel grids to their virtual copies, for parents owned by another rank
+      if (ilevel > levelmin) call make_virtual_grid_totals(ilevel)
     end do
 
 #ifndef WITHOUTMPI
@@ -568,85 +577,186 @@ contains
 #endif
   end subroutine compute_ekin_turb_all_levels
 
-  recursive subroutine compute_eturb_aux(ilevel, ngrid, ind_grid, mass_total, momentum_total, eturb)
-    ! For a batch of at most nvector grids at level ilevel: returns their total mass and
-    ! momentum, and adds the fluctuation energy of their cells around the grid mean to
-    ! eturb. Refined cells are handled by recursive calls on vectors of at most nvector grids.
+  subroutine compute_eturb_grids(ilevel, ngrid, ind_grid, eturb)
+    ! For a batch of at most nvector grids owned by this rank at level ilevel: stores their total
+    ! mass and momentum in grid_u and adds the fluctuation energy of their cells to eturb.
     use amr_commons
     use hydro_commons
     implicit none
     integer, intent(in) :: ilevel, ngrid
-    integer, dimension(1:ngrid), intent(in) :: ind_grid
-    real(dp), dimension(1:ngrid), intent(out) :: mass_total
-    real(dp), dimension(1:ndim, 1:ngrid), intent(out) :: momentum_total
+    integer, dimension(1:nvector), intent(in) :: ind_grid
     real(dp), dimension(1:nlevelmax), intent(inout) :: eturb
 
     real(dp), dimension(1:nvector, 1:twotondim) :: mass
-    real(dp), dimension(1:ndim, 1:ngrid, 1:twotondim) :: momentum
-    integer, dimension(1:twotondim*nvector) :: child, child_igrid, child_ind
-    real(dp), dimension(1:twotondim*nvector) :: child_mass
-    real(dp), dimension(1:ndim, 1:twotondim*nvector) :: child_momentum
-    real(dp), dimension(1:ndim) :: vmean
+    real(dp), dimension(1:nvector, 1:ndim, 1:twotondim) :: momentum
+    real(dp), dimension(1:nvector) :: mass_total
+    real(dp), dimension(1:nvector, 1:ndim) :: momentum_total
     real(dp) :: vol
-    integer :: igrid, ind, iskip, icell, nchild, k, nk, idim
+    integer :: i, ind, iskip, icell, ison, idim
     logical :: use_unew
 
     vol = (0.5d0**ilevel*boxlen/dble(icoarse_max - icoarse_min + 1))**ndim
     use_unew = deltaE_use_unew(ilevel)
 
-    ! Leaves: take from the current u array. 
-    ! Refined cells: takes from their child
-    nchild = 0
+    ! Leaves: own cells, from the current u array. Refined cells: totals of the child grid
     do ind = 1, twotondim
       iskip = ncoarse + (ind - 1)*ngridmax
-      do igrid = 1, ngrid
-        icell = ind_grid(igrid) + iskip
-        if (son(icell) > 0) then
-          nchild = nchild + 1
-          child(nchild) = son(icell)
-          child_igrid(nchild) = igrid
-          child_ind(nchild) = ind
+      do i = 1, ngrid
+        icell = ind_grid(i) + iskip
+        ison = son(icell)
+        if (ison > 0) then
+          mass(i, ind) = grid_u(ison, 1)
+          momentum(i, 1:ndim, ind) = grid_u(ison, 2:ndim+1)
         else if (use_unew) then
-          mass(igrid, ind) = unew(icell, 1)*vol
-          momentum(:, igrid, ind) = unew(icell, 2:ndim+1)*vol
+          mass(i, ind) = unew(icell, 1)*vol
+          momentum(i, 1:ndim, ind) = unew(icell, 2:ndim+1)*vol
         else
-          mass(igrid, ind) = uold(icell, 1)*vol
-          momentum(:, igrid, ind) = uold(icell, 2:ndim+1)*vol
+          mass(i, ind) = uold(icell, 1)*vol
+          momentum(i, 1:ndim, ind) = uold(icell, 2:ndim+1)*vol
         end if
       end do
     end do
 
-    ! Recursive call to level ilevel + 1 only for children of this vector
-    do k = 1, nchild, nvector
-      nk = min(nvector, nchild - k + 1)
-      call compute_eturb_aux(ilevel + 1, nk, child(k:k+nk-1), child_mass(k:k+nk-1), child_momentum(:, k:k+nk-1), eturb)
-    end do
-    do k = 1, nchild
-      mass(child_igrid(k), child_ind(k)) = child_mass(k)
-      momentum(:, child_igrid(k), child_ind(k)) = child_momentum(:, k)
-    end do
-
-    ! Grid totals, then fluctuations of the 8 cells around the grid mean
-    do igrid = 1, ngrid
-      mass_total(igrid) = 0.0d0
-      momentum_total(:, igrid) = 0.0d0
-    end do
+    ! grid totals, stored for the parent level
+    mass_total(1:ngrid) = 0.0d0
+    momentum_total(1:ngrid, 1:ndim) = 0.0d0
     do ind = 1, twotondim
-      do igrid = 1, ngrid
-        mass_total(igrid) = mass_total(igrid) + mass(igrid, ind)
-        momentum_total(:, igrid) = momentum_total(:, igrid) + momentum(:, igrid, ind)
+      do i = 1, ngrid
+        mass_total(i) = mass_total(i) + mass(i, ind)
       end do
-    end do
-    do igrid = 1, ngrid
-      vmean = momentum_total(:, igrid)/max(mass_total(igrid), smallr*vol)
-      do ind = 1, twotondim
-        do idim = 1, ndim
-          eturb(ilevel) = eturb(ilevel) + 0.5d0*mass(igrid, ind) &
-               & *(momentum(idim, igrid, ind)/max(mass(igrid, ind), smallr*vol) - vmean(idim))**2
+      do idim = 1, ndim
+        do i = 1, ngrid
+          momentum_total(i, idim) = momentum_total(i, idim) + momentum(i, idim, ind)
         end do
       end do
     end do
-  end subroutine compute_eturb_aux
+    do i = 1, ngrid
+      grid_u(ind_grid(i), 1) = mass_total(i)
+    end do
+    do idim = 1, ndim
+      do i = 1, ngrid
+        grid_u(ind_grid(i), idim + 1) = momentum_total(i, idim)
+      end do
+    end do
+
+    ! Fluctuations of the 8 cells around the grid mean
+    do ind = 1, twotondim
+      do idim = 1, ndim
+        do i = 1, ngrid
+          eturb(ilevel) = eturb(ilevel) + 0.5d0*mass(i, ind) &
+               & *(momentum(i, idim, ind)/max(mass(i, ind), smallr*vol) &
+               &   - momentum_total(i, idim)/max(mass_total(i), smallr*vol))**2
+        end do
+      end do
+    end do
+  end subroutine compute_eturb_grids
+
+  subroutine make_virtual_grid_totals(ilevel)
+    ! Sends grid_u of the grids owned at level ilevel to their virtual copies.
+    ! Same emission/reception lists as make_virtual_fine_dp, with ndim+1 values per grid
+    ! instead of one value per cell. Each cpu block is laid out like make_virtual_fine_dp:
+    ! component ivar of grid i at position i + (ivar-1)*n.
+    use amr_commons
+    use mpi_mod
+    implicit none
+    integer, intent(in) :: ilevel
+#ifndef WITHOUTMPI
+    integer, parameter :: nv = ndim + 1, tag = 1101
+    real(dp), allocatable, dimension(:) :: sendbuf, recvbuf
+    integer, dimension(1:ncpu) :: nsend, nrecv, offsend, offrecv, reqsend, reqrecv
+    integer, dimension(MPI_STATUS_SIZE, 1:ncpu) :: statuses
+    integer :: icpu, i, ivar, step, countsend, countrecv, info
+#ifdef LIGHT_MPI_COMM
+    integer :: idx, offset
+#endif
+
+    if (numbtot(1, ilevel) == 0) return
+
+    ! Number of grids sent to / received from each cpu, and offsets of the cpu blocks
+    nsend = 0
+#ifdef LIGHT_MPI_COMM
+    do idx = 1, emission(ilevel)%nactive
+      nsend(emission(ilevel)%cpuid(idx)) = emission(ilevel)%ngrids(idx)
+    end do
+#else
+    do icpu = 1, ncpu
+      nsend(icpu) = emission(icpu, ilevel)%ngrid
+    end do
+#endif
+    do icpu = 1, ncpu
+      nrecv(icpu) = reception(icpu, ilevel)%ngrid
+    end do
+    offsend(1) = 0
+    offrecv(1) = 0
+    do icpu = 2, ncpu
+      offsend(icpu) = offsend(icpu - 1) + nv*nsend(icpu - 1)
+      offrecv(icpu) = offrecv(icpu - 1) + nv*nrecv(icpu - 1)
+    end do
+    allocate(sendbuf(1:max(nv*sum(nsend), 1)), recvbuf(1:max(nv*sum(nrecv), 1)))
+
+    ! Receive all messages
+    countrecv = 0
+    do icpu = 1, ncpu
+      if (nrecv(icpu) > 0) then
+        countrecv = countrecv + 1
+        call MPI_IRECV(recvbuf(offrecv(icpu) + 1), nv*nrecv(icpu), MPI_DOUBLE_PRECISION, &
+             & icpu - 1, tag, MPI_COMM_WORLD, reqrecv(countrecv), info)
+      end if
+    end do
+
+    ! Gather the emission buffer
+#ifdef LIGHT_MPI_COMM
+    offset = 0
+    do idx = 1, emission(ilevel)%nactive
+      icpu = emission(ilevel)%cpuid(idx)
+      do ivar = 1, nv
+        step = offsend(icpu) + (ivar - 1)*nsend(icpu)
+        do i = 1, nsend(icpu)
+          sendbuf(step + i) = grid_u(emission(ilevel)%igrid(offset + i), ivar)
+        end do
+      end do
+      offset = offset + nsend(icpu)
+    end do
+#else
+    do icpu = 1, ncpu
+      do ivar = 1, nv
+        step = offsend(icpu) + (ivar - 1)*nsend(icpu)
+        do i = 1, nsend(icpu)
+          sendbuf(step + i) = grid_u(emission(icpu, ilevel)%igrid(i), ivar)
+        end do
+      end do
+    end do
+#endif
+
+    ! Send all messages
+    countsend = 0
+    do icpu = 1, ncpu
+      if (nsend(icpu) > 0) then
+        countsend = countsend + 1
+        call MPI_ISEND(sendbuf(offsend(icpu) + 1), nv*nsend(icpu), MPI_DOUBLE_PRECISION, &
+             & icpu - 1, tag, MPI_COMM_WORLD, reqsend(countsend), info)
+      end if
+    end do
+
+    ! Scatter the reception buffer into the virtual grids
+    call MPI_WAITALL(countrecv, reqrecv, statuses, info)
+    do icpu = 1, ncpu
+      do ivar = 1, nv
+        step = offrecv(icpu) + (ivar - 1)*nrecv(icpu)
+        do i = 1, nrecv(icpu)
+#ifdef LIGHT_MPI_COMM
+          grid_u(reception(icpu, ilevel)%pcomm%igrid(i), ivar) = recvbuf(step + i)
+#else
+          grid_u(reception(icpu, ilevel)%igrid(i), ivar) = recvbuf(step + i)
+#endif
+        end do
+      end do
+    end do
+
+    call MPI_WAITALL(countsend, reqsend, statuses, info)
+    deallocate(sendbuf, recvbuf)
+#endif
+  end subroutine make_virtual_grid_totals
 
 
   subroutine compute_energy_part(ilevel, energies)
