@@ -12,6 +12,7 @@ The block named `&REFINE_PARAMS` contains the parameters related to grid refinem
 | `r_refine`          | `real array` | 1e10   | Geometry-based strategy: **diameter** (yes, not a radius) of the refined region at each level.
 | `a_refine`          | `real array` | 1.0   | Geometry-based strategy: ratio Y/X of the refined region at each level.
 | `b_refine`          | `real array` | 1.0   | Geometry-based strategy: ratio Z/X of the refined region at each level.
+| `flare_refine`      | `real array` | -1.0  (off) | Geometry-based strategy: ratio H/R of a flared disk added to the region
 | `exp_refine`        | `real array` | 2.0   | Geometry-based strategy: exponent of the norm.
 | `jeans_refine`      | `real array` | -1.0   | Jeans refinement strategy: each level is refined if the cell size exceeds the local Jeans length divided by jeans_refine(ilevel).
 | `collapse_jeans_refine` | `bool` | `.false.` | Use modified Jeans refine with prescribed thermodynamics of protostellar collapse

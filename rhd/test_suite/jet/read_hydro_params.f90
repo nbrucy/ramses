@@ -21,7 +21,7 @@ subroutine read_hydro_params(nml_ok)
        & ,niter_riemann,slope_type &
        & ,pressure_fix,beta_fix,scheme,riemann
   namelist/refine_params/x_refine,y_refine,z_refine,r_refine &
-       & ,a_refine,b_refine,exp_refine,jeans_refine &
+       & ,a_refine,b_refine,flare_refine,exp_refine,jeans_refine &
        & ,m_refine,mass_sph,err_grad_d,err_grad_p,err_grad_u, err_grad_lor &
        & ,floor_d,floor_u,floor_p &
        & ,interpol_var,interpol_type

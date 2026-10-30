@@ -276,30 +276,32 @@ endif
   ! Rearrange level dependent arrays
   !-----------------------------------
   do i=nlevelmax,levelmin,-1
-     nexpand   (i)=nexpand   (i-levelmin+1)
-     nsubcycle (i)=nsubcycle (i-levelmin+1)
-     r_refine  (i)=r_refine  (i-levelmin+1)
-     a_refine  (i)=a_refine  (i-levelmin+1)
-     b_refine  (i)=b_refine  (i-levelmin+1)
-     x_refine  (i)=x_refine  (i-levelmin+1)
-     y_refine  (i)=y_refine  (i-levelmin+1)
-     z_refine  (i)=z_refine  (i-levelmin+1)
-     m_refine  (i)=m_refine  (i-levelmin+1)
-     exp_refine(i)=exp_refine(i-levelmin+1)
-     initfile  (i)=initfile  (i-levelmin+1)
+     nexpand       (i)=nexpand       (i-levelmin+1)
+     nsubcycle     (i)=nsubcycle     (i-levelmin+1)
+     r_refine      (i)=r_refine      (i-levelmin+1)
+     a_refine      (i)=a_refine      (i-levelmin+1)
+     b_refine      (i)=b_refine      (i-levelmin+1)
+     flare_refine  (i)=flare_refine  (i-levelmin+1)
+     x_refine      (i)=x_refine      (i-levelmin+1)
+     y_refine      (i)=y_refine      (i-levelmin+1)
+     z_refine      (i)=z_refine      (i-levelmin+1)
+     m_refine      (i)=m_refine      (i-levelmin+1)
+     exp_refine    (i)=exp_refine    (i-levelmin+1)
+     initfile      (i)=initfile      (i-levelmin+1)
   end do
   do i=1,levelmin-1
-     nexpand   (i)= 1
-     nsubcycle (i)= 1
-     r_refine  (i)=-1
-     a_refine  (i)= 1
-     b_refine  (i)= 1
-     x_refine  (i)= 0
-     y_refine  (i)= 0
-     z_refine  (i)= 0
-     m_refine  (i)=-1
-     exp_refine(i)= 2
-     initfile  (i)= ' '
+     nexpand       (i)= 1
+     nsubcycle     (i)= 1
+     r_refine      (i)=-1
+     a_refine      (i)= 1
+     b_refine      (i)= 1
+     flare_refine  (i)= -1
+     x_refine      (i)= 0
+     y_refine      (i)= 0
+     z_refine      (i)= 0
+     m_refine      (i)=-1
+     exp_refine    (i)= 2
+     initfile      (i)= ' '
   end do
 
 #ifndef WITHOUTMPI

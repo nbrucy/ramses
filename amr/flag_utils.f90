@@ -552,21 +552,22 @@ subroutine geometry_refine(xx,ok,ncell,ilevel)
   ! - ilevel integer
   !       current AMR level
   !-------------------------------------------------
-  real(dp)::er,xr,yr,zr,rr,xn,yn,zn,r,aa,bb
+  real(dp)::er,xr,yr,zr,rr,xn,yn,zn,zf,r,rc,aa,bb,ff
   integer ::i
 
   ! Authorize refinement if cell lies within region,
   ! otherwise unmark cell (no refinement outside region)
   if(r_refine(ilevel)>-1.0)then
-     er=exp_refine(ilevel) ! Exponent defining norm
-     xr=x_refine  (ilevel) ! Region centre
-     yr=y_refine  (ilevel)
-     zr=z_refine  (ilevel)
-     rr=r_refine  (ilevel) ! Region DIAMETER (beware !)
-     aa=a_refine  (ilevel) ! Ellipticity (Y/X)
-     bb=b_refine  (ilevel) ! Ellipticity (Z/X)
+     er=exp_refine    (ilevel) ! Exponent defining norm
+     xr=x_refine      (ilevel) ! Region centre
+     yr=y_refine      (ilevel)
+     zr=z_refine      (ilevel)
+     rr=r_refine      (ilevel) ! Region DIAMETER (beware !)
+     aa=a_refine      (ilevel) ! Ellipticity (Y/X)
+     bb=b_refine      (ilevel) ! Ellipticity (Z/X)
+     ff=flare_refine  (ilevel) ! Also refine with a flare (Z/R)
      do i=1,ncell
-        xn=0.0d0; yn=0.0d0; zn=0.0d0
+        xn=0.0d0; yn=0.0d0; zn=0.0d0; zf=2.0d0; rc=0.0d0;
         xn=abs(xx(i,1)-xr)
         if(cosmo .and. xn>0.5) then
            xn=1.0d0-xn
@@ -579,11 +580,19 @@ subroutine geometry_refine(xx,ok,ncell,ilevel)
         endif
         yn=2.0d0*yn/(aa*rr)
 #endif
+        if(er<10)then
+           rc=(xn**er+yn**er)**(1/er)
+        else
+           rc=max(xn,yn)
+        end if
 #if NDIM >2
         zn=abs(xx(i,3)-zr)
         if(cosmo .and. zn>0.5) then
            zn=1.0d0-zn
         endif
+        if (ff > 0) then
+           zf=2*zn/(ff*rc*rr)
+        end if
         zn=2.0d0*zn/(bb*rr)
 #endif
         if(er<10)then
@@ -591,7 +600,7 @@ subroutine geometry_refine(xx,ok,ncell,ilevel)
         else
            r=max(xn,yn,zn)
         end if
-        ok(i)=ok(i).and.(r < 1.0)
+        ok(i)=ok(i).and.((r < 1.0).or.(rc < 1.0 .and. (zf < 1.0)))
      end do
   endif
 

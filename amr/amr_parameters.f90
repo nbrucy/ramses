@@ -289,19 +289,20 @@ module amr_parameters
   integer,dimension(1:50)::movie_var_number=1
 
 
-                                                 ! Refinement parameters for each level
-  real(dp),dimension(1:MAXLEVEL)::m_refine =-1   ! Lagrangian threshold
-  real(dp),dimension(1:MAXLEVEL)::r_refine =-1   ! Radius of refinement region
-  real(dp),dimension(1:MAXLEVEL)::x_refine = 0   ! Center of refinement region
-  real(dp),dimension(1:MAXLEVEL)::y_refine = 0   ! Center of refinement region
-  real(dp),dimension(1:MAXLEVEL)::z_refine = 0   ! Center of refinement region
-  real(dp),dimension(1:MAXLEVEL)::exp_refine = 2 ! Exponent for distance
-  real(dp),dimension(1:MAXLEVEL)::a_refine = 1   ! Ellipticity (Y/X)
-  real(dp),dimension(1:MAXLEVEL)::b_refine = 1   ! Ellipticity (Z/X)
-  real(dp)::var_cut_refine=-1                    ! Threshold for variable-based refinement
-  real(dp)::mass_cut_refine=-1                   ! Mass threshold for particle-based refinement
-  integer::ivar_refine=-1                        ! Variable index for refinement
-  logical::sink_refine=.false.                   ! Fully refine on sink particles
+                                                     ! Refinement parameters for each level
+  real(dp),dimension(1:MAXLEVEL)::m_refine =-1       ! Lagrangian threshold
+  real(dp),dimension(1:MAXLEVEL)::r_refine =-1       ! Diameter of refinement region
+  real(dp),dimension(1:MAXLEVEL)::x_refine = 0       ! Center of refinement region
+  real(dp),dimension(1:MAXLEVEL)::y_refine = 0       ! Center of refinement region
+  real(dp),dimension(1:MAXLEVEL)::z_refine = 0       ! Center of refinement region
+  real(dp),dimension(1:MAXLEVEL)::exp_refine = 2     ! Exponent for distance
+  real(dp),dimension(1:MAXLEVEL)::a_refine = 1       ! Ellipticity (Y/X)
+  real(dp),dimension(1:MAXLEVEL)::b_refine = 1       ! Ellipticity (Z/X)
+  real(dp),dimension(1:MAXLEVEL)::flare_refine = -1. ! Flare refinement (Z/R) - Complement b_refine
+  real(dp)::var_cut_refine=-1                        ! Threshold for variable-based refinement
+  real(dp)::mass_cut_refine=-1                       ! Mass threshold for particle-based refinement
+  integer::ivar_refine=-1                            ! Variable index for refinement
+  logical::sink_refine=.false.                       ! Fully refine on sink particles
 
   ! Initial condition selection parameter
   character(LEN=60)::condinit_kind ='region'

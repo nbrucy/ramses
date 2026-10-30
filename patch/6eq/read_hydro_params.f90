@@ -26,7 +26,7 @@ subroutine read_hydro_params(nml_ok)
        & ,u_region,v_region,w_region              &
        & ,p1_region,p2_region,p3_region,p4_region
   namelist/hydro_params/courant_factor,smallr,smallc,smallf,slope_type,scheme,eos_name
-  namelist/refine_params/x_refine,y_refine,z_refine,r_refine,a_refine,b_refine,exp_refine &
+  namelist/refine_params/x_refine,y_refine,z_refine,r_refine,a_refine,b_refine,flare_refine,exp_refine &
        & ,m_refine,mass_sph,err_grad_f,err_grad_d,err_grad_p,err_grad_u &
        & ,floor_f,floor_d,floor_u,floor_p &
        & ,interpol_var,interpol_type
