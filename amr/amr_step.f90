@@ -598,7 +598,7 @@ recursive subroutine amr_step(ilevel,icount)
   ! Move particles (update position and velocity), see also synchro_fine
   !---------------------------------------------------------------------
   if(pic)then
-      if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(iflux_part), 1)    
+      if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(igravity_part), 1)    
 
                                call timer('particles','start')
      if(static_dm.or.static_stars)then
@@ -606,7 +606,7 @@ recursive subroutine amr_step(ilevel,icount)
      else
         call move_fine(ilevel) ! Only remaining particles
      end if
-     if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(iflux_part), 2)    
+     if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(igravity_part), 2)    
   end if
 
 
