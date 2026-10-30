@@ -46,16 +46,18 @@ module deltaE_module
                         & "epot_part_star", "epot_part_dm"]
 
   ! Turbulent kinetic energy, one reservoir per level: index iekin_turb0 + ilevel
-  integer, parameter :: iekin_turb0 = nb_energy_fixed 
+  integer, parameter :: iekin_turb0 = nb_energy_fixed
   integer, parameter :: nb_energy_kind = nb_energy_fixed + MAXLEVEL
 
-  ! Per grid totals for the turbulent energy 
+  ! Per grid totals for the turbulent energy
   real(dp), allocatable, dimension(:,:) :: grid_u  ! (1:ngridmax, 1:ndim+1)
 
   type process
   real(dp), dimension(1:nb_energy_kind, 0:DELTAE_MAX_REGIONS) :: v
   character(len=20) :: name
   logical :: compute_eturb
+  logical :: compute_gas
+  logical :: compute_part
 end type
 
 ! Process indices. To add a process: add its index here and one line in initialize_processes.
@@ -71,16 +73,16 @@ type(process), dimension(nb_process) :: deltaE
 contains
 
   subroutine read_deltaE_params(namelist_unit,nml_ok)
-   
+
     integer,intent(in)::namelist_unit
     logical,intent(inout)::nml_ok
     integer::nml_err
-   
+
     namelist/deltaE_params/deltaE_correct_pressure_fix,deltaE_debug,deltaE_enable,deltaE_force_all_levels, &
     & deltaE_nregions,deltaE_region_size,deltaE_region_x,deltaE_region_y,deltaE_region_z, &
     & deltaE_region_exp,deltaE_region_a,deltaE_region_b,deltaE_region_name
 
-  
+
    ! Go to the beginning of the file
     rewind(namelist_unit)
 
@@ -92,7 +94,7 @@ contains
       nml_ok=.false.
     end if
 
-    if(deltaE_nregions < 0 .or. deltaE_nregions > DELTAE_MAX_REGIONS) then 
+    if(deltaE_nregions < 0 .or. deltaE_nregions > DELTAE_MAX_REGIONS) then
       if(myid==1)write(*,*)'Error in &DELTAE_PARAMS. deltaE_nregions should be positive and below DELTAE_MAX_REGIONS'
       nml_ok=.false.
     end if
@@ -108,18 +110,19 @@ contains
   end subroutine read_deltaE_params
 
   subroutine initialize_processes
-    deltaE(iflux_gas)           = process(0.0d0, "flux_gas",           .true.)
-    deltaE(iflux_part)          = process(0.0d0, "flux_part",          .false.)
-    deltaE(icooling)            = process(0.0d0, "cooling",            .false.)
-    deltaE(igravity_gas)        = process(0.0d0, "gravity_gas",        .true.)
-    deltaE(igravity_part)       = process(0.0d0, "gravity_part",       .false.)
-    deltaE(istar_formation)     = process(0.0d0, "star_formation",     .true.)
-    deltaE(ifeedback)           = process(0.0d0, "feedback",           .true.)
-    deltaE(iturb_driving)       = process(0.0d0, "turb_driving",       .true.)
-    deltaE(ipoisson)            = process(0.0d0, "poisson",            .false.)
-    deltaE(imagnetic_diffusion) = process(0.0d0, "magnetic_diffusion", .false.)
-    deltaE(irefine)             = process(0.0d0, "refine",             .true.)
-    deltaE(icorrections)        = process(0.0d0, "corrections",        .true.)
+    !      index                          value   name                  eturb    gas      part
+    deltaE(iflux_gas)           = process(0.0d0, "flux_gas",           .true.,  .true.,  .false.)
+    deltaE(iflux_part)          = process(0.0d0, "flux_part",          .false., .false., .true.)
+    deltaE(icooling)            = process(0.0d0, "cooling",            .false., .true.,  .false.)
+    deltaE(igravity_gas)        = process(0.0d0, "gravity_gas",        .true.,  .true.,  .false.)
+    deltaE(igravity_part)       = process(0.0d0, "gravity_part",       .false., .false., .true.)
+    deltaE(istar_formation)     = process(0.0d0, "star_formation",     .true.,  .true.,  .true.)
+    deltaE(ifeedback)           = process(0.0d0, "feedback",           .true.,  .true.,  .true.)
+    deltaE(iturb_driving)       = process(0.0d0, "turb_driving",       .true.,  .true.,  .false.)
+    deltaE(ipoisson)            = process(0.0d0, "poisson",            .false., .true.,  .true.)
+    deltaE(imagnetic_diffusion) = process(0.0d0, "magnetic_diffusion", .false., .true.,  .false.)
+    deltaE(irefine)             = process(0.0d0, "refine",             .true.,  .true.,  .true.)
+    deltaE(icorrections)        = process(0.0d0, "corrections",        .true.,  .true.,  .true.)
   end subroutine
 
   subroutine reset_processes
@@ -196,22 +199,28 @@ contains
 998 format(A20, A20, *(1pe20.5))
   end subroutine
 
-  subroutine compute_energies(ilevel, energies, compute_eturb)
+  subroutine compute_energies(ilevel, energies, compute_eturb, compute_gas, compute_part)
     implicit none
 
     integer, intent(in):: ilevel
     real(dp), dimension(1:nb_energy_kind, 0:deltaE_nregions), intent(inout) :: energies
-    logical, intent(in) :: compute_eturb
+    logical, intent(in), optional :: compute_eturb, compute_gas, compute_part
+    logical compute_eturb_loc, compute_gas_loc, compute_part_loc
     real(dp), dimension(1:nlevelmax, 0:deltaE_nregions) :: eturb
 
+    compute_eturb_loc = .true. ; compute_gas_loc = .true. ; compute_part_loc = .true.
+    if (present(compute_eturb)) compute_eturb_loc = compute_eturb
+    if (present(compute_gas)) compute_gas_loc = compute_gas
+    if (present(compute_part)) compute_part_loc = compute_part
+
     energies = 0.0d0
-    if (hydro) then
+    if (hydro .and. compute_gas_loc) then
       call compute_energy_gas(ilevel, energies)
     end if
-    if (pic) then
+    if (pic .and. compute_part_loc) then
       call compute_energy_part(ilevel, energies)
     end if
-    if (hydro .and. compute_eturb) then
+    if (hydro .and. compute_eturb_loc) then
       eturb = 0.0d0
       call compute_ekin_turb_all_levels(eturb)
       energies(iekin_turb0 + levelmin:iekin_turb0 + nlevelmax, :) = eturb(levelmin:nlevelmax,:)
@@ -236,9 +245,9 @@ contains
     if (deltaE_force_all_levels) then
       act_levelstart = levelmin
       act_levelend = nlevelmax
-    else 
+    else
       act_levelstart = levelstart
-      act_levelend = min(levelend + 1, nlevelmax)
+      act_levelend = levelend
     end if
 
     if (step == 1) then
@@ -248,7 +257,10 @@ contains
     end if
 
     do ilevel = act_levelstart, act_levelend
-      call compute_energies(ilevel, energy_level, ilevel == act_levelstart .and. deltaE_process%compute_eturb)
+      call compute_energies(ilevel, energy_level, &
+      & compute_eturb = (ilevel == act_levelstart .and. deltaE_process%compute_eturb), &
+      & compute_gas = deltaE_process%compute_gas, &
+      & compute_part = deltaE_process%compute_part)
       if (step == 1) then
         energy_before(:, 0:deltaE_nregions) = energy_before(:,0:deltaE_nregions) + energy_level
       else
@@ -256,6 +268,12 @@ contains
       end if
     end do
 
+
+    if (step == 1) then
+      call reduce_energies(energy_before(:, 0:deltaE_nregions))
+    else
+      call reduce_energies(energy_after)
+    end if
 
     if (step == 2) then
 
@@ -271,6 +289,20 @@ contains
     end if
 
   end subroutine
+
+  subroutine reduce_energies(energies)
+    ! Sum over ranks of the local energies
+    use mpi_mod
+    implicit none
+    real(dp), dimension(1:nb_energy_kind, 0:deltaE_nregions), intent(inout) :: energies
+#ifndef WITHOUTMPI
+    real(dp), dimension(1:nb_energy_kind, 0:deltaE_nregions) :: energies_loc
+    integer :: info
+    energies_loc = energies
+    call MPI_ALLREDUCE(energies_loc, energies, nb_energy_kind*(deltaE_nregions + 1), MPI_DOUBLE_PRECISION, &
+         & MPI_SUM, MPI_COMM_WORLD, info)
+#endif
+  end subroutine reduce_energies
 
   subroutine compute_energy_gas(ilevel, energies)
     use amr_commons
@@ -296,11 +328,14 @@ contains
     real(dp),dimension(1:nvector,1:ndim),save::xx
     real(dp):: dx_code, dx, vol, scale
 
-  
+
     real(kind=8)::mass_loc, ekin_leaf, emag_leaf, epot_leaf
     real(kind=8), dimension(0:deltaE_nregions+1) :: ekin_loc, eint_loc, emag_loc, epot_loc
     real(dp), dimension(1:nvector, 1:nvar_all), save::uu
     real(dp), dimension(1:nvector), save::phi_level
+    real(dp), dimension(1:nvector), save::rhoinv
+    integer, dimension(1:nvar_all)::ivar_used
+    integer::kv, nused
 
 
 
@@ -318,6 +353,24 @@ contains
     energies(iepot_gas,:) = 0.0d0
 
     if (numbtot(1, ilevel) == 0) return
+
+    ! Variables used below: rho, rho*v, E, non-thermal energies, B left/right
+    nused = 0
+    do ivar = 1, ndim + 1
+      nused = nused + 1; ivar_used(nused) = ivar
+    end do
+    nused = nused + 1; ivar_used(nused) = neul
+#if NENER>0
+    do ivar = 1, nener
+      nused = nused + 1; ivar_used(nused) = nhydro + ivar
+    end do
+#endif
+#ifdef SOLVERmhd
+    do ivar = 1, ndim
+      nused = nused + 1; ivar_used(nused) = neul + ivar
+      nused = nused + 1; ivar_used(nused) = nvar + ivar
+    end do
+#endif
 
     ! Mesh spacing at that level
     nx_loc = icoarse_max - icoarse_min + 1
@@ -339,7 +392,7 @@ contains
       if(ndim>2)xc(ind,3)=(dble(iz)-0.5D0)*dx_code
     end do
 
-   
+
     ! Loop over active grids by vector sweeps
     ncache = active(ilevel)%ngrid
     do igrid = 1, ncache, nvector
@@ -361,7 +414,7 @@ contains
           if (son(ind_cell(i)) == 0) then
             nleaf = nleaf + 1
             ind_leaf(nleaf) = ind_cell(i)
-            ind_grid_of_leaf(nleaf) = ind_grid(i) 
+            ind_grid_of_leaf(nleaf) = ind_grid(i)
           end if
         end do
 
@@ -411,8 +464,9 @@ contains
         end if
 
 
-        ! Gather hydro variables
-        do ivar = 1, nvar_all
+        ! Gather the hydro variables used below only
+        do kv = 1, nused
+          ivar = ivar_used(kv)
           if (deltaE_use_unew(ilevel)) then
             do i = 1, nleaf
               uu(i, ivar) = unew(ind_leaf(i), ivar)
@@ -423,10 +477,13 @@ contains
             end do
           end if
         end do
+        do i = 1, nleaf
+          rhoinv(i) = 1.0d0/uu(i, 1)
+        end do
 
 
-        if (poisson) then 
-          if (deltaE_use_phi_old(ilevel)) then 
+        if (poisson) then
+          if (deltaE_use_phi_old(ilevel)) then
             do i = 1, nleaf
               phi_level(i) = phi_old(ind_leaf(i))
             end do
@@ -453,7 +510,7 @@ contains
         do ivar = 1, ndim
           do i = 1, nleaf
             ! Compute total kinetic energy
-            ekin_leaf = 0.5d0*vol*uu(i, 1 + ivar)**2/uu(i, 1)
+            ekin_leaf = 0.5d0*vol*uu(i, 1 + ivar)**2*rhoinv(i)
             ekin_loc(0) = ekin_loc(0)  + ekin_leaf
             ekin_loc(region_index(i)) = ekin_loc(region_index(i)) + ekin_leaf
 #ifdef SOLVERmhd
@@ -469,7 +526,7 @@ contains
           end do
         end do
 
-        ! Compute total internal energy step 3 
+        ! Compute total internal energy step 3
 #if NENER>0
         do ivar = 1, nener
           do i = 1, nleaf
@@ -484,7 +541,7 @@ contains
           do i=1, nleaf
             ekin_leaf = 0.
             do ivar = 1, ndim
-              ekin_leaf = ekin_leaf +  0.5d0*uu(i, 1 + ivar)**2/uu(i, 1)
+              ekin_leaf = ekin_leaf +  0.5d0*uu(i, 1 + ivar)**2*rhoinv(i)
             end do
 #if NENER>0
             do ivar=1,nener
@@ -514,25 +571,10 @@ contains
     end do
     ! End loop over grids
 
-    ! Compute global quantities
-#ifndef WITHOUTMPI
-    comm_buffin(1,:) = ekin_loc(0:deltaE_nregions)
-    comm_buffin(2,:) = eint_loc(0:deltaE_nregions)
-    comm_buffin(3,:) = emag_loc(0:deltaE_nregions)
-    comm_buffin(4,:) = epot_loc(0:deltaE_nregions)
-    call MPI_ALLREDUCE(comm_buffin, comm_buffout, 4*(deltaE_nregions + 1), MPI_DOUBLE_PRECISION, MPI_SUM,&
-            &MPI_COMM_WORLD, info)
-    energies(iekin_gas,:) = comm_buffout(1,:)
-    energies(ieint,:) = comm_buffout(2,:)
-    energies(iemag,:) = comm_buffout(3,:)
-    energies(iepot_gas,:) = comm_buffout(4,:)
-#endif
-#ifdef WITHOUTMPI
     energies(iekin_gas,:) = ekin_loc(0:deltaE_nregions)
     energies(ieint,:) = eint_loc(0:deltaE_nregions)
     energies(iemag,:) = emag_loc(0:deltaE_nregions)
     energies(iepot_gas,:) = epot_loc(0:deltaE_nregions)
-#endif
   end subroutine compute_energy_gas
 
 
@@ -569,11 +611,7 @@ contains
       if (ilevel > levelmin) call make_virtual_grid_totals(ilevel)
     end do
 
-#ifndef WITHOUTMPI
-    call MPI_ALLREDUCE(eturb_loc(:, 0:deltaE_nregions), eturb, nlevelmax*(deltaE_nregions+1), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-#else
-    eturb = eturb_loc
-#endif
+    eturb = eturb_loc(:, 0:deltaE_nregions)
   end subroutine compute_ekin_turb_all_levels
 
   subroutine compute_eturb_aux(ilevel, ngrid, ind_grid, eturb)
@@ -926,29 +964,12 @@ contains
              & ekin_part_loc, ekin_families_loc, epot_part_loc, epot_families_loc, ilevel)
       end if
 
-#ifndef WITHOUTMPI
-      comm_buffin(1,:) = ekin_part_loc(0:deltaE_nregions)
-      comm_buffin(2,:) = ekin_families_loc(FAM_DM,0:deltaE_nregions)
-      comm_buffin(3,:) = ekin_families_loc(FAM_STAR,0:deltaE_nregions)
-      comm_buffin(4,:) = epot_part_loc(0:deltaE_nregions)
-      comm_buffin(5,:) = epot_families_loc(FAM_DM,0:deltaE_nregions)
-      comm_buffin(6,:) = epot_families_loc(FAM_STAR,0:deltaE_nregions)
-      call MPI_ALLREDUCE(comm_buffin, comm_buffout, 6*(deltaE_nregions+1), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
-      energies(iekin_part,:) = comm_buffout(1,:)
-      energies(iekin_part_dm,:) = comm_buffout(2,:)
-      energies(iekin_part_star,:) = comm_buffout(3,:)
-      energies(iepot_part,:) = comm_buffout(4,:)
-      energies(iepot_part_dm,:) = comm_buffout(5,:)
-      energies(iepot_part_star,:) = comm_buffout(6,:)
-#endif
-#ifdef WITHOUTMPI
-      energies(iekin_part,0:deltaE_nregions) = ekin_part_loc(0:deltaE_nregions)
-      energies(iekin_part_dm,0:deltaE_nregions) = ekin_families_loc(FAM_DM,0:deltaE_nregions)
-      energies(iekin_part_star,0:deltaE_nregions) = ekin_families_loc(FAM_STAR,0:deltaE_nregions)
-      energies(iepot_part,0:deltaE_nregions) = epot_part_loc(0:deltaE_nregions)
-      energies(iepot_part_dm,0:deltaE_nregions) = epot_families_loc(FAM_DM,0:deltaE_nregions)
-      energies(iepot_part_star,0:deltaE_nregions) = epot_families_loc(FAM_STAR,0:deltaE_nregions)
-#endif
+      energies(iekin_part,:) = ekin_part_loc(0:deltaE_nregions)
+      energies(iekin_part_dm,:) = ekin_families_loc(FAM_DM,0:deltaE_nregions)
+      energies(iekin_part_star,:) = ekin_families_loc(FAM_STAR,0:deltaE_nregions)
+      energies(iepot_part,:) = epot_part_loc(0:deltaE_nregions)
+      energies(iepot_part_dm,:) = epot_families_loc(FAM_DM,0:deltaE_nregions)
+      energies(iepot_part_star,:) = epot_families_loc(FAM_STAR,0:deltaE_nregions)
 
     end if
 
