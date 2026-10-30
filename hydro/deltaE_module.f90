@@ -202,7 +202,7 @@ contains
     integer, intent(in):: ilevel
     real(dp), dimension(1:nb_energy_kind, 0:deltaE_nregions), intent(inout) :: energies
     logical, intent(in) :: compute_eturb
-    real(dp), dimension(1:nlevelmax) :: eturb
+    real(dp), dimension(1:nlevelmax, 0:deltaE_nregions) :: eturb
 
     energies = 0.0d0
     if (hydro) then
@@ -214,7 +214,7 @@ contains
     if (hydro .and. compute_eturb) then
       eturb = 0.0d0
       call compute_ekin_turb_all_levels(eturb)
-      energies(iekin_turb0 + levelmin:iekin_turb0 + nlevelmax, 0) = eturb(levelmin:nlevelmax)
+      energies(iekin_turb0 + levelmin:iekin_turb0 + nlevelmax, :) = eturb(levelmin:nlevelmax,:)
     end if
     energies(iekin,:) = energies(iekin_gas,:) + energies(iekin_part,:)
     energies(iepot,:) = energies(iepot_gas,:) + energies(iepot_part,:)
@@ -290,17 +290,18 @@ contains
     integer, dimension(1:nvector), save::ind_grid, ind_cell, ind_leaf, ind_grid_of_leaf
 
     integer, dimension(1:nvector) :: region_index = 0
-
-    real(dp):: dx_code, dx, vol, scale
+    real(dp)::er,xr,yr,zr,rr,xn,yn,zn,r,aa,bb
     real(dp),dimension(1:3)::skip_loc
     real(dp),dimension(1:twotondim,1:3)::xc
     real(dp),dimension(1:nvector,1:ndim),save::xx
+    real(dp):: dx_code, dx, vol, scale
+
   
     real(kind=8)::mass_loc, ekin_leaf, emag_leaf, epot_leaf
     real(kind=8), dimension(0:deltaE_nregions+1) :: ekin_loc, eint_loc, emag_loc, epot_loc
     real(dp), dimension(1:nvector, 1:nvar_all), save::uu
     real(dp), dimension(1:nvector), save::phi_level
-    real(dp)::er,xr,yr,zr,rr,xn,yn,zn,r,aa,bb
+
 
 
     real(dp):: e_cons, e_prim, e_trunc, div
@@ -540,14 +541,12 @@ contains
     ! Turbulent kinetic energy per level. For every grid at level L:
     !   eturb(L) += sum_i 1/2 m_i |v_i - V|^2,  V = mass-weighted mean velocity of the grid.
     ! Refined cells use the total mass and momentum of their child grid.
-    ! Each grid is processed by its owner only, from nlevelmax up to levelmin; grid totals are
-    ! stored in grid_u and sent to virtual copies so that a parent owned by another rank can use them.
     use amr_commons
     use hydro_commons
     use mpi_mod
     implicit none
-    real(dp), dimension(1:nlevelmax), intent(out) :: eturb
-    real(dp), dimension(1:nlevelmax) :: eturb_loc
+    real(dp), dimension(1:nlevelmax, 0:deltaE_nregions), intent(out) :: eturb
+    real(dp), dimension(1:nlevelmax, 0:deltaE_nregions+1) :: eturb_loc
     integer, dimension(1:nvector) :: ind_grid
     integer :: ilevel, igrid, ngrid, ncache, i
 #ifndef WITHOUTMPI
@@ -564,20 +563,20 @@ contains
         do i = 1, ngrid
           ind_grid(i) = active(ilevel)%igrid(igrid + i - 1)
         end do
-        call compute_eturb_grids(ilevel, ngrid, ind_grid, eturb_loc)
+        call compute_eturb_aux(ilevel, ngrid, ind_grid, eturb_loc)
       end do
       ! Totals of level ilevel grids to their virtual copies, for parents owned by another rank
       if (ilevel > levelmin) call make_virtual_grid_totals(ilevel)
     end do
 
 #ifndef WITHOUTMPI
-    call MPI_ALLREDUCE(eturb_loc, eturb, nlevelmax, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
+    call MPI_ALLREDUCE(eturb_loc(:, 0:deltaE_nregions), eturb, nlevelmax*(deltaE_nregions+1), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, info)
 #else
     eturb = eturb_loc
 #endif
   end subroutine compute_ekin_turb_all_levels
 
-  subroutine compute_eturb_grids(ilevel, ngrid, ind_grid, eturb)
+  subroutine compute_eturb_aux(ilevel, ngrid, ind_grid, eturb)
     ! For a batch of at most nvector grids owned by this rank at level ilevel: stores their total
     ! mass and momentum in grid_u and adds the fluctuation energy of their cells to eturb.
     use amr_commons
@@ -585,17 +584,45 @@ contains
     implicit none
     integer, intent(in) :: ilevel, ngrid
     integer, dimension(1:nvector), intent(in) :: ind_grid
-    real(dp), dimension(1:nlevelmax), intent(inout) :: eturb
+    real(dp), dimension(1:nlevelmax,  0:deltaE_nregions+1), intent(inout) :: eturb
 
     real(dp), dimension(1:nvector, 1:twotondim) :: mass
     real(dp), dimension(1:nvector, 1:ndim, 1:twotondim) :: momentum
     real(dp), dimension(1:nvector) :: mass_total
     real(dp), dimension(1:nvector, 1:ndim) :: momentum_total
-    real(dp) :: vol
+
+    integer, dimension(1:nvector) :: region_index = 0
+    real(dp)::er,xr,yr,zr,rr,xn,yn,zn,r,aa,bb
+    real(dp),dimension(1:3)::skip_loc
+    real(dp),dimension(1:twotondim,1:3)::xc
+    real(dp),dimension(1:nvector,1:ndim),save::xx
+    real(dp):: dx_code, dx, vol, scale, eturb_cell
+    integer :: nx_loc, k, ix, iy, iz
+
+
     integer :: i, ind, iskip, icell, ison, idim
     logical :: use_unew
 
-    vol = (0.5d0**ilevel*boxlen/dble(icoarse_max - icoarse_min + 1))**ndim
+    ! Mesh spacing at that level
+    nx_loc = icoarse_max - icoarse_min + 1
+    scale = boxlen/dble(nx_loc)
+    if(ndim>0)skip_loc(1)=dble(icoarse_min)
+    if(ndim>1)skip_loc(2)=dble(jcoarse_min)
+    if(ndim>2)skip_loc(3)=dble(kcoarse_min)
+    dx_code = 0.5D0**ilevel
+    dx = dx_code*scale
+    vol = dx**ndim
+
+    ! Set position of cell centers relative to grid center
+    do ind=1,twotondim
+      iz=(ind-1)/4
+      iy=(ind-1-4*iz)/2
+      ix=(ind-1-2*iy-4*iz)
+      if(ndim>0)xc(ind,1)=(dble(ix)-0.5D0)*dx_code
+      if(ndim>1)xc(ind,2)=(dble(iy)-0.5D0)*dx_code
+      if(ndim>2)xc(ind,3)=(dble(iz)-0.5D0)*dx_code
+    end do
+
     use_unew = deltaE_use_unew(ilevel)
 
     ! Leaves: own cells, from the current u array. Refined cells: totals of the child grid
@@ -617,7 +644,7 @@ contains
       end do
     end do
 
-    ! grid totals, stored for the parent level
+    ! Grid totals, stored for the parent level
     mass_total(1:ngrid) = 0.0d0
     momentum_total(1:ngrid, 1:ndim) = 0.0d0
     do ind = 1, twotondim
@@ -639,17 +666,65 @@ contains
       end do
     end do
 
-    ! Fluctuations of the 8 cells around the grid mean
+
     do ind = 1, twotondim
+      region_index = deltaE_nregions + 1
+      if (deltaE_nregions > 0) then
+        ! Compute cell center in code units
+        do idim=1,ndim
+          do i=1,ngrid
+            xx(i,idim)=xg(ind_grid(i),idim)+xc(ind,idim)
+          end do
+        end do
+        ! Rescale position from code units to user units
+        do idim=1,ndim
+          do i=1,ngrid
+            xx(i,idim)=(xx(i,idim)-skip_loc(idim))*scale
+          end do
+        end do
+
+        do k = deltaE_nregions, 1, -1
+          er = deltaE_region_exp       (k) ! Exponent defining norm
+          xr = deltaE_region_x         (k) ! Region centre
+          yr = deltaE_region_y         (k)
+          zr = deltaE_region_z         (k)
+          rr = deltaE_region_size  (k) ! Region diameter
+          aa = deltaE_region_a         (k) ! Ellipticity (Y/X)
+          bb = deltaE_region_b         (k) ! Ellipticity (Z/X)
+          do i=1,ngrid
+            xn = 0.0d0; yn=0.0d0; zn=0.0d0
+            xn = abs(xx(i,1)-xr)
+            xn = 2.0d0*xn/rr
+#if NDIM > 1
+            yn = abs(xx(i,2)-yr)
+            yn = 2.0d0*yn/(aa*rr)
+#endif
+#if NDIM >2
+            zn = abs(xx(i,3)-zr)
+            zn = 2.0d0*zn/(bb*rr)
+#endif
+            if(er<10)then
+              r = (xn**er+yn**er+zn**er)**(1/er)
+            else
+              r = max(xn,yn,zn)
+            end if
+            if (r < 1.0) region_index(i) = k
+          end do
+        end do
+      end if
+
+    ! Fluctuations of the 8 cells around the grid mean
       do idim = 1, ndim
         do i = 1, ngrid
-          eturb(ilevel) = eturb(ilevel) + 0.5d0*mass(i, ind) &
-               & *(momentum(i, idim, ind)/max(mass(i, ind), smallr*vol) &
-               &   - momentum_total(i, idim)/max(mass_total(i), smallr*vol))**2
+          eturb_cell =  0.5d0*mass(i, ind) &
+          & *(momentum(i, idim, ind)/max(mass(i, ind), smallr*vol) &
+          &   - momentum_total(i, idim)/max(mass_total(i), smallr*vol))**2
+          eturb(ilevel, 0) = eturb(ilevel, 0) + eturb_cell
+          eturb(ilevel, region_index(i)) = eturb(ilevel, region_index(i)) + eturb_cell
         end do
       end do
     end do
-  end subroutine compute_eturb_grids
+  end subroutine compute_eturb_aux
 
   subroutine make_virtual_grid_totals(ilevel)
     ! Sends grid_u of the grids owned at level ilevel to their virtual copies.
