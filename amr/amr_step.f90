@@ -296,7 +296,7 @@ recursive subroutine amr_step(ilevel,icount)
      endif
 
 
-     if(deltaE_enable) call compute_transfer(ilevel, ilevel, deltaE(ipoisson), 1)
+     if(deltaE_enable) call compute_transfer(ilevel,  min(ilevel+1,nlevelmax), deltaE(ipoisson), 1)
 
      ! Compute gravitational potential
      if(ilevel>levelmin)then
@@ -315,7 +315,7 @@ recursive subroutine amr_step(ilevel,icount)
      call force_fine(ilevel,icount)
      if (deltaE_enable) then
          deltaE_use_phi_old(ilevel) = .false.
-         call compute_transfer(ilevel, ilevel, deltaE(ipoisson), 2)
+         call compute_transfer(ilevel,  min(ilevel+1,nlevelmax), deltaE(ipoisson), 2)
      end if
 
 
@@ -681,9 +681,9 @@ recursive subroutine amr_step(ilevel,icount)
   !-------------------------------------------------
 
                                call timer('particles','start')
-
+  if(deltaE_enable .and. pic) call compute_transfer(ilevel, min(ilevel+1,nlevelmax), deltaE(iflux_part), 1)
   if(pic)call merge_tree_fine(ilevel)
-
+  if(deltaE_enable .and. pic) call compute_transfer(ilevel, min(ilevel+1,nlevelmax), deltaE(iflux_part), 2)
 
 
   !---------------
