@@ -337,6 +337,8 @@ contains
 
     real(dp):: e_cons, e_prim, e_trunc, div
 
+!$omp threadprivate(ind_grid, ind_cell, ind_leaf, ind_grid_of_leaf, uu, xx, phi_level, rhoinv)
+
     mass_loc = 0.0d0
     ekin_loc = 0.0d0; ekin_leaf = 0.0d0
     emag_loc = 0.0d0; emag_leaf = 0.0d0
@@ -390,6 +392,8 @@ contains
 
     ! Loop over active grids by vector sweeps
     ncache = active(ilevel)%ngrid
+!$omp parallel do private(ngrid,iskip,nleaf,ind,i,ivar,idim) &
+!$omp & reduction(+:ekin_loc,eint_loc,emag_loc,epot_loc)
     do igrid = 1, ncache, nvector
        ngrid = MIN(nvector, ncache - igrid + 1)
        do i = 1, ngrid
@@ -588,6 +592,8 @@ contains
     eturb_loc = 0.0d0
     do ilevel = nlevelmax, levelmin, -1
        ncache = active(ilevel)%ngrid
+!$omp parallel do private(ngrid,i) &
+!$omp & reduction(+:eturb_loc)
        do igrid = 1, ncache, nvector
           ngrid = min(nvector, ncache - igrid + 1)
           do i = 1, ngrid
@@ -627,6 +633,8 @@ contains
 
     integer :: i, ind, iskip, icell, ison, idim
     logical :: use_unew
+
+!$omp threadprivate(xx)
 
     ! Mesh spacing at that level
     nx_loc = icoarse_max - icoarse_min + 1
@@ -882,6 +890,9 @@ contains
 
     integer, dimension(1:nvector), save:: ind_grid, ind_part, ind_grid_part
 
+    !$omp threadprivate(ind_grid,ind_part,ind_grid_part)
+
+
     energies(iepot_part, :) = 0.d0
     energies(iepot_part_dm, :) = 0.d0
     energies(iepot_part_star, :) = 0.d0
@@ -895,9 +906,12 @@ contains
     epot_families_loc = 0.d0
 
     if (pic) then
+!$omp parallel private(ig,ip,jgrid,igrid,npart1,ipart,local_counter,jpart,next_part)
        ig = 0
        ip = 0
        ! Loop over particles that are not tracers (same buffering as move_fine)
+!$omp do schedule(dynamic,10) &
+!$omp & reduction(+:ekin_part_loc,epot_part_loc,ekin_families_loc,epot_families_loc)
        do jgrid = 1, active(ilevel)%ngrid
           igrid = active(ilevel)%igrid(jgrid)
           npart1 = numbp(igrid)  ! Number of particles in the grid
@@ -936,11 +950,13 @@ contains
              if (local_counter == 0 .and. ig > 0) ig = ig - 1
           end if
        end do
+!$omp end do nowait
        ! End loop over grids
        if (ip > 0) then
           call energy_part_helper(ind_grid, ind_part, ind_grid_part, ig, ip, &
              & ekin_part_loc, ekin_families_loc, epot_part_loc, epot_families_loc, ilevel)
        end if
+!$omp end parallel
 
        energies(iekin_part, :) = ekin_part_loc(0:deltaE_nregions)
        energies(iekin_part_dm, :) = ekin_families_loc(FAM_DM, 0:deltaE_nregions)
@@ -976,16 +992,13 @@ contains
 
     real(dp)::dx
 
-    ! Compute time step
+    !$omp threadprivate(mass_part,phi_part)
+
+
+   ! Mesh spacing in that level
     dx = 0.5D0**ilevel
     nx_loc = (icoarse_max - icoarse_min + 1)
     scale = boxlen/dble(nx_loc)
-
-    do idim = 1, ndim
-       do i = 1, nn
-          vel_part(i, idim) = vp(ind_part(i), idim)
-       end do
-    end do
 
     ! Get region index
     region_index = deltaE_nregions + 1
@@ -1019,6 +1032,13 @@ contains
           end do
        end do
     end if
+
+    ! Store velocities
+    do idim = 1, ndim
+      do i = 1, nn
+         vel_part(i, idim) = vp(ind_part(i), idim)
+      end do
+    end do
 
     ! Fetch mass and type
     do i = 1, nn
@@ -1079,6 +1099,11 @@ contains
     real(dp), dimension(1:nvector, 1:twotondim), save::vol
     integer, dimension(1:nvector, 1:twotondim), save::igrid, icell, indp, kg
     real(dp), dimension(1:3)::skip_loc
+
+!$omp threadprivate(father_cell,x0,nbors_father_cells)
+!$omp threadprivate(ok,x,dd,dg)
+!$omp threadprivate(ig,id,igg,igd,icg,icd,vol)
+!$omp threadprivate(igrid,icell,indp,kg)
 
     dx = 0.5D0**ilevel
     nx_loc = (icoarse_max - icoarse_min + 1)
@@ -1271,7 +1296,7 @@ contains
     ! Interpolate the potential: the cloud cells are at level ilevel if ok,
     ! at level ilevel-1 otherwise
     use_old_fine = deltaE_use_phi_old(ilevel)
-    use_old_coarse = .false.
+    use_old_coarse = .false. ! Recursive call always made when deltaE_use_phi_old(ilevel-1) is .false.
     if (ilevel > levelmin) use_old_coarse = deltaE_use_phi_old(ilevel - 1)
     phi_part(1:np) = 0.0d0
     do ind = 1, twotondim
