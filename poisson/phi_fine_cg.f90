@@ -61,13 +61,17 @@ subroutine phi_fine_cg(ilevel,icount)
   ! Compute right-hand side norm
   !===============================
   rhs_norm=0
+!$omp parallel private(ind,iskip,i,idx) reduction(+:rhs_norm)
   do ind=1,twotondim
      iskip=ncoarse+(ind-1)*ngridmax
+!$omp do
      do i=1,active(ilevel)%ngrid
         idx=active(ilevel)%igrid(i)+iskip
         rhs_norm=rhs_norm+fact2*(rho(idx)-rho_tot)*(rho(idx)-rho_tot)
      end do
+!$omp end do nowait
   end do
+!$omp end parallel
   ! Compute global norms
 #ifndef WITHOUTMPI
   call MPI_ALLREDUCE(rhs_norm,rhs_norm_all,1,MPI_DOUBLE_PRECISION,MPI_SUM,&
@@ -95,20 +99,23 @@ subroutine phi_fine_cg(ilevel,icount)
      ! Compute residual norm
      !====================================
      r2=0.0d0
+!$omp parallel private(ind,iskip,i,idx) reduction(+:r2)
      do ind=1,twotondim
         iskip=ncoarse+(ind-1)*ngridmax
+!$omp do
         do i=1,active(ilevel)%ngrid
            idx=active(ilevel)%igrid(i)+iskip
            r2=r2+f(idx,1)*f(idx,1)
         end do
-     end do
-     ! Compute global norm
+!$omp end do nowait
+    end do
+    ! Compute global norm
+!$omp end parallel
 #ifndef WITHOUTMPI
      call MPI_ALLREDUCE(r2,r2_all,1,MPI_DOUBLE_PRECISION,MPI_SUM,&
           & MPI_COMM_WORLD,info)
      r2=r2_all
 #endif
-
      !====================================
      ! Compute beta factor
      !====================================
@@ -122,13 +129,17 @@ subroutine phi_fine_cg(ilevel,icount)
      !====================================
      ! Recurrence on p
      !====================================
+!$omp parallel private(ind,iskip,i,idx)
      do ind=1,twotondim
         iskip=ncoarse+(ind-1)*ngridmax
+!$omp do
         do i=1,active(ilevel)%ngrid
            idx=active(ilevel)%igrid(i)+iskip
            f(idx,2)=f(idx,1)+beta_cg*f(idx,2)
         end do
-     end do
+!$omp end do nowait
+    end do
+!$omp end parallel
      ! Update boundaries
      call make_virtual_fine_dp(f(1,2),ilevel)
 
@@ -141,13 +152,17 @@ subroutine phi_fine_cg(ilevel,icount)
      ! Compute p.Ap scalar product
      !====================================
      pAp=0.0d0
+!$omp parallel private(ind,iskip,i,idx) reduction(+:pAp)
      do ind=1,twotondim
         iskip=ncoarse+(ind-1)*ngridmax
+!$omp do
         do i=1,active(ilevel)%ngrid
            idx=active(ilevel)%igrid(i)+iskip
            pAp=pAp+f(idx,2)*f(idx,3)
         end do
+!$omp end do nowait
      end do
+!$omp end parallel
      ! Compute global sum
 #ifndef WITHOUTMPI
      call MPI_ALLREDUCE(pAp,pAp_all,1,MPI_DOUBLE_PRECISION,MPI_SUM,&
@@ -163,14 +178,18 @@ subroutine phi_fine_cg(ilevel,icount)
      !====================================
      ! Recurrence on x and r
      !====================================
+!$omp parallel private(ind,iskip,i,idx)
      do ind=1,twotondim
         iskip=ncoarse+(ind-1)*ngridmax
+!$omp do
         do i=1,active(ilevel)%ngrid
            idx=active(ilevel)%igrid(i)+iskip
            phi(idx)=phi(idx)+alpha_cg*f(idx,2)
            f(idx,1)=f(idx,1)-alpha_cg*f(idx,3)
         end do
+!$omp end do nowait
      end do
+!$omp end parallel
 
      ! Compute error
      error=DSQRT(r2/dble(twotondim*numbtot(1,ilevel)))
@@ -221,6 +240,8 @@ subroutine cmp_residual_cg(ilevel,icount)
   real(dp),dimension(1:nvector,1:twotondim,1:ndim),save::phi_left,phi_right
   real(dp),dimension(1:nvector),save::residu
 
+!$omp threadprivate(ind_grid,ind_cell,igridn,ind_left,ind_right,phig,phid,phi_left,phi_right,residu)
+
   ! Set constants
   dx2=(0.5D0**ilevel)**2
   nx_loc=icoarse_max-icoarse_min+1
@@ -232,6 +253,7 @@ subroutine cmp_residual_cg(ilevel,icount)
 
   ! Loop over myid grids by vector sweeps
   ncache=active(ilevel)%ngrid
+!$omp parallel do private(igrid,ngrid,i,ind,iskip,idim,id1,ig1,ih1,id2,ig2,ih2)
   do igrid=1,ncache,nvector
 
      ! Gather nvector grids
@@ -340,11 +362,14 @@ subroutine cmp_Ap_cg(ilevel)
   real(dp),dimension(1:nvector,1:ndim),save::phig,phid
   real(dp),dimension(1:nvector),save::residu
 
+!$omp threadprivate(ind_grid,ind_cell,igridn,phig,phid,residu)
+
   ! Set constants
   oneoversix=1.0D0/dble(twondim)
 
   ! Loop over myid grids by vector sweeps
   ncache=active(ilevel)%ngrid
+!$omp parallel do private(igrid,ngrid,i,ind,iskip,idim,id1,ig1,ih1,id2,ig2,ih2)
   do igrid=1,ncache,nvector
 
      ! Gather nvector grids
@@ -432,8 +457,11 @@ subroutine make_initial_phi(ilevel,icount)
   integer ,dimension(1:nvector),save::ind_grid,ind_cell,ind_cell_father
   real(dp),dimension(1:nvector,1:twotondim),save::phi_int
 
+!$omp threadprivate(ind_grid,ind_cell,ind_cell_father,phi_int)
+
   ! Loop over myid grids by vector sweeps
   ncache=active(ilevel)%ngrid
+!$omp parallel do private(igrid,ngrid,i,ind,iskip,idim)
   do igrid=1,ncache,nvector
      ! Gather nvector grids
      ngrid=MIN(nvector,ncache-igrid+1)
@@ -507,6 +535,8 @@ subroutine make_multipole_phi(ilevel)
   real(dp),dimension(1:nvector),save::rr,pp
   real(dp),dimension(1:nvector),save::xx
 
+!$omp threadprivate(ind_grid,ind_cell,rr,pp,xx)
+
   ! Mesh size at level ilevel
   dx=0.5D0**ilevel
 
@@ -533,6 +563,8 @@ subroutine make_multipole_phi(ilevel)
 
   ! Loop over myid grids by vector sweeps
   ncache=active(ilevel)%ngrid
+!$omp parallel do private(igrid,ngrid,i,ind,iskip,idim)
+!!!$omp shared(phi,eps,multipole,scale,skip_loc,ncache,ncoarse,active,ilevel,ngridmax,simple_boundary,xg,xc)
   do igrid=1,ncache,nvector
      ! Gather nvector grids
      ngrid=MIN(nvector,ncache-igrid+1)

@@ -27,6 +27,8 @@ RT = 0
 USE_TURB = 0
 # Use MPI? 1=Yes, 0=No
 MPI = 0
+# Use OpenMP? 1=Yes, 0=No
+OPENMP = 0
 # Root name of executable
 EXEC = ramses
 # Number of additional energies
@@ -91,12 +93,16 @@ endif
 ifeq ($(LIGHT_MPI_COMM), 1)
    DEFINES += -DLIGHT_MPI_COMM
 endif
+ifeq ($(OPENMP),1)
+   DEFINES += -DOPENMP
+endif
 # Add any user-provided flags from the command line
 DEFINES += $(USER_FLAGS)
 # Report make variable. Used by test suite coverage.
 print-%:
 	@echo '$($*)'
 #############################################################################
+LIBS =
 # Compiler command for regular compilation (mpi or serial)
 F90 =
 # Serial compiler command and flags for helper files
@@ -134,6 +140,11 @@ ifeq ($(COMPILER),GNU)
    ifeq ($(MPI),0)
       FFLAGS_BASE += -DWITHOUTMPI
    endif
+   ifeq ($(OPENMP),1)
+      FFLAGS_BASE += -fopenmp
+      LIBS += -lgomp
+   endif
+   # link-time optimization accross files
    # -flto: link-time optimization (inlining) accross files
    # -fwhole-program: treat the linked program as a single unit
    LDFLAGS += -flto -fwhole-program
@@ -178,12 +189,18 @@ ifeq ($(COMPILER),$(filter $(COMPILER),INTEL INTELX))
    # -cpp: run the C preprocessor on all files; add macro definitions
    FFLAGS_PP = -cpp
    FFLAGS_BASE += $(FFLAGS_PP) $(DEFINES)
-   ifeq ($(MPI),1)
+   ifneq ($(filter 1,$(MPI) $(OPENMP)),)
       # use the POSIX PXF routines for the signal handler and mkdir
       FFLAGS_BASE += -DNOSYSTEM
-   else
+   endif
+   ifeq ($(MPI),0)
       FFLAGS_BASE += -DWITHOUTMPI
    endif
+   ifeq ($(OPENMP),1)
+      FFLAGS_BASE += -fpp -qopenmp
+      LIBS += -liomp5
+   endif
+   # link-time optimization and inlining accross files
    # -ipo: interprocedural optimization (inlining) accross files
    # -inline-forceinline: inline whenever possible, ignoring the heuristics
    LDFLAGS += -ipo -inline-forceinline
@@ -266,7 +283,7 @@ ifeq ($(USE_TURB),1)
    LIBS_TURB = -L$(FFTW_DIR)/lib -lfftw3
    LIBS_OBJ_TURB = -I$(FFTW_DIR)/include -lfftw3
 endif
-LIBS = $(LIBMPI) $(LIBS_GRACKLE) $(LIBS_TURB)
+LIBS += $(LIBMPI) $(LIBS_GRACKLE) $(LIBS_TURB)
 #############################################################################
 # Sources directories are searched in this exact order
 VPATH = $(PATCH):../$(SOLVER):../aton:

@@ -10,7 +10,7 @@ subroutine rt_make_boundary_hydro(ilevel)
   ! -------------------------------------------------------------------
   ! This routine set up boundary conditions for fine levels.
   ! -------------------------------------------------------------------
-  integer::ibound,boundary_dir,idim,inbor=1
+  integer::ibound,boundary_dir,idim,inbor
   integer::i,ncache,ivar,igrid,ngrid,ind
   integer::iskip,iskip_ref,nx_loc,ix,iy,iz
   integer,dimension(1:8)::ind_ref
@@ -24,6 +24,8 @@ subroutine rt_make_boundary_hydro(ilevel)
   real(dp),dimension(1:nvector,1:nrtvar),save::uu
 
   integer::rtType !RT-- Type of rt variable =0,1,2,3
+
+!$omp threadprivate(ind_grid,ind_grid_ref,ind_cell,ind_cell_ref,xx,uu)
 
   if(.not. simple_boundary)return
   if(verbose)write(*,111)ilevel
@@ -51,6 +53,8 @@ subroutine rt_make_boundary_hydro(ilevel)
   end do
 
   ! Loop over boundaries
+!$omp parallel private(ibound,ind_ref,boundary_dir,inbor,gs,ncache,igrid,ngrid,i,ind,iskip,iskip_ref) &
+!$omp        & private(ivar,switch,idim,rtType)
   do ibound=1,nboundary
 
      call set_boundary_references(ibound,ind_ref,boundary_dir,inbor)
@@ -63,6 +67,7 @@ subroutine rt_make_boundary_hydro(ilevel)
 
      ! Loop over grids by vector sweeps
      ncache=boundary(ibound,ilevel)%ngrid
+!$omp do
      do igrid=1,ncache,nvector
         ngrid=MIN(nvector,ncache-igrid+1)
         do i=1,ngrid
@@ -143,8 +148,12 @@ subroutine rt_make_boundary_hydro(ilevel)
 
      end do
      ! End loop over grids
-
+     ! OMP: NO "nowait" HERE!
+     ! A boundary region needs the previous one to be completely updated.
+     ! This is due to the way they are geometrically defined w.r.t each other.
+!$omp end do
   end do
+!$omp end parallel
   ! End loop over boundaries
 
 111 format('   Entering rt_make_boundary_hydro for level ',I2)

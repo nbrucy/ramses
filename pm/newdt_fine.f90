@@ -41,6 +41,9 @@ subroutine newdt_fine(ilevel)
   real(dp) :: t_target, a_target
 
   logical :: ok
+
+!$omp threadprivate(ind_part)
+
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
 
@@ -123,8 +126,10 @@ subroutine newdt_fine(ilevel)
 
      ! Compute maximum time step on active region
      if(numbl(myid,ilevel)>0)then
+!$omp parallel private(jgrid,igrid,npart1,ipart,jpart,ok,ip) reduction(MIN:dt_loc) reduction(+:ekin_loc)
         ! Loop over grids
         ip=0
+!$omp do schedule(dynamic,10)
         do jgrid=1,active(ilevel)%ngrid
            igrid=active(ilevel)%igrid(jgrid)
            npart1=numbp(igrid)   ! Number of particles in the grid
@@ -154,8 +159,10 @@ subroutine newdt_fine(ilevel)
               ! End loop over particles
            end if
         end do
+!$omp end do nowait
         ! End loop over grids
         if(ip>0)call newdt2(ind_part,dt_loc,ekin_loc,ip,ilevel)
+!$omp end parallel
      end if
 
      ! Minimize time step over all cpus
@@ -240,6 +247,8 @@ subroutine newdt2(ind_part,dt_loc,ekin_loc,nn,ilevel)
   real(dp)::dx,dx_loc,scale,dtpart
   real(dp),dimension(1:nvector),save::v2,mmm
   real(dp),dimension(1:nvector,1:ndim)::vvv
+
+!$omp threadprivate(v2,mmm)
 
   ! Compute time step
   dx=0.5D0**ilevel

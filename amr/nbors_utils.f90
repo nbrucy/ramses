@@ -65,6 +65,9 @@ subroutine get3cubefather(ind_cell,nbor_cells,ncell,ilevel)
   integer,dimension(1:nvector),save::ix,iy,iz,iix,iiy,iiz
   integer,dimension(1:nvector),save::pos,ind_grid_father
 
+!$omp threadprivate(ix,iy,iz,iix,iiy,iiz)
+!$omp threadprivate(pos,ind_grid_father)
+
   nxny=nx*ny
 
   if(ilevel==1)then  ! Easy...
@@ -163,7 +166,10 @@ subroutine get3cubefather_grids(ind_cell,nbors_grids,ncell,ilevel)
   integer::i1min,i1max,j1min,j1max,k1min,k1max,ind_father
   integer,dimension(1:nvector),save::ix,iy,iz,iix,iiy,iiz
   integer,dimension(1:nvector),save::pos,ind_grid_father
-  integer,dimension(1:nvector,1:twotondim),save::nbors_grids_ok
+  !integer,dimension(1:nvector,1:twotondim),save::nbors_grids_ok
+
+  !$omp threadprivate(ix,iy,iz,iix,iiy,iiz)
+  !$omp threadprivate(pos,ind_grid_father)
 
   nxny=nx*ny
 
@@ -278,6 +284,8 @@ subroutine get3cubepos(ind_grid,ind,nbors_cells,ng)
   integer,dimension(1:nvector,1:twotondim),save::nbors_grids
   integer,dimension(1:twotondim),save::lll_loc,mmm_loc
 
+  !$omp threadprivate(nbors_grids,lll_loc,mmm_loc)
+
   ! Get the grids that contain all neighbor cells
   call get_grids_of_nbor_cells(ind_grid,ind,nbors_grids,ng)
 
@@ -354,6 +362,8 @@ subroutine get_grids_of_nbor_cells(ind_grid,ind,nbors_grids,ng)
   integer,dimension(1:8)::jjj=(/3,3,4,4,3,3,4,4/)
   integer,dimension(1:8)::kkk=(/5,5,5,5,6,6,6,6/)
   integer,dimension(1:nvector),save::ind_grid1,ind_grid2,ind_grid3
+
+  !$omp threadprivate(ind_grid1,ind_grid2,ind_grid3)
 
   iimin=0; iimax=1
   jjmin=0; jjmax=0
@@ -473,6 +483,8 @@ subroutine getnborfather(ind_cell,ind_father,ncell,ilevel)
   integer,dimension(1:nvector),save::ind_grid_father,pos
   integer,dimension(1:nvector,0:twondim),save::igridn,igridn_ok
   integer,dimension(1:nvector,1:twondim),save::icelln_ok
+
+!$omp threadprivate(ix,ind_grid_father,pos,igridn,igridn_ok,icelln_ok)
 
   nxny=nx*ny
 

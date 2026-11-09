@@ -31,6 +31,7 @@ module amr_commons
 
   ! MPI variables
   integer::ncpu,ndomain,myid,overload=1
+  integer::nthr=1  ! OpenMP number of threads
 
   ! Friedman model variables
   integer::n_frw

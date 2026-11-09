@@ -13,12 +13,19 @@ subroutine cooling_fine(ilevel)
   integer::ncache,i,igrid,ngrid
   integer,dimension(1:nvector),save::ind_grid
 
+  !$omp threadprivate(ind_grid)
+
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
+
+#ifdef RT
+  call updateRTGroups_CoolConstants(ilevel)
+#endif
 
   ! Operator splitting step for cooling source term
   ! by vector sweeps
   ncache=active(ilevel)%ngrid
+!$omp parallel do private(ngrid,i)
   do igrid=1,ncache,nvector
      ngrid=MIN(nvector,ncache-igrid+1)
      do i=1,ngrid
@@ -71,7 +78,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
   integer::i,ind,iskip,idim,nleaf,nx_loc
   real(dp)::scale_nH,scale_T2,scale_l,scale_d,scale_t,scale_v
   real(kind=8)::dtcool,nISM,nCOM,damp_factor,cooling_switch,t_blast
-  real(dp)::polytropic_constant=1
+  real(dp)::polytropic_constant
   integer,dimension(1:nvector),save::ind_cell,ind_leaf
   real(kind=8),dimension(1:nvector),save::nH,T2,delta_T2,ekk,err,emag
   real(kind=8),dimension(1:nvector),save::T2min,Zsolar,boost
@@ -97,6 +104,11 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
 #endif
 #if NENER>0
   integer::irad
+#endif
+
+!$omp threadprivate(ind_cell,ind_leaf,nH,T2,delta_T2,ekk,err,emag,T2min,Zsolar,boost)
+#ifdef RT
+!$omp threadprivate(ekk_new,T2_new,cooling_on,xion,Np, Np_boost, dNpdt,Fp, Fp_boost, dFpdt,p_gas, u_gas)
 #endif
 
   ! Mesh spacing in that level
@@ -128,6 +140,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
   nISM = MAX(nCOM,nISM)
 
   ! Polytropic constant for Jeans length related polytropic EOS
+  polytropic_constant=1
   if(jeans_ncells>0)then
      polytropic_constant=factG_in_cgs*(boxlen*jeans_ncells*0.5d0**dble(nlevelmax)*scale_l/aexp)**2/ pi / gamma
   endif
@@ -483,6 +496,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
         endif
      endif
 #endif
+!!!$omp critical
 #ifdef RT
      if(neq_chem) then
         T2_new(1:nleaf) = T2(1:nleaf)
@@ -492,6 +506,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
         delta_T2(1:nleaf) = T2_new(1:nleaf) - T2(1:nleaf)
      endif
 #endif
+!!!$omp end critical
 
 #ifdef RT
      if(.not. static) then

@@ -26,6 +26,8 @@ subroutine courant_fine(ilevel)
   real(dp),dimension(1:nvector,1:nvar_all),save::uu
   real(dp),dimension(1:nvector,1:ndim),save::gg
 
+!$omp threadprivate(ind_grid,ind_cell,ind_leaf,uu,gg)
+
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
 
@@ -42,6 +44,8 @@ subroutine courant_fine(ilevel)
 
   ! Loop over active grids by vector sweeps
   ncache=active(ilevel)%ngrid
+!$omp parallel do private(ngrid,iskip,nleaf,dt_lev,ind,i,ivar,idim) &
+!$omp & reduction(+:mass_loc,ekin_loc,eint_loc) reduction(MIN:dt_loc)
   do igrid=1,ncache,nvector
      ngrid=MIN(nvector,ncache-igrid+1)
      do i=1,ngrid
@@ -311,6 +315,8 @@ end subroutine cmpdt
 !  real(kind=8)::mass_loc,ekin_loc,eint_loc
 !  real(kind=8)::mass_all,ekin_all,eint_all
 !  real(dp),dimension(1:nvector,1:nvar),save::uu
+!
+!!$omp threadprivate(ind_grid,ind_cell,ind_leaf,uu)
 !
 !  if(numbtot(1,ilevel)==0)return
 !  if(verbose)write(*,111)ilevel

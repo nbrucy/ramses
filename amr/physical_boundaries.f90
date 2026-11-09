@@ -19,13 +19,21 @@ subroutine init_boundary_fine(ilevel)
   integer,dimension(1:nvector),save::ind_grid,ind_cell
   integer,dimension(1:nvector,0:twondim),save::igridn
 
+!$omp threadprivate(ind_grid,ind_cell,igridn)
+
   if(ilevel==nlevelmax)return
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
 
+  ! Loop over steps
+  n_nbor(1:3)=(/1,2,3/)
+  flag2(0)=0
+
   ! Initialize flag2 to 0 for physical boundaries
+!$omp parallel private(ncache,igrid,ngrid,i,ind,iskip,ibound,ismooth)
   do ibound=1,nboundary
      ncache=boundary(ibound,ilevel)%ngrid
+!$omp do
      do igrid=1,ncache,nvector
         ngrid=MIN(nvector,ncache-igrid+1)
         do i=1,ngrid
@@ -42,14 +50,12 @@ subroutine init_boundary_fine(ilevel)
         end do
      end do
   end do
-  flag2(0)=0
 
-  ! Loop over steps
-  n_nbor(1:3)=(/1,2,3/)
   do ismooth=1,ndim
      ! Initialize flag1 to 0 for physical boundaries
      do ibound=1,nboundary
         ncache=boundary(ibound,ilevel)%ngrid
+!$omp do
         do igrid=1,ncache,nvector
            ngrid=MIN(nvector,ncache-igrid+1)
            do i=1,ngrid
@@ -65,10 +71,12 @@ subroutine init_boundary_fine(ilevel)
               end do
            end do
         end do
+!$omp end do
      end do
      ! Count neighbors and set flag1 accordingly
      do ibound=1,nboundary
         ncache=boundary(ibound,ilevel)%ngrid
+!$omp do
         do igrid=1,ncache,nvector
            ngrid=MIN(nvector,ncache-igrid+1)
            do i=1,ngrid
@@ -79,10 +87,12 @@ subroutine init_boundary_fine(ilevel)
               call count_nbors2(igridn,ind,n_nbor(ismooth),ngrid)
            end do
         end do
+!$omp end do
      end do
      ! Set flag2=1 for cells with flag1=1
      do ibound=1,nboundary
         ncache=boundary(ibound,ilevel)%ngrid
+!$omp do
         do igrid=1,ncache,nvector
            ngrid=MIN(nvector,ncache-igrid+1)
            do i=1,ngrid
@@ -98,8 +108,10 @@ subroutine init_boundary_fine(ilevel)
               end do
            end do
         end do
+!$omp end do
      end do
   end do
+!$omp end parallel
   ! End loop over steps
 
 111 format('   Entering init_boundary_fine for level ',I2)
@@ -117,7 +129,7 @@ subroutine make_boundary_coarse
   ! This routine set up boundary conditions for flag at the coarse level
   !---------------------------------------------------------------------
   integer::nxny,boundary_dir
-  integer::i,j,k,ibound,iskip=1,ind,ind_ref
+  integer::i,j,k,ibound,iskip,ind,ind_ref
 
   if(verbose)write(*,*)'  Entering make_boundary_coarse'
 
@@ -164,7 +176,7 @@ subroutine make_boundary_flag(ilevel)
   ! -------------------------------------------------------------------
   ! This routine set up boundary conditions for fine levels.
   ! -------------------------------------------------------------------
-  integer::ibound,boundary_dir,inbor=1
+  integer::ibound,boundary_dir,inbor
   integer::i,ncache,igrid,ngrid,ind
   integer::iskip,iskip_ref
   integer,dimension(1:8)::ind_ref
@@ -172,16 +184,20 @@ subroutine make_boundary_flag(ilevel)
   integer,dimension(1:nvector),save::ind_cell,ind_cell_ref
   integer,dimension(1:nvector),save::fff
 
+!$omp threadprivate(ind_grid,ind_grid_ref,ind_cell,ind_cell_ref,fff)
+
   if(.not. simple_boundary)return
   if(verbose)write(*,111)ilevel
 
   ! Loop over boundaries
+!$omp parallel private(ibound,ind_ref,boundary_dir,inbor,ncache,igrid,ngrid,i,iskip,iskip_ref)
   do ibound=1,nboundary
 
      call set_boundary_references(ibound,ind_ref,boundary_dir,inbor)
 
      ! Loop over grids by vector sweeps
      ncache=boundary(ibound,ilevel)%ngrid
+!$omp do
      do igrid=1,ncache,nvector
         ngrid=MIN(nvector,ncache-igrid+1)
         do i=1,ngrid
@@ -218,10 +234,10 @@ subroutine make_boundary_flag(ilevel)
 
      end do
      ! End loop over grids
-
+     ! No OMP nowait, because boundaries need to be fully finished in this order.
   end do
   ! End loop over boundaries
-
+!$omp end parallel
 111 format('   Entering make_boundary_flag for level ',I2)
 
 end subroutine make_boundary_flag

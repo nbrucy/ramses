@@ -25,6 +25,8 @@ subroutine hydro_flag(ilevel)
   real(dp),dimension(1:nvector,1:ndim),save::xx
   real(dp),dimension(1:nvector,1:nvar_all),save::uug,uum,uud
 
+!$omp threadprivate(ind_grid,ind_cell,igridn,indn,ok,xx,uug,uum,uud)
+
   if(ilevel==nlevelmax)return
   if(numbtot(1,ilevel)==0)return
 
@@ -75,6 +77,7 @@ subroutine hydro_flag(ilevel)
 
   ! Loop over active grids
   ncache=active(ilevel)%ngrid
+!$omp parallel do private(igrid,ngrid,i,ind,iskip,j,idim,ivar,nok) reduction(+:nflag)
   do igrid=1,ncache,nvector
 
      ! Gather nvector grids
@@ -200,6 +203,8 @@ subroutine jeans_length_refine(ind_cell,ok,ncell,ilevel)
   real(dp)::cs2,factG
   real(dp),dimension(1:nvector),save::rho,ekin,erad,emag,etherm
 
+!$omp threadprivate(rho,ekin,erad,emag,etherm)
+
   factG=1
   if(cosmo)factG=3d0/8d0/pi*omega_m*aexp
   n_jeans = jeans_refine(ilevel)
@@ -261,6 +266,8 @@ subroutine collapse_jeans_length_refine(ind_cell,ok,ncell,ilevel)
   real(dp)::cs2,cs2_gas,cs2_floor,delta_logrho,interpol,d_iso,d_star
   real(dp)::scale_l,scale_t,scale_d,scale_v,scale_nH,scale_T2
   real(dp),dimension(1:nvector),save::rho,ekin,erad,emag,etherm
+
+!$omp threadprivate(rho,ekin,erad,emag,etherm)
 
   factG=1
   if(cosmo)factG=3d0/8d0/pi*omega_m*aexp

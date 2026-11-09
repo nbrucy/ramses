@@ -20,6 +20,8 @@ subroutine synchro_hydro_fine(ilevel,dteff,which_force)
   integer::ncache,ngrid,i,igrid,iskip,ind
   integer,dimension(1:nvector),save::ind_grid,ind_cell
 
+!$omp threadprivate(ind_grid,ind_cell)
+
 #if USE_TURB==1
   if(.not. (poisson.or.driven_turb))return
 #else
@@ -30,6 +32,7 @@ subroutine synchro_hydro_fine(ilevel,dteff,which_force)
 
   ! Loop over active grids by vector sweeps
   ncache=active(ilevel)%ngrid
+!$omp parallel do private(igrid,ngrid,i,ind,iskip)
   do igrid=1,ncache,nvector
      ngrid=MIN(nvector,ncache-igrid+1)
      do i=1,ngrid
@@ -78,6 +81,8 @@ subroutine synchydrofine1(ind_cell,ncell,dteff,which_force)
   integer::nndim=ndim
 #endif
   real(dp),dimension(1:nvector),save::pp
+
+!$omp threadprivate(pp)
 
   ! Substract kinetic energy from total energy
   do i=1,ncell

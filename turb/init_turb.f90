@@ -318,6 +318,8 @@ subroutine add_turb_init_velocity(ilevel)
   real(dp),dimension(1:3)::skip_loc
   real(dp)::dx,dx_loc,scale,d,turb_init_vscale,rms_now
 
+!$omp threadprivate(ind_grid,ind_cell)
+
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
 

@@ -11,9 +11,9 @@ subroutine make_boundary_hydro(ilevel)
   ! -------------------------------------------------------------------
   ! This routine set up boundary conditions for fine levels.
   ! -------------------------------------------------------------------
-  integer::ibound,boundary_dir,idim,inbor=1
-  integer::i,ncache,ivar,igrid,ngrid,ind,iperp1=7,iperp2=8,iplane,icell
-  integer::iskip,iskip_ref,iskip_normal,gdim=1,nx_loc,ix,iy,iz
+  integer::ibound,boundary_dir,idim,inbor
+  integer::i,ncache,ivar,igrid,ngrid,ind,iperp1,iperp2,iplane,icell
+  integer::iskip,iskip_ref,iskip_normal,gdim,nx_loc,ix,iy,iz
   integer,dimension(1:8)::ind_ref,alt,ind_normal
   integer,dimension(1:4,1:2)::ind0
   integer,dimension(1:nvector),save::ind_grid,ind_grid_ref
@@ -26,6 +26,8 @@ subroutine make_boundary_hydro(ilevel)
   real(dp),dimension(1:nvector,1:ndim),save::xx
   real(dp),dimension(1:nvector,1:nvar+3),save::uu
   real(dp),dimension(1:nvector,1:twotondim),save::uu_ref
+
+!$omp threadprivate(ind_grid,ind_grid_ref,ind_cell,ind_cell_ref,ind_cell_normal,B_normal,xx,uu,uu_ref)
 
   if(.not. simple_boundary)return
   if(verbose)write(*,111)ilevel
@@ -53,6 +55,9 @@ subroutine make_boundary_hydro(ilevel)
   end do
 
   ! Loop over boundaries
+!$omp parallel private(ibound,ind_ref,boundary_dir,inbor,ind_normal,ind0,gs,gdim,alt) &
+!$omp        & private(iperp1,iperp2,iskip_normal,iplane) &
+!$omp        & private(ncache,igrid,ngrid,iskip,iskip_ref,i,ind,ivar,switch,ekin,d,v,emag,idim)
   do ibound=1,nboundary
 
      ! Compute direction of reference neighbors
@@ -139,6 +144,7 @@ subroutine make_boundary_hydro(ilevel)
 
      ! Loop over grids by vector sweeps
      ncache=boundary(ibound,ilevel)%ngrid
+!$omp do
      do igrid=1,ncache,nvector
         ngrid=MIN(nvector,ncache-igrid+1)
         do i=1,ngrid
@@ -422,8 +428,12 @@ subroutine make_boundary_hydro(ilevel)
 
      end do
      ! End loop over grids
-
+     ! OMP: NO "nowait" HERE!
+     ! A boundary region needs the previous one to be completely updated.
+     ! This is due to the way they are geometrically defined w.r.t each other.
+!$omp end do
   end do
+!$omp end parallel
   ! End loop over boundaries
 
 111 format('   Entering make_boundary_hydro for level ',I2)

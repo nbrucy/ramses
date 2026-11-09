@@ -70,37 +70,43 @@ subroutine rho_fine(ilevel,icount)
   !--------------------------
   ! Initialize fields to zero
   !--------------------------
+!$omp parallel private(ind,iskip,i,ind_cell)
   do ind=1,twotondim
      iskip=ncoarse+(ind-1)*ngridmax
+!$omp do
      do i=1,active(ilevel)%ngrid
         phi(active(ilevel)%igrid(i)+iskip)=0.0D0
      end do
+!$omp end do nowait
      if(ilevel==cic_levelmax)then
+!$omp do
         do i=1,active(ilevel)%ngrid
            rho_top(active(ilevel)%igrid(i)+iskip)=0.0D0
         end do
-     endif
-  end do
-  if(cic_levelmax>0.and.ilevel>cic_levelmax)then
-     do ind=1,twotondim
-        iskip=ncoarse+(ind-1)*ngridmax
+!$omp end do nowait
+     else if(cic_levelmax>0.and.ilevel>cic_levelmax)then
+!$omp do
         do i=1,active(ilevel)%ngrid
            ind_cell=active(ilevel)%igrid(i)+iskip
            rho_top(ind_cell)=rho_top(father(active(ilevel)%igrid(i)))
            rho(ind_cell)=rho(ind_cell)+rho_top(ind_cell)
         end do
-     end do
-  endif
+!$omp end do nowait
+     endif
+  end do
+!$omp end parallel
 
   !-------------------------------------------------------------------------
   ! Initialize "number density" field to baryon number density in array phi.
   !-------------------------------------------------------------------------
   if(m_refine(ilevel)>-1.0d0)then
      d_scale=max(mass_sph/dx_loc**ndim,smallr)
+!$omp parallel private(ind,iskip,i,ind_cell,scalar)
      do ind=1,twotondim
         iskip=ncoarse+(ind-1)*ngridmax
         if(hydro)then
            if(ivar_refine>0)then
+!$omp do
               do i=1,active(ilevel)%ngrid
                  ind_cell=active(ilevel)%igrid(i)+iskip
                  scalar=uold(ind_cell,ivar_refine)/max(uold(ind_cell,1),smallr)
@@ -108,22 +114,28 @@ subroutine rho_fine(ilevel,icount)
                     phi(ind_cell)=rho(ind_cell)/d_scale
                  endif
               end do
+!$omp end do nowait
            else
+!$omp do
               do i=1,active(ilevel)%ngrid
                  ind_cell=active(ilevel)%igrid(i)+iskip
                  phi(ind_cell)=rho(ind_cell)/d_scale
               end do
+!$omp end do nowait
            endif
         endif
      end do
+!$omp end parallel
   endif
 
   !-------------------------------------------------------
   ! Initialize rho and phi to zero in virtual boundaries
   !-------------------------------------------------------
+!$omp parallel private(icpu,ind,iskip,i)
   do icpu=1,ncpu
      do ind=1,twotondim
         iskip=ncoarse+(ind-1)*ngridmax
+!$omp do
         do i=1,reception(icpu,ilevel)%ngrid
 #ifdef LIGHT_MPI_COMM
            rho(reception(icpu,ilevel)%pcomm%igrid(i)+iskip)=0.0D0
@@ -133,7 +145,9 @@ subroutine rho_fine(ilevel,icount)
            phi(reception(icpu,ilevel)%igrid(i)+iskip)=0.0D0
 #endif
         end do
+!$omp end do nowait
         if(ilevel==cic_levelmax)then
+!$omp do
            do i=1,reception(icpu,ilevel)%ngrid
 #ifdef LIGHT_MPI_COMM
               rho_top(reception(icpu,ilevel)%pcomm%igrid(i)+iskip)=0.0D0
@@ -141,9 +155,11 @@ subroutine rho_fine(ilevel,icount)
               rho_top(reception(icpu,ilevel)%igrid(i)+iskip)=0.0D0
 #endif
            end do
+!$omp end do nowait
         endif
      end do
   end do
+!$omp end parallel
 
   !---------------------------------------------------------
   ! Compute particle contribution to density field
@@ -200,8 +216,10 @@ subroutine rho_fine(ilevel,icount)
   ! Compute quasi Lagrangian refinement map
   !-----------------------------------------
   if(m_refine(ilevel)>-1.0d0)then
+!$omp parallel private(ind,iskip,i,ind_cell)
      do ind=1,twotondim
         iskip=ncoarse+(ind-1)*ngridmax
+!$omp do
         do i=1,active(ilevel)%ngrid
            ind_cell=active(ilevel)%igrid(i)+iskip
            if(phi(ind_cell)>=m_refine(ilevel))then
@@ -210,7 +228,9 @@ subroutine rho_fine(ilevel,icount)
               cpu_map2(ind_cell)=0
            end if
         end do
+!$omp end do nowait
      end do
+!$omp end parallel
      ! Update boundaries
      call make_virtual_fine_int(cpu_map2(1),ilevel)
   end if
@@ -233,7 +253,6 @@ subroutine rho_from_current_level(ilevel)
   ! This routine computes the density field at level ilevel using
   ! the CIC scheme from particles that are not entirely in
   ! level ilevel (boundary particles).
-  ! Arrays flag1 and flag2 are used as temporary work space.
   !------------------------------------------------------------------
   integer::igrid,jgrid,ipart,jpart,idim,icpu
   integer::i,ig,ip,npart1
@@ -242,18 +261,37 @@ subroutine rho_from_current_level(ilevel)
   integer,dimension(1:nvector),save::ind_grid,ind_cell
   integer,dimension(1:nvector),save::ind_part,ind_grid_part
   real(dp),dimension(1:nvector,1:ndim),save::x0
-
+  real(dp),dimension(1:ndim+1)::multipole_loc
   integer :: counter
+
+!$omp threadprivate(ind_grid,ind_cell,ind_part,ind_grid_part,x0)
+
   ! Mesh spacing in that level
   dx=0.5D0**ilevel
 
+  ! multipole is updated in cic_amr, so we accumulate into multipole_loc, which is
+  ! reduced over omp threads. It is seeded with multipole (the reduction adds the
+  ! seed once) so that without OpenMP the summation order is the same as summing
+  ! directly into multipole. Seeding with 0 and adding afterwards changes rho_tot
+  ! by an ULP and breaks bit-reproducibility of the reference solutions.
+  ! static schedule to avoid floating point errors caused summation order differences
+  multipole_loc = multipole
+
   ! Loop over cpus
+!$omp parallel private(icpu,ig,ip,jgrid,igrid,npart1,ipart,counter) &
+!$omp          private(jpart,idim,i) &
+!$omp & reduction(+:multipole_loc)
   do icpu=1,ncpu
      ! Loop over grids
-     igrid=headl(icpu,ilevel)
      ig=0
      ip=0
+!$omp do schedule(static)
      do jgrid=1,numbl(icpu,ilevel)
+        if(icpu==myid)then
+           igrid=active(ilevel)%igrid(jgrid)
+        else
+           igrid=reception(icpu,ilevel)%igrid(jgrid)
+        end if
         npart1=numbp(igrid)  ! Number of particles in the grid
         if(npart1>0)then
            ig=ig+1
@@ -287,9 +325,9 @@ subroutine rho_from_current_level(ilevel)
                     ind_cell(i)=father(ind_grid(i))
                  end do
 #ifdef TSC
-                 call tsc_amr(ind_cell,ind_part,ind_grid_part,x0,ig,ip,ilevel)
+                 call tsc_amr(ind_cell,ind_part,ind_grid_part,x0,ig,ip,ilevel,multipole_loc)
 #else
-                 call cic_amr(ind_cell,ind_part,ind_grid_part,x0,ig,ip,ilevel)
+                 call cic_amr(ind_cell,ind_part,ind_grid_part,x0,ig,ip,ilevel,multipole_loc)
 #endif
                  ip=0
                  ig=0
@@ -304,9 +342,8 @@ subroutine rho_from_current_level(ilevel)
               ig = ig - 1
            end if
         end if
-
-        igrid=next(igrid)   ! Go to next grid
      end do
+!$omp end do nowait
      ! End loop over grids
 
      if(ip>0)then
@@ -320,14 +357,17 @@ subroutine rho_from_current_level(ilevel)
            ind_cell(i)=father(ind_grid(i))
         end do
 #ifdef TSC
-        call tsc_amr(ind_cell,ind_part,ind_grid_part,x0,ig,ip,ilevel)
+        call tsc_amr(ind_cell,ind_part,ind_grid_part,x0,ig,ip,ilevel,multipole_loc)
 #else
-        call cic_amr(ind_cell,ind_part,ind_grid_part,x0,ig,ip,ilevel)
+        call cic_amr(ind_cell,ind_part,ind_grid_part,x0,ig,ip,ilevel,multipole_loc)
 #endif
      end if
 
   end do
+!$omp end parallel
   ! End loop over cpus
+
+  multipole = multipole_loc
 
 end subroutine rho_from_current_level
 
@@ -335,7 +375,7 @@ end subroutine rho_from_current_level
 !##############################################################################
 !##############################################################################
 !##############################################################################
-subroutine cic_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
+subroutine cic_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel,multipole_loc)
   use amr_commons
   use pm_commons
   use pm_parameters, only:nlevelmax_sink
@@ -346,6 +386,7 @@ subroutine cic_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
   integer::ng,np,ilevel
   integer ,dimension(1:nvector)::ind_cell,ind_grid_part,ind_part
   real(dp),dimension(1:nvector,1:ndim)::x0
+  real(dp),dimension(1:ndim+1)::multipole_loc
   !------------------------------------------------------------------
   ! This routine computes the density field at level ilevel using
   ! the CIC scheme. Only cells that are in level ilevel
@@ -368,6 +409,9 @@ subroutine cic_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
   integer ,dimension(1:nvector,1:twotondim),save::igrid,icell,indp,kg
   real(dp),dimension(1:3)::skip_loc
 
+!$omp threadprivate(nbors_father_cells,ok,mmm)
+!$omp threadprivate(fam,vol2,x,dd,dg,ig,id,igg,igd,icg,icd,vol,igrid,icell,indp,kg)
+
   ! Mesh spacing in that level
   dx=0.5D0**ilevel
   nx_loc=(icoarse_max-icoarse_min+1)
@@ -378,7 +422,6 @@ subroutine cic_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
   scale=boxlen/dble(nx_loc)
   dx_loc=dx*scale
   vol_loc=dx_loc**ndim
-
 
   ! Gather neighboring father cells (should be present anytime !)
   call get3cubefather(ind_cell,nbors_father_cells,ng,ilevel)
@@ -406,12 +449,12 @@ subroutine cic_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
   !        for no reason that I can think of
   if(ilevel==levelmin)then
      do j=1,np
-        multipole(1)=multipole(1)+mp(ind_part(j))
+        multipole_loc(1)=multipole_loc(1)+mp(ind_part(j))
         ! multipole(1)=multipole(1)+mmm(j)
      end do
      do idim=1,ndim
         do j=1,np
-           multipole(idim+1)=multipole(idim+1)+mp(ind_part(j))*xp(ind_part(j),idim)
+           multipole_loc(idim+1)=multipole_loc(idim+1)+mp(ind_part(j))*xp(ind_part(j),idim)
            ! multipole(idim+1)=multipole(idim+1)+mmm(j)*xp(ind_part(j),idim)
         end do
      end do
@@ -572,6 +615,7 @@ subroutine cic_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
      if(cic_levelmax==0.or.ilevel<=cic_levelmax)then
         do j=1,np
            if(ok(j))then
+!$omp atomic update
               rho(indp(j,ind))=rho(indp(j,ind))+vol2(j)
            end if
         end do
@@ -579,6 +623,7 @@ subroutine cic_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
         do j=1,np
            ! check for non-DM (and non-tracer)
            if ( ok(j) .and. is_not_DM(fam(j)) ) then
+!$omp atomic update
               rho(indp(j,ind))=rho(indp(j,ind))+vol2(j)
            end if
         end do
@@ -588,6 +633,7 @@ subroutine cic_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
         do j=1,np
            ! check for DM
            if ( ok(j) .and. is_DM(fam(j)) ) then
+!$omp atomic update
               rho_top(indp(j,ind))=rho_top(indp(j,ind))+vol2(j)
            end if
         end do
@@ -625,12 +671,14 @@ subroutine cic_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
      if(cic_levelmax==0.or.ilevel<cic_levelmax)then
         do j=1,np
            if(ok(j))then
+!$omp atomic update
               phi(indp(j,ind))=phi(indp(j,ind))+vol2(j)
            end if
         end do
      else if(ilevel>=cic_levelmax)then
         do j=1,np
            if ( ok(j) .and. is_not_DM(fam(j)) ) then
+!$omp atomic update
               phi(indp(j,ind))=phi(indp(j,ind))+vol2(j)
            end if
         end do
@@ -642,6 +690,7 @@ subroutine cic_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
         do j=1,np
            if ( is_cloud(fam(j)) ) then
               ! if (direct_force_sink(-1*idp(ind_part(j))))then
+!$omp atomic update
               phi(indp(j,ind))=phi(indp(j,ind))+m_refine(ilevel)
               ! endif
            end if
@@ -678,6 +727,8 @@ subroutine multipole_fine(ilevel)
   real(dp),dimension(1:3)::skip_loc
   real(dp),dimension(1:twotondim,1:3)::xc
 
+!$omp threadprivate(ind_grid,ind_cell,ind_leaf,ind_split,xx,dd)
+
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
 
@@ -701,6 +752,7 @@ subroutine multipole_fine(ilevel)
   end do
 
   ! Initialize fields to zero
+!$omp parallel do private(ind,iskip,i,idim)
   do ind=1,twotondim
      iskip=ncoarse+(ind-1)*ngridmax
      do i=1,active(ilevel)%ngrid
@@ -715,6 +767,7 @@ subroutine multipole_fine(ilevel)
 
   ! Compute mass multipoles in each cell
   ncache=active(ilevel)%ngrid
+!$omp parallel do private(igrid,ngrid,i,ind,iskip,nleaf,idim,mm,nsplit,ind_son,iskip_son,ind_grid_son,ind_cell_son)
   do igrid=1,ncache,nvector
      ngrid=MIN(nvector,ncache-igrid+1)
      do i=1,ngrid
@@ -829,12 +882,17 @@ subroutine cic_from_multipole(ilevel)
   !-------------------------------------------------------------------
   integer::ind,i,icpu,ncache,ngrid,iskip,ibound,igrid
   integer,dimension(1:nvector),save::ind_grid
+  real(dp),dimension(1:ndim+1)::multipole_loc
+
+!$omp threadprivate(ind_grid)
 
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
 
   ! Initialize density field to zero
+!$omp parallel private(icpu,ind,iskip,i,ibound)
   do icpu=1,ncpu
+!$omp do
      do ind=1,twotondim
         iskip=ncoarse+(ind-1)*ngridmax
         do i=1,reception(icpu,ilevel)%ngrid
@@ -845,26 +903,41 @@ subroutine cic_from_multipole(ilevel)
 #endif
         end do
      end do
+!$omp end do nowait
   end do
+!$omp do
   do ind=1,twotondim
      iskip=ncoarse+(ind-1)*ngridmax
      do i=1,active(ilevel)%ngrid
         rho(active(ilevel)%igrid(i)+iskip)=0.0D0
      end do
   end do
+!$omp end do nowait
   ! Reset rho in physical boundaries
   do ibound=1,nboundary
+!$omp do
      do ind=1,twotondim
         iskip=ncoarse+(ind-1)*ngridmax
         do i=1,boundary(ibound,ilevel)%ngrid
            rho(boundary(ibound,ilevel)%igrid(i)+iskip)=0
         end do
      end do
+!$omp end do nowait
   end do
+!$omp end parallel
 
   if(hydro)then
+
+     ! multipole is updated in cic_cell, so we accumulate into multipole_loc, which is
+     ! reduced over omp threads. Seeded with multipole for the same reason as in
+     ! rho_from_current_level.
+     ! static schedule to avoid floating point errors caused summation order differences
+     multipole_loc = multipole
+
      ! Perform a restriction over split cells (ilevel+1)
      ncache=active(ilevel)%ngrid
+!$omp parallel do private(igrid,ngrid,i) &
+!$omp & reduction(+:multipole_loc) schedule(static)
      do igrid=1,ncache,nvector
         ! Gather nvector grids
         ngrid=MIN(nvector,ncache-igrid+1)
@@ -872,11 +945,13 @@ subroutine cic_from_multipole(ilevel)
            ind_grid(i)=active(ilevel)%igrid(igrid+i-1)
         end do
 #ifdef TSC
-        call tsc_cell(ind_grid,ngrid,ilevel)
+        call tsc_cell(ind_grid,ngrid,ilevel,multipole_loc)
 #else
-        call cic_cell(ind_grid,ngrid,ilevel)
+        call cic_cell(ind_grid,ngrid,ilevel,multipole_loc)
 #endif
      end do
+
+     multipole = multipole_loc
   end if
 
 111 format('   Entering cic_from_multipole for level',i2)
@@ -886,13 +961,15 @@ end subroutine cic_from_multipole
 !###########################################################
 !###########################################################
 !###########################################################
-subroutine cic_cell(ind_grid,ngrid,ilevel)
+subroutine cic_cell(ind_grid,ngrid,ilevel,multipole_loc)
   use amr_commons
   use poisson_commons
   use hydro_commons, ONLY: unew
   implicit none
   integer::ngrid,ilevel
   integer,dimension(1:nvector)::ind_grid
+  real(dp),dimension(1:ndim+1)::multipole_loc
+
   !
   !
   integer::i,j,idim,ind_cell_son,iskip_son,np,ind_son,nx_loc,ind
@@ -909,6 +986,11 @@ subroutine cic_cell(ind_grid,ngrid,ilevel)
   real(dp),dimension(1:3)::skip_loc
   real(kind=8)::dx,dx_loc,scale,vol_loc
   logical::error
+
+
+!$omp threadprivate(ind_cell,nbors_father_cells,ok,mmm)
+!$omp threadprivate(vol2,x,dd,dg,ig,id,igg,igd,icg,icd,vol,igrid,icell,indp,kg)
+
 
   ! Mesh spacing in that level
   dx=0.5D0**ilevel
@@ -947,7 +1029,7 @@ subroutine cic_cell(ind_grid,ngrid,ilevel)
         do idim=1,ndim+1
            do j=1,np
               ind_cell_son=iskip_son+ind_grid(j)
-              multipole(idim)=multipole(idim)+unew(ind_cell_son,idim)
+              multipole_loc(idim)=multipole_loc(idim)+unew(ind_cell_son,idim)
            end do
         end do
      endif
@@ -1113,6 +1195,7 @@ subroutine cic_cell(ind_grid,ngrid,ilevel)
         end do
         do j=1,np
            if(ok(j))then
+!$omp atomic update
               rho(indp(j,ind))=rho(indp(j,ind))+vol2(j)
            end if
         end do
@@ -1127,7 +1210,7 @@ end subroutine cic_cell
 !##############################################################################
 !##############################################################################
 #if NDIM==3
-subroutine tsc_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
+subroutine tsc_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel,multipole_loc)
   use amr_commons
   use amr_parameters
   use pm_commons
@@ -1137,6 +1220,7 @@ subroutine tsc_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
   integer::ng,np,ilevel
   integer ,dimension(1:nvector)::ind_cell,ind_grid_part,ind_part
   real(dp),dimension(1:nvector,1:ndim)::x0
+  real(dp),dimension(1:ndim+1)::multipole_loc
   !------------------------------------------------------------------
   ! This routine computes the density field at level ilevel using
   ! the TSC scheme. Only cells that are in level ilevel
@@ -1157,6 +1241,9 @@ subroutine tsc_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
   real(dp),dimension(1:nvector,1:threetondim),save::vol
   integer ,dimension(1:nvector,1:threetondim),save::igrid,icell,indp,kg
   real(dp),dimension(1:3)::skip_loc
+
+!$omp threadprivate(nbors_father_cells,ok,abandoned,mmm)
+!$omp threadprivate(fam,vol2,x,cl,cr,cc,wl,wr,wc,igl,igr,igc,icl,icr,icc,vol,igrid,icell,indp,kg)
 
   ! Mesh spacing in that level
   dx=0.5D0**ilevel
@@ -1193,11 +1280,11 @@ subroutine tsc_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
 
   if(ilevel==levelmin)then
      do j=1,np
-        multipole(1)=multipole(1)+mmm(j)
+        multipole_loc(1)=multipole_loc(1)+mmm(j)
      end do
      do idim=1,ndim
         do j=1,np
-           multipole(idim+1)=multipole(idim+1)+mmm(j)*xp(ind_part(j),idim)
+           multipole_loc(idim+1)=multipole_loc(idim+1)+mmm(j)*xp(ind_part(j),idim)
         end do
      end do
   end if
@@ -1375,12 +1462,14 @@ subroutine tsc_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
      if(cic_levelmax==0.or.ilevel<=cic_levelmax) then
         do j=1,np
            if(ok(j).and.(.not.abandoned(j))) then
+!$omp atomic update
               rho(indp(j,ind))=rho(indp(j,ind))+vol2(j)
            end if
         end do
      else if(ilevel>cic_levelmax) then
         do j=1,np
            if ( ok(j) .and. is_not_DM(fam(j)) .and. (.not.abandoned(j)) ) then
+!$omp atomic update
               rho(indp(j,ind))=rho(indp(j,ind))+vol2(j)
            end if
         end do
@@ -1389,6 +1478,7 @@ subroutine tsc_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
      if(ilevel==cic_levelmax)then
         do j=1,np
            if ( ok(j) .and. is_DM(fam(j)) .and. (.not.abandoned(j)) ) then
+!$omp atomic update
               rho_top(indp(j,ind))=rho_top(indp(j,ind))+vol2(j)
            end if
         end do
@@ -1430,12 +1520,14 @@ subroutine tsc_amr(ind_cell,ind_part,ind_grid_part,x0,ng,np,ilevel)
      if(cic_levelmax==0.or.ilevel<cic_levelmax) then
         do j=1,np
            if(ok(j).and.(.not.abandoned(j))) then
+!$omp atomic update
               phi(indp(j,ind))=phi(indp(j,ind))+vol2(j)
            end if
         end do
      else if(ilevel>=cic_levelmax) then
         do j=1,np
            if ( ok(j) .and. is_not_DM(fam(j)) .and. (.not.abandoned(j)) ) then
+!$omp atomic update
               phi(indp(j,ind))=phi(indp(j,ind))+vol2(j)
            end if
         end do
@@ -1449,13 +1541,14 @@ end subroutine tsc_amr
 !###########################################################
 !###########################################################
 #if NDIM==3
-subroutine tsc_cell(ind_grid,ngrid,ilevel)
+subroutine tsc_cell(ind_grid,ngrid,ilevel,multipole_loc)
   use amr_commons
   use poisson_commons
   use hydro_commons, ONLY: unew
   implicit none
   integer::ngrid,ilevel
   integer,dimension(1:nvector)::ind_grid
+  real(dp),dimension(1:ndim+1)::multipole_loc
   !
   !
   integer::i,j,idim,ind_cell_son,iskip_son,np,ind_son,nx_loc,ind
@@ -1472,6 +1565,9 @@ subroutine tsc_cell(ind_grid,ngrid,ilevel)
   real(dp),dimension(1:3)::skip_loc
   real(kind=8)::dx,dx_loc,scale,vol_loc
   logical::error
+
+!$omp threadprivate(ind_cell,nbors_father_cells,ok,mmm)
+!$omp threadprivate(vol2,x,cl,cr,cc,wl,wr,wc,igl,igr,igc,icl,icr,icc,vol,igrid,icell,indp,kg)
 
   ! Mesh spacing in that level
   dx=0.5D0**ilevel
@@ -1510,7 +1606,7 @@ subroutine tsc_cell(ind_grid,ngrid,ilevel)
         do idim=1,ndim+1
            do j=1,np
               ind_cell_son=iskip_son+ind_grid(j)
-              multipole(idim)=multipole(idim)+unew(ind_cell_son,idim)
+              multipole_loc(idim)=multipole_loc(idim)+unew(ind_cell_son,idim)
            end do
         end do
      endif
@@ -1695,6 +1791,7 @@ subroutine tsc_cell(ind_grid,ngrid,ilevel)
         end do
         do j=1,np
            if(ok(j))then
+!$omp atomic update
               rho(indp(j,ind))=rho(indp(j,ind))+vol2(j)
            end if
         end do

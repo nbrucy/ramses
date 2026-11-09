@@ -222,6 +222,7 @@ subroutine load_balance
   do ilevel=1,nlevelmax
      ! Build new communicators
      call build_comm(ilevel)
+!$omp parallel do private(ind,iskip,i)
      do ind=1,twotondim
         iskip=ncoarse+(ind-1)*ngridmax
         do i=1,active(ilevel)%ngrid
@@ -287,7 +288,7 @@ subroutine cmp_new_cpu_map
   ! This routine computes the new cpu map using
   ! the choosen ordering to balance load across cpus.
   !---------------------------------------------------
-  integer::igrid,ncell,ncell_loc,ncache,ngrid
+  integer::igrid,ncell,ncell_loc,ncache,ngrid,ncell_omp
   integer::ilevel,i,ind,idim
   integer::nx_loc
   integer::icpu,isub,idom
@@ -298,7 +299,7 @@ subroutine cmp_new_cpu_map
   real(dp)::dx,scale
   real(dp),dimension(1:twotondim,1:3)::xc
   real(dp),dimension(1:nvector,1:ndim),save::xx
-  real(kind=8)::incost_tot,local_cost,cell_cost
+  real(kind=8)::incost_tot,local_cost,cell_cost,incost_tot_omp
   real(kind=8),dimension(0:ndomain)::incost_new,incost_old
   integer(kind=8),dimension(1:overload)::npart_sub
   integer(kind=8)::wflag
@@ -314,6 +315,8 @@ subroutine cmp_new_cpu_map
 #ifdef QUADHILBERT
   real(kind=8),dimension(0:ndomain)::bigdbl,bigtmp
 #endif
+
+!$omp threadprivate(ind_grid,ind_cell,xx,dom,order_min,order_max,xx_tmp,c_tmp)
 
   ! Local constants
   nxny=nx*ny
@@ -370,6 +373,9 @@ subroutine cmp_new_cpu_map
   end do
   end do
   ! Loop over levels
+!$omp parallel private(dx,ix,iy,iz,xc,ncache) &
+!$omp & private(ngrid,iskip,idim,ncell_loc,ncell_omp,isub,wflag) &
+!$omp & private(ilevel,ind,icpu,i)
   do ilevel=1,nlevelmax
      ! Cell size and cell center offset
      dx=0.5d0**ilevel
@@ -393,6 +399,7 @@ subroutine cmp_new_cpu_map
            ncache=reception(icpu,ilevel)%ngrid
         end if
         ! Loop over grids by vector sweeps
+!$omp do
         do igrid=1,ncache,nvector
            ! Gather nvector grids
            ngrid=MIN(nvector,ncache-igrid+1)
@@ -431,37 +438,44 @@ subroutine cmp_new_cpu_map
               ncell_loc=0
               do i=1,ngrid
                  if(cpu_map(ind_cell(i))==myid.and.son(ind_cell(i))==0)then
+!$omp atomic capture
                     ncell    =ncell    +1
+                    ncell_omp=ncell
+!$omp end atomic
                     ncell_loc=ncell_loc+1
                     isub=(dom(ncell_loc)-1)/ncpu+1
+!$omp atomic update
                     ncell_sub(isub)=ncell_sub(isub)+1
-                    flag1(ncell)=8*10 ! Magic number
+                    flag1(ncell_omp)=8*10 ! Magic number
                     if(pic)then
                        ! Add more load for tracer particles
                        if (tracer .and. ilevel >= tracer_first_balance_levelmin) then
-                          flag1(ncell) = flag1(ncell) + numbp(ind_grid(i)) + &
+                          flag1(ncell_omp) = flag1(ncell_omp) + numbp(ind_grid(i)) + &
                                tracer_first_balance_part_per_cell
                        else
-                          flag1(ncell)=flag1(ncell)+numbp(ind_grid(i))
+                          flag1(ncell_omp)=flag1(ncell_omp)+numbp(ind_grid(i))
                        endif
                     end if
-                    wflag = flag1(ncell)*niter_cost(ilevel)
+                    wflag = flag1(ncell_omp)*niter_cost(ilevel)
                     if (wflag > 2147483647) then
                        write(*,*) ' wrong type for flag1 --> change to integer kind=8: ',wflag
                        call clean_stop
                     endif
-                    flag1(ncell)=flag1(ncell)*niter_cost(ilevel)
-                    npart_sub(isub)=npart_sub(isub)+flag1(ncell)
-                    hilbert_key(ncell)=order_max(ncell_loc)
+                    flag1(ncell_omp)=flag1(ncell_omp)*niter_cost(ilevel)
+!$omp atomic update
+                    npart_sub(isub)=npart_sub(isub)+flag1(ncell_omp)
+                    hilbert_key(ncell_omp)=order_max(ncell_loc)
                  end if
               end do
            end do
            ! End loop over cells
         end do
+!$omp end do nowait
         ! End loop over grids
      end do
      ! End loop over cpus
   end do
+!$omp end parallel
   ! End loop over levels
 
   !------------------------------------------------
@@ -479,6 +493,8 @@ subroutine cmp_new_cpu_map
 #ifndef WITHOUTMPI
   call MPI_ALLREDUCE(cost_loc,cost_old,ndomain,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,info)
 #endif
+
+  ! Cumulative sum cost: must be sequencial!
   incost_tot = 0D0
   incost_old(0) = 0D0
   do idom = 1,ndomain
@@ -575,6 +591,7 @@ subroutine cmp_new_cpu_map
   end do
   end do
   ! Loop over levels
+!$omp parallel private(ilevel,dx,ind,ix,iy,iz,xc,ncache,ngrid,iskip)
   do ilevel=1,nlevelmax
      ! Cell size and cell center offset
      dx=0.5d0**ilevel
@@ -592,6 +609,7 @@ subroutine cmp_new_cpu_map
      end do
      ncache=active(ilevel)%ngrid
      ! Loop over grids by vector sweeps
+!$omp do
      do igrid=1,ncache,nvector
         ! Gather nvector grids
         ngrid=MIN(nvector,ncache-igrid+1)
@@ -631,8 +649,10 @@ subroutine cmp_new_cpu_map
         end do
         ! End loop over cells
      end do
+!$omp end do nowait
      ! End loop over grids
   end do
+!$omp end parallel
   ! End loop over levels
 
   ! Update virtual boundaries for new cpu map
@@ -657,6 +677,8 @@ subroutine cmp_cpumap(x,c,nn)
 
   integer::i,idom
   real(qdp),dimension(1:nvector),save::order
+
+!$omp threadprivate(order)
 
   if(ordering /= 'bisection') then
      call cmp_ordering(x,order,nn)
@@ -706,6 +728,7 @@ subroutine cmp_cpumap_modified(x,c,nn,particle_cpu,cpu_list)
   integer::i,idom , idx, found
   real(qdp),dimension(1:nvector),save::order
 
+!$omp threadprivate(order)
 
   if(ordering /= 'bisection') then
      call cmp_ordering(x,order,nn)
@@ -769,6 +792,8 @@ subroutine cmp_dommap(x,c,nn)
   integer::i,idom
   real(qdp),dimension(1:nvector),save::order
 
+  !$omp threadprivate(order)
+
   call cmp_ordering(x,order,nn)
   do i=1,nn
      c(i)=ndomain ! default value
@@ -807,6 +832,8 @@ subroutine cmp_ordering(x,order,nn)
 #if NDIM>2
   real(kind=8)::zz,zc
 #endif
+
+!$omp threadprivate(ix,iy,iz)
 
   nx_loc=icoarse_max-icoarse_min+1
   scale=boxlen/dble(nx_loc)
@@ -912,6 +939,8 @@ subroutine cmp_minmaxorder(x,order_min,order_max,dx,nn)
 #endif
   real(kind=8)::scale,bscaleloc,bscale
   real(qdp)::dkey,oneqdp=1
+
+!$omp threadprivate(ix,iy,iz)
 
   nx_loc=icoarse_max-icoarse_min+1
   scale=boxlen/dble(nx_loc)
@@ -1057,45 +1086,79 @@ subroutine defrag
 
   if(verbose)write(*,*)'Defragmenting main memory...'
 
-  ngrid2=0
   igridmax=0
+!$omp parallel private(ilevel,ibound,ncache,istart,igrid,i,ngrid2) reduction(max:igridmax)
+  ngrid2=0
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               cpu_map2(igrid)=ngrid2+i
               igridmax=max(igridmax,igrid)
-              igrid=next(igrid)
            end do
+!$omp end do nowait
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp end parallel
 
+!$omp parallel private(ilevel,ibound,ncache,istart,igrid,i,ngrid2,iskip1,iskip2,igrid1,igrid2,ind1,icell1,icell2,ind,idim,ivar)
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      flag2(igrid)=0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               icell1=father(igrid)
               if(icell1>ncoarse)then
                  ind1=(icell1-ncoarse-1)/ngridmax+1
@@ -1108,33 +1171,50 @@ subroutine defrag
                  icell2=icell1
               end if
               flag2(ngrid2+i)=icell2
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+
+!$omp do
   do igrid=1,igridmax
      father(igrid)=flag2(igrid)
   end do
 
   do ind=1,twondim
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      flag2(igrid)=0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
-           do i=1,ncache
+!$omp do
+            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               icell1=nbor(igrid,ind)
               if(icell1>ncoarse)then
                  ind1=(icell1-ncoarse-1)/ngridmax+1
@@ -1147,12 +1227,13 @@ subroutine defrag
                  icell2=icell1
               end if
               flag2(ngrid2+i)=icell2
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+
+!$omp do
   do igrid=1,igridmax
      nbor(igrid,ind)=flag2(igrid)
   end do
@@ -1160,28 +1241,44 @@ subroutine defrag
 
   do idim=1,ndim
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      hilbert_key(igrid)=0.0D0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
-           do i=1,ncache
+!$omp do
+            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               hilbert_key(ngrid2+i)=real(xg(igrid,idim),kind=qdp)
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp do
   do igrid=1,igridmax
      xg(igrid,idim)=real(hilbert_key(igrid),kind=8)
   end do
@@ -1190,82 +1287,130 @@ subroutine defrag
   if(pic)then
 
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      flag2(igrid)=0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               flag2(ngrid2+i)=headp(igrid)
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp do
   do igrid=1,igridmax
      headp(igrid)=flag2(igrid)
   end do
 
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      flag2(igrid)=0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               flag2(ngrid2+i)=tailp(igrid)
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp do
   do igrid=1,igridmax
      tailp(igrid)=flag2(igrid)
   end do
 
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      flag2(igrid)=0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               flag2(ngrid2+i)=numbp(igrid)
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp do
   do igrid=1,igridmax
      numbp(igrid)=flag2(igrid)
   end do
@@ -1275,21 +1420,37 @@ subroutine defrag
   do ind=1,twotondim
   iskip2=ncoarse+(ind-1)*ngridmax
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      flag2(igrid)=0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               igrid1=son(iskip2+igrid)
               if(igrid1>0)then
                  igrid2=cpu_map2(igrid1)
@@ -1297,12 +1458,12 @@ subroutine defrag
                  igrid2=0
               end if
               flag2(ngrid2+i)=igrid2
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp do
   do igrid=1,igridmax
      son(iskip2+igrid)=flag2(igrid)
   end do
@@ -1311,28 +1472,44 @@ subroutine defrag
   do ind=1,twotondim
   iskip2=ncoarse+(ind-1)*ngridmax
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      flag2(igrid)=0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               flag2(ngrid2+i)=cpu_map(iskip2+igrid)
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp do
   do igrid=1,igridmax
      cpu_map(iskip2+igrid)=flag2(igrid)
   end do
@@ -1341,28 +1518,44 @@ subroutine defrag
   do ind=1,twotondim
   iskip2=ncoarse+(ind-1)*ngridmax
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      flag2(igrid)=0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               flag2(ngrid2+i)=flag1(iskip2+igrid)
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp do
   do igrid=1,igridmax
      flag1(iskip2+igrid)=flag2(igrid)
   end do
@@ -1374,28 +1567,44 @@ subroutine defrag
   do ind=1,twotondim
   iskip2=ncoarse+(ind-1)*ngridmax
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      hilbert_key(igrid)=0.0D0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               hilbert_key(ngrid2+i)=real(uold(iskip2+igrid,ivar),kind=qdp)
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp do
   do igrid=1,igridmax
      uold(iskip2+igrid,ivar)=real(hilbert_key(igrid),kind=8)
   end do
@@ -1409,28 +1618,44 @@ subroutine defrag
   do ind=1,twotondim
   iskip2=ncoarse+(ind-1)*ngridmax
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      hilbert_key(igrid)=0.0D0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               hilbert_key(ngrid2+i)=real(pstarold(iskip2+igrid),kind=qdp)
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp do
   do igrid=1,igridmax
      pstarold(iskip2+igrid)=real(hilbert_key(igrid),kind=8)
   end do
@@ -1443,28 +1668,44 @@ subroutine defrag
   do ind=1,twotondim
   iskip2=ncoarse+(ind-1)*ngridmax
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      hilbert_key(igrid)=0.0D0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               hilbert_key(ngrid2+i)=real(rho_eq(iskip2+igrid),kind=qdp)
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp do
   do igrid=1,igridmax
      rho_eq(iskip2+igrid)=real(hilbert_key(igrid),kind=8)
   end do
@@ -1473,28 +1714,44 @@ subroutine defrag
   do ind=1,twotondim
   iskip2=ncoarse+(ind-1)*ngridmax
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      hilbert_key(igrid)=0.0D0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               hilbert_key(ngrid2+i)=real(p_eq(iskip2+igrid),kind=qdp)
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp do
   do igrid=1,igridmax
      p_eq(iskip2+igrid)=real(hilbert_key(igrid),kind=8)
   end do
@@ -1509,28 +1766,44 @@ subroutine defrag
   do ind=1,twotondim
   iskip2=ncoarse+(ind-1)*ngridmax
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      hilbert_key(igrid)=0.0D0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               hilbert_key(ngrid2+i)=real(rtuold(iskip2+igrid,ivar),kind=qdp)
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp do
   do igrid=1,igridmax
      rtuold(iskip2+igrid,ivar)=real(hilbert_key(igrid),kind=8)
   end do
@@ -1545,28 +1818,44 @@ subroutine defrag
   do ind=1,twotondim
   iskip2=ncoarse+(ind-1)*ngridmax
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      hilbert_key(igrid)=0.0D0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               hilbert_key(ngrid2+i)=real(phi(iskip2+igrid),kind=qdp)
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp do
   do igrid=1,igridmax
      phi(iskip2+igrid)=real(hilbert_key(igrid),kind=8)
   end do
@@ -1576,28 +1865,44 @@ subroutine defrag
   do ind=1,twotondim
   iskip2=ncoarse+(ind-1)*ngridmax
   ngrid2=0
+!$omp do
   do igrid=1,igridmax
      hilbert_key(igrid)=0.0D0
   end do
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
-           istart=headl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
-           istart=headb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
-           igrid=istart
+!$omp do
            do i=1,ncache
+              if(ibound<=ncpu) then
+                 if(ibound==myid)then
+                     igrid=active(ilevel)%igrid(i)
+                 else
+#ifdef LIGHT_MPI_COMM
+                     igrid=reception(ibound,ilevel)%pcomm%igrid(i)
+#else
+                     igrid=reception(ibound,ilevel)%igrid(i)
+#endif
+                 end if
+              else
+                 igrid=boundary(ibound-ncpu,ilevel)%igrid(i)
+              end if
               hilbert_key(ngrid2+i)=real(f(iskip2+igrid,idim),kind=qdp)
-              igrid=next(igrid)
            end do
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp do
   do igrid=1,igridmax
      f(iskip2+igrid,idim)=real(hilbert_key(igrid),kind=8)
   end do
@@ -1610,11 +1915,16 @@ subroutine defrag
   do ilevel=1,nlevelmax
      do ibound=1,nboundary+ncpu
         if(ibound<=ncpu)then
-           ncache=numbl(ibound,ilevel)
+           if(ibound==myid)then
+              ncache=active(ilevel)%ngrid
+           else
+              ncache=reception(ibound,ilevel)%ngrid
+           end if
         else
-           ncache=numbb(ibound-ncpu,ilevel)
+           ncache=boundary(ibound-ncpu,ilevel)%ngrid
         end if
         if(ncache>0)then
+!$omp single
            if(ibound<=ncpu)then
               headl(ibound,ilevel)=ngrid2+1
               taill(ibound,ilevel)=ngrid2+ncache
@@ -1623,34 +1933,41 @@ subroutine defrag
               tailb(ibound-ncpu,ilevel)=ngrid2+ncache
            end if
            prev(ngrid2+1)=0
+           next(ngrid2+ncache)=0
+!$omp end single nowait
+!$omp do
            do i=2,ncache
               prev(ngrid2+i)=ngrid2+i-1
            end do
+!$omp do
            do i=1,ncache-1
               next(ngrid2+i)=ngrid2+i+1
            end do
-           next(ngrid2+ncache)=0
            ngrid2=ngrid2+ncache
         end if
      end do
   end do
+!$omp single
   headf=ngrid2+1
   tailf=ngridmax
   numbf=ngridmax-ngrid2
   prev(headf)=0
   next(tailf)=0
+  ngrid_current=ngrid2
+!$omp end single nowait
+!$omp do
   do i=ngrid2+2,ngridmax
      prev(i)=i-1
   end do
+!$omp do
   do i=ngrid2+1,ngridmax-1
      next(i)=i+1
   end do
+!$omp end parallel
 
   do i=1,nlevelmax
      call build_comm(i)
   end do
-
-  ngrid_current=ngrid2
 
 end subroutine defrag
 !#########################################################################

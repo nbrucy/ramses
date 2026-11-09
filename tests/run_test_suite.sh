@@ -11,8 +11,25 @@
 #   ./run_test_suite.sh
 #
 # Options:
-#   - Run the suite in parallel (on 4 cpus):
+#   - Run the suite in parallel with MPI (on 4 cpus):
 #       ./run_test_suite.sh -p 4
+#       An individual test can override this and pin itself to a fixed number
+#       of MPI processes with a line "NPROC: <n>" in its config.txt. This is
+#       for tests whose reference solution depends on the decomposition.
+#   - Run the suite in parallel with OPENMP (on 4 cpus):
+#       ./run_test_suite.sh -m 4
+#   - Run the suite in parallel with MPI+OPENMP (on 4 cpus):
+#       ./run_test_suite.sh -p 2 -m 2
+#   - OpenMP behaviour:
+#       Giving -m runs every test with OpenMP. Without it, only the tests that
+#       opt in via their config.txt (a line "OPENMP: true") are built and run
+#       with OpenMP, the others are built without it.
+#       ./run_test_suite.sh            # the opted-in tests only, 1 thread
+#       ./run_test_suite.sh -o -m 2    # same tests, 2 threads
+#       ./run_test_suite.sh -o all     # force OpenMP on ALL tests
+#       ./run_test_suite.sh -o none    # disable OpenMP for ALL tests
+#       A test whose config.txt says "OPENMP: false" is left out even by
+#       -o all, for the tests known not to work with OpenMP yet.
 #   - Do not delete results data:
 #       ./run_test_suite.sh -d
 #   - Run in verbose mode:
@@ -42,8 +59,10 @@ testlist="hydro,mhd,poisson,rt,sink,star,turb,tracer";
 # Determine the parameters for running the test suite
 #######################################################################
 MPI=0;
-NCPU=1;
 GCOV=0;
+OPENMP=0;
+NPROC=1;
+NTHREADS=1;
 VERBOSE=false;
 DELDATA=true;
 COVERAGE=false;
@@ -51,7 +70,13 @@ CLEAN_ALL=false;
 SELECTTEST=false;
 # Restart mode: "default" (only tests opted-in via config.txt), "all" or "none".
 RESTART_MODE="default";
-while getopts "cdsp:qt:vr" OPTION; do
+# OpenMP mode: "default" (only tests opted-in via config.txt), "all" or "none".
+# Giving -m implies "all", so that -m N keeps its old meaning of running the
+# whole suite with N threads, but an explicit -o always wins, whatever the
+# order of the options.
+OPENMP_MODE="default";
+OPENMP_MODE_SET=false;
+while getopts "cdsp:qm:t:vro" OPTION; do
    case $OPTION in
       c)
          CLEAN_ALL=true;
@@ -65,7 +90,11 @@ while getopts "cdsp:qt:vr" OPTION; do
       ;;
       p)
          MPI=1;
-         NCPU=$OPTARG;
+         NPROC=$OPTARG;
+      ;;
+      m)
+         OPENMP=1;
+         NTHREADS=$OPTARG;
       ;;
       t)
          SELECTTEST=true;
@@ -86,14 +115,37 @@ while getopts "cdsp:qt:vr" OPTION; do
             RESTART_MODE="all";
          fi
       ;;
+      o)
+         # -o takes an optional argument ("all" or "none"), same trick as -r.
+         eval nextarg=\${$OPTIND};
+         if [ "$nextarg" = "none" ] || [ "$nextarg" = "all" ] ; then
+            OPENMP_MODE=$nextarg;
+            OPTIND=$((OPTIND + 1));
+         else
+            OPENMP_MODE="all";
+         fi
+         OPENMP_MODE_SET=true;
+      ;;
    esac
 done
+
+# -m on its own means "run everything with OpenMP", unless -o said otherwise.
+if ! ${OPENMP_MODE_SET} && [ ${OPENMP} -eq 1 ] ; then
+   OPENMP_MODE="all";
+fi
+# Conversely, tests opting in via config.txt need the OpenMP settings exported
+# even when -m was not given, in which case they run on a single thread.
+if [ "${OPENMP_MODE}" = "none" ] ; then
+   OPENMP=0;
+else
+   OPENMP=1;
+fi
 
 #######################################################################
 # Setup paths and commands
 #######################################################################
 TEST_DIRECTORY=$(pwd);                    # The test suite directory
-BASE_DIRECTORY="${TEST_DIRECTORY}/.."; # The main RAMSES directory
+BASE_DIRECTORY="${TEST_DIRECTORY}/..";    # The main RAMSES directory
 BIN_DIRECTORY="${BASE_DIRECTORY}/bin";    # The bin directory
 VISU_DIR="${TEST_DIRECTORY}/visu";        # The visualization directory
 
@@ -116,8 +168,15 @@ RUN_STAMP=$(date -u +%Y-%m-%d_%H-%M-%S);
 # build_records/ of the coverage dir
 RECORDS_TMP=$(mktemp -d);
 echo > $LOGFILE;
+# The thread placement settings are the same for every test, only the number of
+# threads varies, and that is set per test inside the loop below.
+if [ ${OPENMP} -eq 1 ]; then
+   export OMP_PLACES=cores
+   export OMP_PROC_BIND=true
+   export OMP_STACKSIZE=2048M
+fi
 if [ ${MPI} -eq 1 ]; then
-   RUN_TEST_BASE="mpirun -np ${NCPU} ${BIN_DIRECTORY}/${EXECNAME}";
+   RUN_TEST_BASE="mpirun --map-by slot:pe=${NTHREADS} --np ${NPROC} ${BIN_DIRECTORY}/${EXECNAME}";
 else
    RUN_TEST_BASE="${BIN_DIRECTORY}/${EXECNAME}";
 fi
@@ -342,6 +401,54 @@ for ((i=0;i<$ntests;i++)); do
       ;;
    esac
 
+   # Decide whether this test is compiled and run with OpenMP.
+   #   -o all  -> every test ; -o none -> no test ;
+   #   default -> only tests whose config.txt contains "OPENMP: true".
+   testopenmp=$(grep -i '^[[:space:]]*OPENMP[[:space:]]*:' ${TEST_DIRECTORY}/${testname[n]}/config.txt | cut -d ':' -f2 | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]');
+   DO_OPENMP=false;
+   case $OPENMP_MODE in
+      all)
+         DO_OPENMP=true;
+      ;;
+      none)
+         DO_OPENMP=false;
+      ;;
+      *)
+         if [ "$testopenmp" = "true" ] ; then
+            DO_OPENMP=true;
+         fi
+      ;;
+   esac
+   # An explicit "OPENMP: false" opts a test out even under -o all, for the
+   # tests that are known not to work with OpenMP yet.
+   if [ "$testopenmp" = "false" ] ; then
+      DO_OPENMP=false;
+   fi
+
+   # Set the number of threads to use for this test. A test that does not use
+   # OpenMP still has to be built and run, just with a single thread, so that
+   # the reference solutions stay comparable.
+   TEST_OPENMP=0;
+   TEST_NTHREADS=1;
+   if ${DO_OPENMP} ; then
+      TEST_OPENMP=1;
+      TEST_NTHREADS=${NTHREADS};
+      echo "Test uses OpenMP with ${TEST_NTHREADS} thread(s)" | tee -a $LOGFILE;
+   fi
+   export OMP_NUM_THREADS=${TEST_NTHREADS};
+
+   # Set the number of MPI processes to use for this test
+   TEST_NPROC=${NPROC};
+   if [ ${MPI} -eq 1 ] ; then
+      # Check of NPROC was specified in config
+      testnproc=$(grep -i '^[[:space:]]*NPROC[[:space:]]*:' ${TEST_DIRECTORY}/${testname[n]}/config.txt | cut -d ':' -f2 | tr -d '[:space:]');
+      if [ -n "$testnproc" ] ; then
+         TEST_NPROC=$testnproc;
+         echo "Test fixed to ${TEST_NPROC} MPI process(es)" | tee -a $LOGFILE;
+      fi
+      RUN_TEST_BASE="mpirun --map-by slot:pe=${TEST_NTHREADS} --np ${TEST_NPROC} ${BIN_DIRECTORY}/${EXECNAME}";
+   fi
+
    # Initial cleanup
    $RETURN_TO_BIN;
    if ${make_clean[n]}; then
@@ -359,7 +466,7 @@ for ((i=0;i<$ntests;i++)); do
 
    # Compile source
    echo "Compiling source" | tee -a $LOGFILE;
-   MAKESTRING="make EXEC=${EXECNAME} MPI=${MPI} GCOV=${GCOV} ${FLAGS}";
+   MAKESTRING="make EXEC=${EXECNAME} MPI=${MPI} GCOV=${GCOV} ${FLAGS} OPENMP=${TEST_OPENMP}";
 
    # Record how this test is built and run, for build_records/.
    # Used to distinguish between "never compiled" and "never executed".
@@ -379,7 +486,7 @@ for ((i=0;i<$ntests;i++)); do
       } > ${RECORDS_TMP}/${testname[n]//\//_}.txt;
    fi
    # if [ ${MPI} -eq 1 ]; then
-   #    MAKESTRING="${MAKESTRING} -j ${NCPU}";
+   #    MAKESTRING="${MAKESTRING} -j ${NPROC}";
    # fi
    if $VERBOSE ; then
       $MAKESTRING 2>&1 | tee -a $LOGFILE;
@@ -504,6 +611,9 @@ cd ${TEST_DIRECTORY};
 latexfile="test_results.tex";
 echo "\documentclass[12pt]{article}" > $latexfile;
 echo "\usepackage{graphicx,color,caption}" >> $latexfile;
+# Captions are justified by default as soon as they span more than one line,
+# which left-aligns the run summary above the table.
+echo "\captionsetup{justification=centering}" >> $latexfile;
 echo "\usepackage[colorlinks=true,linkcolor=blue]{hyperref}" >> $latexfile;
 echo "\topmargin -1.3in" >> $latexfile;
 echo "\textheight 10.1in" >> $latexfile;
@@ -522,7 +632,7 @@ echo "Commit hash: \href{${GIT_URL}/commits/${THIS_COMMIT}}{${THIS_COMMIT:0:6}}"
 echo "\end{center}" >> $latexfile;
 echo "\begin{table}[ht]" >> $latexfile;
 echo "\centering" >> $latexfile;
-echo "\caption*{Test run summary using ${NCPU} processor(s)}" >> $latexfile;
+echo "\caption*{Test run summary using ${NPROC} processes with up to ${NTHREADS} threads,\\\\except where a test fixes its own NPROC or does not use OpenMP}" >> $latexfile;
 echo "\begin{tabular}{|r|l|l|l|l|}" >> $latexfile;
 echo "\hline" >> $latexfile;
 echo "~ & Test name & Run time & Total time & Status\\\\" >> $latexfile;

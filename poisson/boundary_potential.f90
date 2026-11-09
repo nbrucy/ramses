@@ -10,7 +10,7 @@ subroutine make_boundary_force(ilevel)
   ! -------------------------------------------------------------------
   ! This routine set up boundary conditions for fine levels.
   ! -------------------------------------------------------------------
-  integer::ibound,boundary_dir,idim,inbor=1
+  integer::ibound,boundary_dir,idim,inbor
   integer::i,ncache,ivar,igrid,ngrid,ind
   integer::iskip,iskip_ref,nx_loc,ix,iy,iz
   integer,dimension(1:8)::ind_ref
@@ -22,6 +22,8 @@ subroutine make_boundary_force(ilevel)
   real(dp),dimension(1:twotondim,1:3)::xc
   real(dp),dimension(1:nvector,1:ndim),save::xx
   real(dp),dimension(1:nvector,1:ndim),save::ff
+
+!$omp threadprivate(ind_grid,ind_grid_ref,ind_cell,ind_cell_ref,xx,ff)
 
   if(.not. simple_boundary)return
   if(verbose)write(*,111)ilevel
@@ -49,6 +51,8 @@ subroutine make_boundary_force(ilevel)
   end do
 
   ! Loop over boundaries
+!$omp parallel private(ibound,ind_ref,boundary_dir,inbor,gs) &
+!$omp        & private(ncache,igrid,ngrid,iskip,iskip_ref,i,ind,ivar,switch,idim)
   do ibound=1,nboundary
 
      call set_boundary_references(ibound,ind_ref,boundary_dir,inbor)
@@ -61,6 +65,7 @@ subroutine make_boundary_force(ilevel)
 
      ! Loop over grids by vector sweeps
      ncache=boundary(ibound,ilevel)%ngrid
+!$omp do
      do igrid=1,ncache,nvector
         ngrid=MIN(nvector,ncache-igrid+1)
         do i=1,ngrid
@@ -133,8 +138,12 @@ subroutine make_boundary_force(ilevel)
 
      end do
      ! End loop over grids
-
+     ! OMP: NO "nowait" HERE!
+     ! A boundary region needs the previous one to be completely updated.
+     ! This is due to the way they are geometrically defined w.r.t each other.
+!$omp end do
   end do
+!$omp end parallel
   ! End loop over boundaries
 
 111 format('   Entering make_boundary_force for level ',I2)
@@ -164,6 +173,8 @@ subroutine make_boundary_phi(ilevel)
   real(dp),dimension(1:nvector),save::rr,pp
   real(dp),dimension(1:nvector,1:ndim),save::xx
 
+!$omp threadprivate(ind_grid,ind_cell,rr,pp,xx)
+
   if(.not. simple_boundary)return
   if(verbose)write(*,111)ilevel
 
@@ -192,10 +203,12 @@ subroutine make_boundary_phi(ilevel)
   end do
 
   ! Loop over boundaries
+!$omp parallel private(ibound,ncache,igrid,ngrid,iskip,i,ind,idim)
   do ibound=1,nboundary
 
      ! Loop over grids by vector sweeps
      ncache=boundary(ibound,ilevel)%ngrid
+!$omp do
      do igrid=1,ncache,nvector
         ngrid=MIN(nvector,ncache-igrid+1)
         do i=1,ngrid
@@ -241,8 +254,9 @@ subroutine make_boundary_phi(ilevel)
 
      end do
      ! End loop over grids
-
+!$omp end do nowait
   end do
+!$omp end parallel
   ! End loop over boundaries
 
 111 format('   Entering make_boundary_phi for level ',I2)
@@ -265,14 +279,18 @@ subroutine make_boundary_mask(ilevel)
   integer::iskip
   integer,dimension(1:nvector),save::ind_grid,ind_cell
 
+!$omp threadprivate(ind_grid,ind_cell)
+
   if(.not. simple_boundary)return
   if(verbose)write(*,111)ilevel
 
   ! Loop over boundaries
+!$omp parallel private(ibound,ncache,igrid,ngrid,iskip,i,ind)
   do ibound=1,nboundary
 
      ! Loop over grids by vector sweeps
      ncache=boundary(ibound,ilevel)%ngrid
+!$omp do
      do igrid=1,ncache,nvector
         ngrid=MIN(nvector,ncache-igrid+1)
         do i=1,ngrid
@@ -284,10 +302,7 @@ subroutine make_boundary_mask(ilevel)
            iskip=ncoarse+(ind-1)*ngridmax
            do i=1,ngrid
               ind_cell(i)=iskip+ind_grid(i)
-           end do
-
-           ! Set mask to -1d0
-           do i=1,ngrid
+              ! Set mask to -1d0
               f(ind_cell(i),3)=-1
            end do
 
@@ -296,8 +311,9 @@ subroutine make_boundary_mask(ilevel)
 
      end do
      ! End loop over grids
-
+!$omp end do nowait
   end do
+!$omp end parallel
   ! End loop over boundaries
 
 111 format('   Entering make_boundary_mask for level ',I2)

@@ -11,13 +11,17 @@ subroutine move_fine(ilevel)
   integer::igrid,jgrid,ipart,jpart,next_part,ig,ip,npart1,local_counter
   integer,dimension(1:nvector),save::ind_grid,ind_part,ind_grid_part
 
+!$omp threadprivate(ind_grid,ind_part,ind_grid_part)
+
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
 
   ! Update particles position and velocity
+!$omp parallel private(ig,ip,jgrid,igrid,npart1,ipart,local_counter,jpart,next_part)
   ig=0
   ip=0
   ! Loop over particles that are not tracers
+!$omp do schedule(dynamic,10)
   do jgrid=1,active(ilevel)%ngrid
      igrid=active(ilevel)%igrid(jgrid)
      npart1=numbp(igrid)  ! Number of particles in the grid
@@ -58,9 +62,10 @@ subroutine move_fine(ilevel)
         end if
      end if
   end do
+!$omp end do nowait
   ! End loop over grids
   if(ip>0)call move1(ind_grid,ind_part,ind_grid_part,ig,ip,ilevel)
-
+!$omp end parallel
 
   !---------------
   ! Moving tracers
@@ -88,13 +93,17 @@ subroutine move_fine_static(ilevel)
   integer::igrid,jgrid,ipart,jpart,next_part,ig,ip,npart1,npart2,local_counter
   integer,dimension(1:nvector),save::ind_grid,ind_part,ind_grid_part
 
+!$omp threadprivate(ind_grid,ind_part,ind_grid_part)
+
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
 
   ! Update particles position and velocity
+!$omp parallel private(ig,ip,jgrid,igrid,npart1,npart2,ipart,jpart,next_part,local_counter)
   ig=0
   ip=0
   ! Loop over grids
+!$omp do schedule(dynamic,10)
   do jgrid=1,active(ilevel)%ngrid
      igrid=active(ilevel)%igrid(jgrid)
      npart1=numbp(igrid)  ! Number of particles in the grid
@@ -176,8 +185,10 @@ subroutine move_fine_static(ilevel)
         ! End loop over particles
      end if
   end do
+!$omp end do nowait
   ! End loop over grids
   if(ip>0)call move1(ind_grid,ind_part,ind_grid_part,ig,ip,ilevel)
+!$omp end parallel
 
 111 format('   Entering move_fine for level ',I2)
 
@@ -205,7 +216,7 @@ subroutine move1(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
   !------------------------------------------------------------
   logical::error
   integer::i,j,ind,idim,nx_loc,isink
-  real(dp)::dx,dx_loc,scale,vol_loc
+  real(dp)::dx,scale
   ! Grid-based arrays
   integer ,dimension(1:nvector),save::father_cell
   real(dp),dimension(1:nvector,1:ndim),save::x0
@@ -222,7 +233,14 @@ subroutine move1(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
   ! Ito tracers variables
   real(dp) :: fluxL, fluxR, pr, pl, cfl_plus, cfl_minus, drift_cell, diffusion_cell
   real(dp) :: rand_num, noise_amp, one_over_dt
+  real(dp) :: dx_loc, vol_loc
   real(dp), dimension(1:nvector, 1:ndim)::diffusion
+
+!$omp threadprivate(father_cell,x0,nbors_father_cells)
+!$omp threadprivate(ok,x,ff,new_xp,new_vp,dd,dg)
+!$omp threadprivate(ig,id,igg,igd,icg,icd,vol)
+!$omp threadprivate(igrid,icell,indp,kg)
+!$omp threadprivate(classical_tracer)
 
   ! Mesh spacing in that level
   dx=0.5D0**ilevel
@@ -508,7 +526,7 @@ subroutine move1(ind_grid,ind_part,ind_grid_part,ng,np,ilevel)
         do idim=1,ndim
            do j=1,np
               if (.not. classical_tracer(j)) then
-              ff(j,idim)=ff(j,idim)+f(indp(j,ind),idim)*vol(j,ind)
+                 ff(j,idim)=ff(j,idim)+f(indp(j,ind),idim)*vol(j,ind)
               end if
            end do
         end do

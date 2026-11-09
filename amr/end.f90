@@ -126,7 +126,10 @@ subroutine deallocate_pm
      if(allocated(mp)) deallocate(mp)
      if(allocated(vp)) deallocate(vp)
      if(allocated(xp)) deallocate(xp)
-  endif
+
+     if(allocated(newgridp)) deallocate(newgridp)
+     if(allocated(nmovep)) deallocate(nmovep)
+endif
 
 end subroutine deallocate_pm
 

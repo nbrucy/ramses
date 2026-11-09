@@ -24,6 +24,8 @@ subroutine hydro_refine(ug,um,ud,ok,nn)
   integer::irad
 #endif
 
+!$omp threadprivate(eking,ekinm,ekind)
+
   ! Convert to primitive variables
   do k = 1,nn
      ug(k,1) = max(ug(k,1),smallr)
@@ -170,6 +172,10 @@ subroutine riemann_approx(qleft,qright,fgdnv,ngrid)
   ! local variables
   real(dp)::smallp, gamma6, ql, qr, usr, usl, wwl, wwr, smallpp, entho, etot
   integer ::i, j, n, iter, n_new
+
+!$omp threadprivate(qgdnv,rl,ul,pl,cl,rr,ur,pr,cr,ro,uo,po,co)
+!$omp threadprivate(rstar,ustar,pstar,cstar,wl,wr,wo,sgnm ,spin ,spout,ushock)
+!$omp threadprivate(frac ,delp ,pold, ind,ind2)
 
   ! constants
   smallp = smallc**2/gamma
@@ -402,6 +408,10 @@ subroutine riemann_acoustic(qleft,qright,fgdnv,ngrid)
   real(dp),dimension(1:nvector),save::sgnm ,spin ,spout,ushock
   real(dp),dimension(1:nvector),save::frac
 
+!$omp threadprivate(qgdnv,rl,ul,pl,cl,rr,ur,pr,cr,ro,uo,po,co)
+!$omp threadprivate(rstar,ustar,pstar,cstar,wl,wr,wo,sgnm ,spin ,spout,ushock)
+!$omp threadprivate(frac)
+
   ! constants
   smallp = smallc**2/gamma
   entho = one/(gamma-one)
@@ -558,6 +568,8 @@ subroutine riemann_llf(qleft,qright,fgdnv,ngrid)
   real(dp)::smallp, entho
   real(dp)::rl   ,ul   ,pl   ,cl
   real(dp)::rr   ,ur   ,pr   ,cr
+
+!$omp threadprivate(fleft,fright,uleft,uright,cmax)
 
   ! Constants
   smallp = smallc**2/gamma
@@ -719,6 +731,8 @@ subroutine riemann_hll(qleft,qright,fgdnv,ngrid)
   real(dp)::smallp, entho
   real(dp)::rl   ,ul   ,pl   ,cl
   real(dp)::rr   ,ur   ,pr   ,cr
+
+!$omp threadprivate(fleft,fright,uleft,uright,SL,SR)
 
   ! Constants
   smallp = smallc**2/gamma

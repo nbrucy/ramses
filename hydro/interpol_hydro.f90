@@ -15,12 +15,15 @@ subroutine upload_fine(ilevel)
   integer,dimension(1:nvector),save::ind_grid,ind_cell,ind_split
   logical,dimension(1:nvector),save::ok
 
+!$omp threadprivate(ind_grid,ind_cell,ind_split,ok)
+
   if(ilevel==nlevelmax)return
   if(numbtot(1,ilevel)==0)return
   if(verbose)write(*,111)ilevel
 
   ! Loop over active grids by vector sweeps
   ncache=active(ilevel)%ngrid
+!$omp parallel do private(ngrid,i,ind,iskip,nsplit,icell)
   do igrid=1,ncache,nvector
      ngrid=MIN(nvector,ncache-igrid+1)
      do i=1,ngrid
@@ -88,6 +91,8 @@ subroutine upl(ind_cell,ncell)
 #if NENER>0
   integer::irad
 #endif
+
+!$omp threadprivate(igrid_son,ind_cell_son,getx,ekin,erad)
 
   ! Get child oct index
   do i=1,ncell
@@ -300,6 +305,8 @@ subroutine interpol_hydro(u1,u2,nn)
   integer::irad
 #endif
 
+!$omp threadprivate(a,w,ekin,mom,erad)
+
   ! volume fraction of a fine cell realtive to a coarse cell
   oneover_twotondim=1d0/dble(twotondim)
 
@@ -494,6 +501,8 @@ subroutine compute_limiter_central(a,w,nn)
   real(dp),dimension(1:nvector,1:twotondim),save::ac
   real(dp),dimension(1:nvector),save::corner,kernel,diff_corner,diff_kernel
   real(dp),dimension(1:nvector),save::max_limiter,min_limiter,limiter
+
+!$omp threadprivate(ac,corner,kernel,diff_corner,diff_kernel,max_limiter,min_limiter,limiter)
 
   ! Set position of cell centers relative to grid center
   do ind=1,twotondim

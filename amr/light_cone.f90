@@ -75,6 +75,9 @@ subroutine output_cone()
 
   integer,dimension(1:nvector),save::ind_part
   logical::opened
+
+!$omp threadprivate(pos,vel,var,ind_part)
+
   opened=.false.
 
   if(nstep_coarse.lt.2)return
@@ -769,8 +772,15 @@ subroutine compute_replica(thetayrad,thetazrad,dist1,dist2,observer,Lbox,rot, &
   integer :: nrepxm,nrepxp,nrepym,nrepyp,nrepzm,nrepzp
   integer :: myint
   real(kind=8) :: sl(3,8),slfr(3)
-  real(kind=8) :: xplmin=0,xplmax=0,yplmin=0,yplmax=0,zplmin=0,zplmax=0
+  real(kind=8) :: xplmin,xplmax,yplmin,yplmax,zplmin,zplmax
   integer :: i,j
+
+  xplmin=0
+  xplmax=0
+  yplmin=0
+  yplmax=0
+  zplmin=0
+  zplmax=0
 
   ! Compute the minimum polygon containing the 2 plans of photons (which
   ! are slightly curved)
