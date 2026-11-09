@@ -593,7 +593,7 @@ contains
     eturb_loc = 0.0d0
     do ilevel = nlevelmax, levelmin, -1
        ncache = active(ilevel)%ngrid
-!$omp parallel do private(ngrid,i) &
+!$omp parallel do private(ngrid,i,ind_grid) &
 !$omp & reduction(+:eturb_loc)
        do igrid = 1, ncache, nvector
           ngrid = min(nvector, ncache - igrid + 1)
