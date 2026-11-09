@@ -320,7 +320,7 @@ contains
     integer::nleaf, ngrid, nx_loc
     integer, dimension(1:nvector), save::ind_grid, ind_cell, ind_leaf, ind_grid_of_leaf
 
-    integer, dimension(1:nvector) :: region_index = 0
+    integer, dimension(1:nvector), save :: region_index
     real(dp)::er, xr, yr, zr, rr, xn, yn, zn, r, aa, bb
     real(dp), dimension(1:3)::skip_loc
     real(dp), dimension(1:twotondim, 1:3)::xc
@@ -337,7 +337,7 @@ contains
 
     real(dp):: e_cons, e_prim, e_trunc, div
 
-!$omp threadprivate(ind_grid, ind_cell, ind_leaf, ind_grid_of_leaf, uu, xx, phi_level, rhoinv)
+!$omp threadprivate(ind_grid, ind_cell, ind_leaf, ind_grid_of_leaf, uu, xx, phi_level, rhoinv, region_index)
 
     mass_loc = 0.0d0
     ekin_loc = 0.0d0; ekin_leaf = 0.0d0
@@ -392,7 +392,8 @@ contains
 
     ! Loop over active grids by vector sweeps
     ncache = active(ilevel)%ngrid
-!$omp parallel do private(ngrid,iskip,nleaf,ind,i,ivar,idim) &
+!$omp parallel do private(ngrid,iskip,nleaf,ind,i,ivar,idim,ekin_leaf, emag_leaf, epot_leaf, e_cons, &
+!$omp &  e_prim, e_trunc, div, kv, k, er, xr, yr, zr, rr, aa, bb, xn, yn, zn, r) &
 !$omp & reduction(+:ekin_loc,eint_loc,emag_loc,epot_loc)
     do igrid = 1, ncache, nvector
        ngrid = MIN(nvector, ncache - igrid + 1)
@@ -623,7 +624,7 @@ contains
     real(dp), dimension(1:nvector) :: mass_total
     real(dp), dimension(1:nvector, 1:ndim) :: momentum_total
 
-    integer, dimension(1:nvector) :: region_index = 0
+    integer, dimension(1:nvector), save :: region_index
     real(dp)::er, xr, yr, zr, rr, xn, yn, zn, r, aa, bb
     real(dp), dimension(1:3)::skip_loc
     real(dp), dimension(1:twotondim, 1:3)::xc
@@ -634,7 +635,7 @@ contains
     integer :: i, ind, iskip, icell, ison, idim
     logical :: use_unew
 
-!$omp threadprivate(xx)
+!$omp threadprivate(xx, region_index)
 
     ! Mesh spacing at that level
     nx_loc = icoarse_max - icoarse_min + 1
@@ -906,12 +907,13 @@ contains
     epot_families_loc = 0.d0
 
     if (pic) then
-!$omp parallel private(ig,ip,jgrid,igrid,npart1,ipart,local_counter,jpart,next_part)
+!$omp parallel private(ig,ip,jgrid,igrid,npart1,ipart,local_counter,jpart,next_part) &
+!$omp & reduction(+:ekin_part_loc,epot_part_loc,ekin_families_loc,epot_families_loc)
+
        ig = 0
        ip = 0
        ! Loop over particles that are not tracers (same buffering as move_fine)
-!$omp do schedule(dynamic,10) &
-!$omp & reduction(+:ekin_part_loc,epot_part_loc,ekin_families_loc,epot_families_loc)
+!$omp do schedule(dynamic,10)
        do jgrid = 1, active(ilevel)%ngrid
           igrid = active(ilevel)%igrid(jgrid)
           npart1 = numbp(igrid)  ! Number of particles in the grid
