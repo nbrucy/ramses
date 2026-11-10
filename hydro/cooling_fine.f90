@@ -139,6 +139,16 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
   call rt_units(scale_Np, scale_Fp)
 #endif
 
+    ! Set position of cell centers relative to grid center
+   do ind=1,twotondim
+      iz=(ind-1)/4
+      iy=(ind-1-4*iz)/2
+      ix=(ind-1-2*iy-4*iz)
+      if(ndim>0)xc(ind,1)=(dble(ix)-0.5D0)*dx
+      if(ndim>1)xc(ind,2)=(dble(iy)-0.5D0)*dx
+      if(ndim>2)xc(ind,3)=(dble(iz)-0.5D0)*dx
+   end do
+
   ! Typical ISM density in H/cc
   nISM = n_star; nCOM=0
   if(cosmo)then
@@ -182,6 +192,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
         if(son(ind_cell(i))==0)then
            nleaf=nleaf+1
            ind_leaf(nleaf)=ind_cell(i)
+           ind_leaf_loc(nleaf)=i
         end if
      end do
      if(nleaf.eq.0)cycle
@@ -600,10 +611,10 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
             igrid=ind_grid(ind_leaf_loc(i)) ! index father
  
             ! grid position + leaf position relative to box center
-            xx = (xg(igrid,1) + xc(ind,1)) * scale - x_mass
-            yy = (xg(igrid,2) + xc(ind,2)) * scale - y_mass
+            xx = (xg(igrid,1) + xc(ind,1) - skip_loc(1)) * scale - x_mass
+            yy = (xg(igrid,2) + xc(ind,2) - skip_loc(2)) * scale - y_mass
 #if NDIM > 2
-            zz = (xg(igrid,3) + xc(ind,3)) * scale - z_mass
+            zz = (xg(igrid,3) + xc(ind,3) - skip_loc(3)) * scale - z_mass
 #endif
  
             ! cylindrical radius
