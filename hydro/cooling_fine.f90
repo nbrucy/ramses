@@ -639,11 +639,11 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
                omega = (- yy * uold(ind_leaf(i), 2) + xx * uold(ind_leaf(i), 3) / (uold(ind_leaf(i), 1) * rc_soft2));
 
                ! Cooling time
-               tcool = disk_beta_cool / omega;
+               tcool = disk_beta_cool / abs(omega);
                eint = max(uold(ind_leaf(i), ndim + 2) - ekk(i) - emag(i) -  err(i),  1d-20)
 
                ! New eint
-               eint = max(eint * exp(-dtnew(ilevel) * abs(omega) / tcool), 1d-20)
+               eint = max(eint * exp(-dtnew(ilevel)  / tcool), 1d-20)
 
                ! Update internal energy
                ! Minimal value for eint :  1.d-10

@@ -184,6 +184,9 @@ subroutine disk_boundary(ilevel)
 #if NDIM>2
              zz = x(i,3) - z0
 #endif
+                  ! softened coordinates
+             xx_soft =  xx * (rs_soft / rs);
+             yy_soft =  yy * (rs_soft / rs);
   
              ! cylindrical radius
              rc = sqrt(xx**2 + yy**2)
