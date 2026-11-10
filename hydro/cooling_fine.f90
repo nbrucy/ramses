@@ -636,7 +636,7 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
                rc_soft2 = max(xx**2 + yy**2, 1d-20)
 
                ! Angular speed
-               omega = (- yy * uold(ind_leaf(i), 2) + xx * uold(ind_leaf(i), 3) / (uold(ind_leaf(i), 1) * rc_soft2));
+               omega = ((- yy * uold(ind_leaf(i), 2) + xx * uold(ind_leaf(i), 3)) / (uold(ind_leaf(i), 1) * rc_soft2));
 
                ! Cooling time
                tcool = disk_beta_cool / abs(omega);
