@@ -633,18 +633,21 @@ subroutine coolfine1(ind_grid,ngrid,ilevel)
             else if (disk_beta_cooling) then
                
                ! cylindrical radius squared
-               rc_soft2 = xx**2 + yy**2 + emass**2
+               rc_soft2 = max(xx**2 + yy**2, 1d-20)
 
                ! Angular speed
                omega = (- yy * uold(ind_leaf(i), 2) + xx * uold(ind_leaf(i), 3) / (uold(ind_leaf(i), 1) * rc_soft2));
 
                ! Cooling time
                tcool = disk_beta_cool / omega;
-               eint = max(uold(ind_leaf(i), ndim + 2) - ekk(i) - emag(i) -  err(i),  1d-10)
+               eint = max(uold(ind_leaf(i), ndim + 2) - ekk(i) - emag(i) -  err(i),  1d-20)
+
+               ! New eint
+               eint = max(eint * exp(-dtnew(ilevel) * abs(omega) / tcool), 1d-20)
 
                ! Update internal energy
-               ! Minimal value for eint :  1.d-10.
-               uold(ind_leaf(i), ndim + 2) =  max(uold(ind_leaf(i), ndim + 2)  - eint * dtnew(ilevel) / tcool, ekk(i) + emag(i) + err(i) + 1d-10)
+               ! Minimal value for eint :  1.d-10
+               uold(ind_leaf(i), ndim + 2) =  ekk(i) + emag(i) + err(i) + eint
             end if
          end do
      else if(cooling .or. neq_chem)then
