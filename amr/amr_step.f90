@@ -4,6 +4,7 @@ recursive subroutine amr_step(ilevel,icount)
   use hydro_commons
   use poisson_commons
   use tracer_utils, only: reset_tracer_move_flag
+  use disk_module, only: disk_beta_cooling, disk_local_isothermal
 #ifdef RT
   use rt_hydro_commons
   use SED_module
@@ -465,7 +466,8 @@ recursive subroutine amr_step(ilevel,icount)
 #else
                                call timer('cooling','start')
   if(hydro) then
-    if(neq_chem.or.cooling.or.T2_star>0.0.or.barotropic_eos)call cooling_fine(ilevel)
+    if(neq_chem.or.cooling.or.T2_star>0.0.or.barotropic_eos&
+    & .or.disk_local_isothermal.or.disk_beta_cooling)call cooling_fine(ilevel)
   endif
 #endif
 

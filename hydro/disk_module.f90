@@ -239,8 +239,8 @@ subroutine disk_boundary(ilevel)
                 uold(ind_cell(i), 1) = density
   
                 ! momentum
-                uold(ind_cell(i), 2) = - uold(ind_cell(i), 1) * omega * yy_soft
-                uold(ind_cell(i), 3) =  uold(ind_cell(i), 1) * omega * xx_soft
+                uold(ind_cell(i), 2) = - uold(ind_cell(i), 1) * omega * yy
+                uold(ind_cell(i), 3) =  uold(ind_cell(i), 1) * omega * xx
 #if NDIM>2
                 uold(ind_cell(i), 4) = 0.
 #endif
@@ -388,8 +388,8 @@ subroutine disk_boundary(ilevel)
 #endif
  
       ! velocity
-      q(i, 2) = - omega * yy_soft
-      q(i, 3) =  omega * xx_soft
+      q(i, 2) = - omega * yy
+      q(i, 3) =  omega * xx
 #if NDIM>2
       q(i, 4) = 0.
 #endif 
