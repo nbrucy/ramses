@@ -90,12 +90,14 @@ subroutine update_time(ilevel)
      if(mod(nstep_coarse,ncontrol)==0.or.output_done)then
 
          if (deltaE_enable) then
+            call timer_push('deltaE - output')
             energies = 0.0_dp
             do i=levelmin,nlevelmax
                call compute_energies(i, energies_level, i == levelmin)
                energies = energies + energies_level
             end do
             call reduce_energies(energies)
+            call timer_pop
          end if
 
         if(myid==1)then
@@ -113,8 +115,10 @@ subroutine update_time(ilevel)
            !----------------------------------------------
 
            if (deltaE_enable) then
+               call timer_push('deltaE - output')
                call print_energies(energies)
                call print_processes()
+               call timer_pop
            end if
 
            if(cooling.or.pressure_fix)then

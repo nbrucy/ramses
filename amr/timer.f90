@@ -41,6 +41,9 @@ module timer_m
   real(kind=8),       dimension(mtimer) :: start, time
   integer                               :: ntimer=0, itimer
   character(len=72), dimension(mtimer)  :: labels
+  integer,            parameter         :: max_timer_stack=16            ! max depth of the timer stack
+  integer,  dimension(max_timer_stack)  :: timer_stack
+  integer                               :: ntimer_stack=0                 ! Position in the timer stack
 contains
 !-----------------------------------------------------------------------
 subroutine findit (label)
@@ -72,6 +75,40 @@ subroutine timer (label, cmd)
   else if (cmd == 'stop') then                                          ! stop command
      itimer = 0                                                         ! turn off timer
   end if
+end subroutine
+!=======================================================================
+subroutine timer_push(label)
+   ! Interupt the current timer to bill the time between timer_push and timer_pop 
+   ! to label. Several timers can be imbricated
+   ! Not OpenMP compatible
+   use timer_m
+   implicit none
+   character(len=*), intent(in)::label
+!-----------------------------------------------------------------------
+   if (ntimer_stack == max_timer_stack) then
+      write(*,*) "Error: timer_push: too many nested timers"
+      call clean_stop
+   end if
+   ntimer_stack = ntimer_stack + 1
+   timer_stack(ntimer_stack) = itimer
+   call timer(label, "start")
+end subroutine
+!=======================================================================
+subroutine timer_pop
+   ! Interupt the current timer to bill the previouly used timer
+   use timer_m
+   implicit none
+   real(kind=8)::wallclock,current
+!-----------------------------------------------------------------------
+   if (ntimer_stack == 0) then
+      write(*,*) "Error: timer_pop: no timer to pop"
+      call clean_stop
+   end if
+   current = wallclock()
+   if(itimer>0) time(itimer) = time(itimer) + current - start(itimer)
+   itimer = timer_stack(ntimer_stack)
+   ntimer_stack = ntimer_stack -1
+   if(itimer>0) start(itimer) = current
 end subroutine
 !=======================================================================
 subroutine output_timer(write_file, filename)

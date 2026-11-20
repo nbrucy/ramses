@@ -229,7 +229,6 @@ contains
   end subroutine
 
   subroutine compute_transfer(levelstart, levelend, deltaE_process, step, compute_eturb)
-
     implicit none
     integer, intent(in):: levelstart, levelend
     type(process), intent(inout) :: deltaE_process
@@ -243,6 +242,7 @@ contains
     real(dp), dimension(1:nb_energy_kind, 0:DELTAE_MAX_REGIONS), save :: energy_before
     real(dp), dimension(1:nb_energy_kind, 0:deltaE_nregions) ::energy_level, energy_after
 
+    call timer_push('deltaE - transfer')
     do_eturb = deltaE_process%compute_eturb
     if (present(compute_eturb)) do_eturb = compute_eturb
 
@@ -290,6 +290,7 @@ contains
           call print_energies(energy_after)
        end if
     end if
+    call timer_pop
 
   end subroutine
 
